@@ -256,8 +256,18 @@ function buildFilePlan(
 		};
 	}
 
-	if (file.findings.some(finding => finding.code === 'legacy_schema_candidate')) {
+	const schemaFinding = file.findings.find(
+		finding => finding.code === 'legacy_schema_candidate'
+	);
+	if (schemaFinding) {
 		setFields.cr_schema = 2;
+		const canonicalCrType = schemaFinding.details?.canonicalCrType;
+		if (typeof canonicalCrType === 'string' && canonicalCrType.trim()) {
+			setFields.cr_type = canonicalCrType;
+		}
+		if (schemaFinding.details?.usedLegacyTypeField === true) {
+			removeFields.add('type');
+		}
 	}
 
 	const operations = [...createOperations];
