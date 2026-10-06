@@ -59,7 +59,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            xvfb libgbm1 libgtk-3-0 libnss3 libasound2t64
+            xvfb libgbm1 libgtk-3-0 libnss3 libasound2t64 fonts-noto-cjk
 
       - name: Cache Obsidian downloads
         uses: actions/cache@v4
