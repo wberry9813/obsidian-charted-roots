@@ -31,7 +31,7 @@ import { PlaceGraphService } from './src/core/place-graph';
 import { EvidenceService, ProofSummaryService, SourceService } from './src/sources';
 import { EventService } from './src/events/services/event-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, V2Linter, createV2OntologyRegistry, type OntologyRegistry } from './src/v2';
+import { AssertionService, HistoricalDateService, V2Linter, createV2OntologyRegistry, type OntologyRegistry } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -113,6 +113,7 @@ export default class CanvasRootsPlugin extends Plugin {
 	private v2OntologyRegistry: OntologyRegistry | null = null;
 	private assertionService: AssertionService | null = null;
 	private v2Linter: V2Linter | null = null;
+	private historicalDateService: HistoricalDateService | null = null;
 
 	/**
 	 * Flag to temporarily disable bidirectional sync during bulk operations (e.g., import)
@@ -315,6 +316,18 @@ export default class CanvasRootsPlugin extends Plugin {
 	}
 
 	/**
+	 * Historical-time resolver. Kept separate from the legacy DateService so
+	 * v2 can support BCE/CE, ambiguity and chronology providers without
+	 * destabilizing fictional/genealogy date behavior.
+	 */
+	getHistoricalDateService(): HistoricalDateService {
+		if (!this.historicalDateService) {
+			this.historicalDateService = new HistoricalDateService();
+		}
+		return this.historicalDateService;
+	}
+
+	/**
 	 * Track a file access for the Dashboard recent files list
 	 */
 	async trackRecentFile(file: TFile, type: RecentEntityType): Promise<void> {
@@ -418,6 +431,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.v2OntologyRegistry = createV2OntologyRegistry();
 		this.assertionService = new AssertionService(this.app);
 		this.v2Linter = new V2Linter(this.app, this.v2OntologyRegistry, this.assertionService);
+		this.historicalDateService = new HistoricalDateService();
 
 		// Initialize logger with saved log level
 		LoggerFactory.setLogLevel(this.settings.logLevel);

@@ -35,6 +35,14 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const assertions = assertionService.getAll();
 		const invalidAssertions = assertionService.getInvalid();
 		const lintIssues = plugin.getV2Linter().lint();
+		const historicalTime = plugin.getHistoricalDateService();
+		const bce453 = historicalTime.parse('BCE 453');
+		const bce497 = historicalTime.parse('BCE 497');
+		const exactDay = historicalTime.parse('2000-01-01');
+		const tyme = historicalTime.getCalendarProvider('tyme');
+		if (!tyme) throw new Error('Tyme calendar provider is not registered.');
+		const lunarExample = tyme.solarToLunar({ year: 1986, month: 5, day: 29 });
+		const solarRoundTrip = tyme.lunarToSolar(lunarExample);
 
 		return {
 			pluginLoaded: !!plugin,
@@ -53,6 +61,17 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				errorCount: lintIssues.filter(issue => issue.severity === 'error').length,
 				warningCount: lintIssues.filter(issue => issue.severity === 'warning').length,
 				issues: lintIssues
+			},
+			historicalTime: {
+				providers: historicalTime.listProviders(),
+				calendarProviders: historicalTime.listCalendarProviders(),
+				bce453,
+				exactDay,
+				bceOrder: bce497.status === 'resolved' && bce453.status === 'resolved'
+					? historicalTime.compare(bce497.value, bce453.value)
+					: null,
+				lunarExample,
+				solarRoundTrip
 			},
 			fileCount: app.vault.getMarkdownFiles().length,
 			person: {
@@ -87,6 +106,25 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.deepEqual(summary.assertionService.predicates, ['holds_office']);
 	assert.equal(summary.linter.errorCount, 0);
 	assert.equal(summary.linter.warningCount, 0);
+	assert.deepEqual(summary.historicalTime.providers, ['bce-ce-year', 'solar-day']);
+	assert.deepEqual(summary.historicalTime.calendarProviders, ['tyme']);
+	assert.deepEqual(summary.historicalTime.lunarExample, {
+		year: 1986,
+		month: 4,
+		day: 21,
+		leapMonth: false
+	});
+	assert.deepEqual(summary.historicalTime.solarRoundTrip, {
+		year: 1986,
+		month: 5,
+		day: 29
+	});
+	assert.equal(summary.historicalTime.exactDay.status, 'resolved');
+	assert.equal(summary.historicalTime.exactDay.value.canonical.scale, 'julian_day');
+	assert.equal(summary.historicalTime.exactDay.value.canonical.start, 2451544.5);
+	assert.equal(summary.historicalTime.bce453.status, 'resolved');
+	assert.equal(summary.historicalTime.bce453.value.canonical.start, -452);
+	assert.equal(summary.historicalTime.bceOrder, -1);
 	assert.equal(summary.person.cr_schema, 2);
 	assert.equal(summary.person.cr_type, 'person');
 	assert.equal(summary.person.cr_id, 'person-cao-cao');

@@ -34,3 +34,5 @@ export function createV2OntologyRegistry(
 
 	return registry;
 }
+
+export * from './time';
