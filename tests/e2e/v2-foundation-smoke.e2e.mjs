@@ -18,20 +18,20 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	// Wait for fixture frontmatter explicitly so startup timing cannot make the
 	// E2E test read a half-populated cache.
 	await session.waitFor(
-		`app.metadataCache.getCache('People/Cao-Cao.md')?.frontmatter?.cr_schema === 2
-			&& app.metadataCache.getCache('Offices/Chancellor.md')?.frontmatter?.cr_type === 'office'
-			&& app.metadataCache.getCache('Assertions/Cao-Cao-Chancellor.md')?.frontmatter?.cr_type === 'assertion'
-			&& app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.cr_type === 'person'
-			&& app.metadataCache.getCache('Legacy/Broken-Membership.md')?.frontmatter?.cr_type === 'person'
-			&& app.metadataCache.getCache('Legacy/Legacy-Event.md')?.frontmatter?.cr_type === 'event'
-			&& app.metadataCache.getCache('Legacy/Legacy-Organization.md')?.frontmatter?.cr_type === 'organization'`
+		`app.metadataCache.getCache('Charted Roots/People/Cao-Cao.md')?.frontmatter?.cr_schema === 2
+			&& app.metadataCache.getCache('Charted Roots/Offices/Chancellor.md')?.frontmatter?.cr_type === 'office'
+			&& app.metadataCache.getCache('Charted Roots/Assertions/Cao-Cao-Chancellor.md')?.frontmatter?.cr_type === 'assertion'
+			&& app.metadataCache.getCache('Charted Roots/Legacy/Aligned-Person.md')?.frontmatter?.cr_type === 'person'
+			&& app.metadataCache.getCache('Charted Roots/Legacy/Broken-Membership.md')?.frontmatter?.cr_type === 'person'
+			&& app.metadataCache.getCache('Charted Roots/Legacy/Legacy-Event.md')?.frontmatter?.cr_type === 'event'
+			&& app.metadataCache.getCache('Charted Roots/Legacy/Legacy-Organization.md')?.frontmatter?.cr_type === 'organization'`
 	);
 
 	const summary = await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
-		const person = app.vault.getAbstractFileByPath('People/Cao-Cao.md');
-		const office = app.vault.getAbstractFileByPath('Offices/Chancellor.md');
-		const assertion = app.vault.getAbstractFileByPath('Assertions/Cao-Cao-Chancellor.md');
+		const person = app.vault.getAbstractFileByPath('Charted Roots/People/Cao-Cao.md');
+		const office = app.vault.getAbstractFileByPath('Charted Roots/Offices/Chancellor.md');
+		const assertion = app.vault.getAbstractFileByPath('Charted Roots/Assertions/Cao-Cao-Chancellor.md');
 
 		if (!person || !office || !assertion) {
 			throw new Error('One or more v2 fixture notes are missing from the vault.');
@@ -68,7 +68,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		);
 		const lintIssues = plugin.getV2Linter().lint();
 
-		const legacyAligned = app.vault.getAbstractFileByPath('Legacy/Aligned-Person.md');
+		const legacyAligned = app.vault.getAbstractFileByPath('Charted Roots/Legacy/Aligned-Person.md');
 		if (!legacyAligned) throw new Error('Legacy aligned fixture is missing.');
 		const legacyBefore = JSON.stringify(
 			app.metadataCache.getFileCache(legacyAligned)?.frontmatter ?? {}
@@ -80,16 +80,16 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			app.metadataCache.getFileCache(legacyAligned)?.frontmatter ?? {}
 		);
 		const alignedMigration = migrationReport.files.find(
-			file => file.filePath === 'Legacy/Aligned-Person.md'
+			file => file.filePath === 'Charted Roots/Legacy/Aligned-Person.md'
 		);
 		const brokenMigration = migrationReport.files.find(
-			file => file.filePath === 'Legacy/Broken-Membership.md'
+			file => file.filePath === 'Charted Roots/Legacy/Broken-Membership.md'
 		);
 		const eventMigration = migrationReport.files.find(
-			file => file.filePath === 'Legacy/Legacy-Event.md'
+			file => file.filePath === 'Charted Roots/Legacy/Legacy-Event.md'
 		);
 		const orgMigration = migrationReport.files.find(
-			file => file.filePath === 'Legacy/Legacy-Organization.md'
+			file => file.filePath === 'Charted Roots/Legacy/Legacy-Organization.md'
 		);
 
 		const historicalTime = plugin.getHistoricalDateService();
@@ -169,7 +169,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					blockedFiles: migrationPreview.blockedFiles,
 					canRunWithoutReview: migrationPreview.canRunWithoutReview,
 					alignedFingerprint: migrationPreview.files.find(
-						file => file.filePath === 'Legacy/Aligned-Person.md'
+						file => file.filePath === 'Charted Roots/Legacy/Aligned-Person.md'
 					)?.sourceFingerprint ?? null
 				},
 				plan: {
@@ -178,7 +178,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					blockedFiles: migrationPlan.blockedFiles,
 					operationCount: migrationPlan.operationCount,
 					aligned: migrationPlan.files.find(
-						file => file.filePath === 'Legacy/Aligned-Person.md'
+						file => file.filePath === 'Charted Roots/Legacy/Aligned-Person.md'
 					) ?? null
 				}
 			},
@@ -234,7 +234,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(summary.semanticAssertions.touchingPersonCount, 3);
 	assert.deepEqual(summary.semanticAssertions.origins.sort(), ['assertion_note', 'assertion_note', 'frontmatter']);
 	assert.equal(summary.semanticAssertions.virtualFather.predicate, 'father');
-	assert.equal(summary.semanticAssertions.virtualFather.object, '[[People/Cao-Song|曹嵩]]');
+	assert.equal(summary.semanticAssertions.virtualFather.object, '[[Charted Roots/People/Cao-Song|曹嵩]]');
 	assert.equal(summary.assertionService.validCount, 2);
 	assert.equal(summary.assertionService.invalidCount, 0);
 	assert.deepEqual(summary.assertionService.predicates, ['holds_office', 'holds_office']);
@@ -256,7 +256,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.match(summary.migration.aligned.fingerprint, /^fnv1a32:/);
 	assert.deepEqual(summary.migration.aligned.membershipRecords, [
 		{
-			org: '[[Legacy/Org-A|Org A]]',
+			org: '[[Charted Roots/Legacy/Org-A|Org A]]',
 			orgId: 'org-a',
 			role: 'Ruler',
 			from: '200',
@@ -264,7 +264,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			notes: 'first'
 		},
 		{
-			org: '[[Legacy/Org-B|Org B]]',
+			org: '[[Charted Roots/Legacy/Org-B|Org B]]',
 			orgId: 'org-b',
 			role: 'Advisor',
 			from: '210',
@@ -272,7 +272,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		}
 	]);
 	assert.equal(summary.migration.aligned.relationshipRecords.length, 1);
-	assert.equal(summary.migration.aligned.relationshipRecords[0].target, '[[People/Cao-Song|曹嵩]]');
+	assert.equal(summary.migration.aligned.relationshipRecords[0].target, '[[Charted Roots/People/Cao-Song|曹嵩]]');
 	assert.ok(summary.migration.brokenCodes.includes('parallel_array_misaligned'));
 	assert.ok(summary.migration.eventCodes.includes('legacy_date_precision'));
 	assert.ok(summary.migration.orgCodes.includes('organization_members_mirror'));
@@ -296,7 +296,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		summary.migration.plan.aligned.operations.find(
 			operation => operation.kind === 'create_assertion' && operation.draft.predicate === 'mentor'
 		)?.draft.object,
-		'[[People/Cao-Song|曹嵩]]'
+		'[[Charted Roots/People/Cao-Song|曹嵩]]'
 	);
 	assert.equal(
 		summary.migration.plan.aligned.operations.at(-1).kind,
@@ -361,7 +361,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	// incoming office-holding Assertions are projected back onto the Office.
 	await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
-		const office = app.vault.getAbstractFileByPath('Offices/Chancellor.md');
+		const office = app.vault.getAbstractFileByPath('Charted Roots/Offices/Chancellor.md');
 		if (!office) throw new Error('Office fixture is missing.');
 		await plugin.activateProfileView(office);
 		return true;
@@ -428,10 +428,10 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	`);
 
 	assert.deepEqual(migrationPreviewUi.paths, [
-		'Legacy/Broken-Membership.md',
-		'Legacy/Legacy-Event.md',
-		'Legacy/Legacy-Organization.md',
-		'Legacy/Aligned-Person.md'
+		'Charted Roots/Legacy/Broken-Membership.md',
+		'Charted Roots/Legacy/Legacy-Event.md',
+		'Charted Roots/Legacy/Legacy-Organization.md',
+		'Charted Roots/Legacy/Aligned-Person.md'
 	]);
 	assert.deepEqual(migrationPreviewUi.statuses, [
 		'Blocked',
@@ -464,7 +464,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			buttons: [...(root?.querySelectorAll('button') ?? [])]
 				.map(el => el.textContent ?? ''),
 			sourceStillLegacy:
-				app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.membership_orgs?.length === 2
+				app.metadataCache.getCache('Charted Roots/Legacy/Aligned-Person.md')?.frontmatter?.membership_orgs?.length === 2
 		};
 	`);
 	assert.match(migrationConfirmUi.text, /This will migrate 1 Ready file\./);
@@ -487,7 +487,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const plugin = app.plugins.plugins['charted-roots'];
 		const plan = plugin.buildV2MigrationPlan();
 		const fresh = await plugin.validateV2MigrationPlan(plan);
-		const file = app.vault.getAbstractFileByPath('Legacy/Aligned-Person.md');
+		const file = app.vault.getAbstractFileByPath('Charted Roots/Legacy/Aligned-Person.md');
 		if (!file) throw new Error('Aligned legacy fixture is missing.');
 
 		await app.fileManager.processFrontMatter(file, fm => {
@@ -511,7 +511,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(staleGuard.stale.checkedFiles, 1);
 	assert.equal(staleGuard.stale.issues.length, 1);
 	assert.equal(staleGuard.stale.issues[0].code, 'stale_source');
-	assert.equal(staleGuard.stale.issues[0].filePath, 'Legacy/Aligned-Person.md');
+	assert.equal(staleGuard.stale.issues[0].filePath, 'Charted Roots/Legacy/Aligned-Person.md');
 	assert.match(staleGuard.stale.issues[0].expectedFingerprint, /^fnv1a32:/);
 	assert.match(staleGuard.stale.issues[0].actualFingerprint, /^fnv1a32:/);
 	assert.notEqual(
@@ -522,9 +522,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	// Wait until MetadataCache catches up with the restored source before
 	// building the next plan.
 	await session.waitFor(
-		`app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.membership_orgs?.length === 2
-			&& app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.cr_schema !== 2
-			&& !('__e2e_stale_marker' in (app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter ?? {}))`
+		`app.metadataCache.getCache('Charted Roots/Legacy/Aligned-Person.md')?.frontmatter?.membership_orgs?.length === 2
+			&& app.metadataCache.getCache('Charted Roots/Legacy/Aligned-Person.md')?.frontmatter?.cr_schema !== 2
+			&& !('__e2e_stale_marker' in (app.metadataCache.getCache('Charted Roots/Legacy/Aligned-Person.md')?.frontmatter ?? {}))`
 	);
 
 	// Inject a failure only when the executor tries to mark the migration
@@ -533,7 +533,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	const rollbackRun = await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
 		const plan = plugin.buildV2MigrationPlan();
-		const source = app.vault.getAbstractFileByPath('Legacy/Aligned-Person.md');
+		const source = app.vault.getAbstractFileByPath('Charted Roots/Legacy/Aligned-Person.md');
 		if (!source) throw new Error('Aligned legacy fixture is missing.');
 		const originalSource = await app.vault.read(source);
 		const adapter = app.vault.adapter;
@@ -569,7 +569,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			'.charted-roots/e2e-migration/e2e-rollback/manifest.json'
 		));
 		const backupSource = await adapter.read(
-			'.charted-roots/e2e-migration/e2e-rollback/originals/Legacy/Aligned-Person.md'
+			'.charted-roots/e2e-migration/e2e-rollback/originals/Charted Roots/Legacy/Aligned-Person.md'
 		);
 
 		return {
@@ -599,16 +599,16 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(rollbackRun.manifestCreatedAssertions.length, 3);
 
 	await session.waitFor(
-		`app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.membership_orgs?.length === 2
-			&& app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.mentor?.length === 1
-			&& app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.cr_schema !== 2`
+		`app.metadataCache.getCache('Charted Roots/Legacy/Aligned-Person.md')?.frontmatter?.membership_orgs?.length === 2
+			&& app.metadataCache.getCache('Charted Roots/Legacy/Aligned-Person.md')?.frontmatter?.mentor?.length === 1
+			&& app.metadataCache.getCache('Charted Roots/Legacy/Aligned-Person.md')?.frontmatter?.cr_schema !== 2`
 	);
 
 	// Execute the same ready migration normally.
 	const successRun = await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
 		const plan = plugin.buildV2MigrationPlan();
-		const source = app.vault.getAbstractFileByPath('Legacy/Aligned-Person.md');
+		const source = app.vault.getAbstractFileByPath('Charted Roots/Legacy/Aligned-Person.md');
 		if (!source) throw new Error('Aligned legacy fixture is missing.');
 		const originalSource = await app.vault.read(source);
 
@@ -623,7 +623,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			'.charted-roots/e2e-migration/e2e-success/manifest.json'
 		));
 		const backupSource = await adapter.read(
-			'.charted-roots/e2e-migration/e2e-success/originals/Legacy/Aligned-Person.md'
+			'.charted-roots/e2e-migration/e2e-success/originals/Charted Roots/Legacy/Aligned-Person.md'
 		);
 
 		return {
@@ -645,14 +645,14 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(successRun.manifestCreatedAssertions.length, 3);
 
 	await session.waitFor(
-		`app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.cr_schema === 2
-			&& !app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.membership_orgs
-			&& !app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.mentor`
+		`app.metadataCache.getCache('Charted Roots/Legacy/Aligned-Person.md')?.frontmatter?.cr_schema === 2
+			&& !app.metadataCache.getCache('Charted Roots/Legacy/Aligned-Person.md')?.frontmatter?.membership_orgs
+			&& !app.metadataCache.getCache('Charted Roots/Legacy/Aligned-Person.md')?.frontmatter?.mentor`
 	);
 
 	const migratedState = await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
-		const sourceFm = app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter ?? {};
+		const sourceFm = app.metadataCache.getCache('Charted Roots/Legacy/Aligned-Person.md')?.frontmatter ?? {};
 		const migrated = plugin.getAssertionService().getAll()
 			.filter(record => record.filePath.startsWith('Assertions/Migrated-E2E/'))
 			.map(record => ({
@@ -680,9 +680,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			migrated,
 			remainingLegacyPaths: remainingReport.files.map(file => file.filePath).sort(),
 			blockedStillUntouched:
-				app.metadataCache.getCache('Legacy/Broken-Membership.md')?.frontmatter?.membership_orgs?.length === 3,
+				app.metadataCache.getCache('Charted Roots/Legacy/Broken-Membership.md')?.frontmatter?.membership_orgs?.length === 3,
 			reviewEventStillUntouched:
-				app.metadataCache.getCache('Legacy/Legacy-Event.md')?.frontmatter?.date_precision === 'exact'
+				app.metadataCache.getCache('Charted Roots/Legacy/Legacy-Event.md')?.frontmatter?.date_precision === 'exact'
 		};
 	`);
 
@@ -706,14 +706,14 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		[
 			{
 				type: 'affiliation',
-				object: '[[Legacy/Org-A|Org A]]',
+				object: '[[Charted Roots/Legacy/Org-A|Org A]]',
 				role: 'Ruler',
 				start: '200',
 				end: '209'
 			},
 			{
 				type: 'affiliation',
-				object: '[[Legacy/Org-B|Org B]]',
+				object: '[[Charted Roots/Legacy/Org-B|Org B]]',
 				role: 'Advisor',
 				start: '210',
 				end: undefined
@@ -724,14 +724,14 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.ok(migratedMentor);
 	assert.equal(migratedMentor.type, 'relationship');
 	assert.equal(migratedMentor.predicate, 'mentor');
-	assert.equal(migratedMentor.subject, '[[Legacy/Aligned-Person]]');
-	assert.equal(migratedMentor.object, '[[People/Cao-Song|曹嵩]]');
+	assert.equal(migratedMentor.subject, '[[Charted Roots/Legacy/Aligned-Person]]');
+	assert.equal(migratedMentor.object, '[[Charted Roots/People/Cao-Song|曹嵩]]');
 	assert.equal(migratedMentor.start, '205');
 	assert.equal(migratedMentor.end, '215');
 	assert.deepEqual(migratedState.remainingLegacyPaths, [
-		'Legacy/Broken-Membership.md',
-		'Legacy/Legacy-Event.md',
-		'Legacy/Legacy-Organization.md'
+		'Charted Roots/Legacy/Broken-Membership.md',
+		'Charted Roots/Legacy/Legacy-Event.md',
+		'Charted Roots/Legacy/Legacy-Organization.md'
 	]);
 	assert.equal(migratedState.blockedStillUntouched, true);
 	assert.equal(migratedState.reviewEventStillUntouched, true);
@@ -741,15 +741,15 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	// Finally exercise the complete user-facing execution path on a fresh
 	// dynamically-created legacy note: Command -> Preview -> Confirm -> Execute.
 	await session.evalInApp(`
-		const existing = app.vault.getAbstractFileByPath('Legacy/Ui-Ready.md');
+		const existing = app.vault.getAbstractFileByPath('Charted Roots/Legacy/Ui-Ready.md');
 		if (existing) await app.vault.delete(existing);
-		await app.vault.create('Legacy/Ui-Ready.md', [
+		await app.vault.create('Charted Roots/Legacy/Ui-Ready.md', [
 			'---',
 			'cr_type: person',
 			'cr_id: legacy-ui-ready',
 			'name: UI Ready Person',
 			'membership_orgs:',
-			'  - "[[Legacy/Org-A|Org A]]"',
+			'  - "[[Charted Roots/Legacy/Org-A|Org A]]"',
 			'membership_org_ids:',
 			'  - org-a',
 			'membership_roles:',
@@ -763,7 +763,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	`);
 
 	await session.waitFor(
-		`app.metadataCache.getCache('Legacy/Ui-Ready.md')?.frontmatter?.membership_orgs?.length === 1`
+		`app.metadataCache.getCache('Charted Roots/Legacy/Ui-Ready.md')?.frontmatter?.membership_orgs?.length === 1`
 	);
 
 	await session.evalInApp(`
@@ -791,8 +791,8 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	`);
 
 	await session.waitFor(
-		`app.metadataCache.getCache('Legacy/Ui-Ready.md')?.frontmatter?.cr_schema === 2
-			&& !app.metadataCache.getCache('Legacy/Ui-Ready.md')?.frontmatter?.membership_orgs
+		`app.metadataCache.getCache('Charted Roots/Legacy/Ui-Ready.md')?.frontmatter?.cr_schema === 2
+			&& !app.metadataCache.getCache('Charted Roots/Legacy/Ui-Ready.md')?.frontmatter?.membership_orgs
 			&& document.querySelector('.cr-v2-migration-preview__title')?.textContent
 				=== 'Schema v2 migration preview'`,
 		{ timeout: 90000 }
@@ -800,9 +800,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 
 	const uiExecution = await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
-		const sourceFm = app.metadataCache.getCache('Legacy/Ui-Ready.md')?.frontmatter ?? {};
+		const sourceFm = app.metadataCache.getCache('Charted Roots/Legacy/Ui-Ready.md')?.frontmatter ?? {};
 		const assertions = plugin.getAssertionService().getAll()
-			.filter(record => record.assertion.subject === '[[Legacy/Ui-Ready]]')
+			.filter(record => record.assertion.subject === '[[Charted Roots/Legacy/Ui-Ready]]')
 			.map(record => ({
 				path: record.filePath,
 				type: record.assertion.assertion_type,
@@ -820,7 +820,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const runFolder = runFolders[0];
 		const manifest = JSON.parse(await adapter.read(runFolder + '/manifest.json'));
 		const backup = await adapter.read(
-			runFolder + '/originals/Legacy/Ui-Ready.md'
+			runFolder + '/originals/Charted Roots/Legacy/Ui-Ready.md'
 		);
 
 		const previewRoot = document.querySelector('.cr-v2-migration-preview');
@@ -861,12 +861,12 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		path: uiExecution.assertions[0].path,
 		type: 'affiliation',
 		predicate: 'member_of',
-		object: '[[Legacy/Org-A|Org A]]',
+		object: '[[Charted Roots/Legacy/Org-A|Org A]]',
 		role: 'Tester'
 	});
 	assert.match(uiExecution.backup.runFolder, /^\.charted-roots\/migration\//);
 	assert.equal(uiExecution.backup.manifestStatus, 'completed');
-	assert.equal(uiExecution.backup.sourcePath, 'Legacy/Ui-Ready.md');
+	assert.equal(uiExecution.backup.sourcePath, 'Charted Roots/Legacy/Ui-Ready.md');
 	assert.equal(uiExecution.backup.createdCount, 1);
 	assert.equal(uiExecution.backup.containsLegacyMembership, true);
 	assert.match(uiExecution.preview.text, /0 Ready/);
@@ -928,7 +928,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			files: service.getScope().getMarkdownFiles().map(file => file.path).sort(),
 			assertionPath: service.resolvePath('assertions', 'New.md'),
 			outsideWorkspace: service.getScope().getWorkspaceForPath(
-				'Legacy/Broken-Membership.md'
+				'Charted Roots/Legacy/Broken-Membership.md'
 			) ?? null
 		};
 
