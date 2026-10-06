@@ -31,7 +31,7 @@ import { PlaceGraphService } from './src/core/place-graph';
 import { EvidenceService, ProofSummaryService, SourceService } from './src/sources';
 import { EventService } from './src/events/services/event-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, buildMigrationPreview, createV2OntologyRegistry, type MigrationPreview, type OntologyRegistry } from './src/v2';
+import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, type MigrationPreview, type OntologyRegistry } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -290,6 +290,26 @@ export default class CanvasRootsPlugin extends Plugin {
 		if (!this.v2OntologyRegistry) {
 			this.v2OntologyRegistry = createV2OntologyRegistry();
 		}
+
+		// Keep vault-defined relationship types available to v2 without changing
+		// their stable ids. A custom type may override a built-in id; preserve
+		// any localized labels already supplied by a culture pack while letting
+		// the user's configured English name/description win.
+		const relationshipService = new RelationshipService(this);
+		for (const type of relationshipService.getAllRelationshipTypes().filter(item => !item.builtIn)) {
+			const existing = this.v2OntologyRegistry.getPredicate(type.id);
+			const adapted = relationshipTypeToV2Predicate(type, 'vault-custom');
+			adapted.labels = {
+				...(existing?.labels ?? {}),
+				...adapted.labels
+			};
+			adapted.descriptions = {
+				...(existing?.descriptions ?? {}),
+				...(adapted.descriptions ?? {})
+			};
+			this.v2OntologyRegistry.registerPredicate(adapted, true);
+		}
+
 		return this.v2OntologyRegistry;
 	}
 
