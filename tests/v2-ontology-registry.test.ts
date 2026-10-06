@@ -15,6 +15,10 @@ describe('v2 OntologyRegistry', () => {
 		expect(registry.hasType('organization_type', 'clan')).toBe(true);
 		expect(registry.hasType('office_type', 'central_government')).toBe(true);
 		expect(registry.hasPredicate('political_rival')).toBe(true);
+		expect(registry.hasPredicate('mentor')).toBe(true);
+		expect(registry.hasPredicate('disciple')).toBe(true);
+		expect(registry.hasPredicate('ally')).toBe(true);
+		expect(registry.getPredicate('mentor')?.inverse).toBe('disciple');
 	});
 
 	it('resolves localized labels with fallback', () => {
