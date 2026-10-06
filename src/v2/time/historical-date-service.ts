@@ -1,4 +1,6 @@
 import { BceCeYearProvider } from './providers/bce-ce-provider';
+import { TymeCalendarProvider } from './providers/tyme-calendar-provider';
+import type { CalendarProvider } from './calendar-provider';
 import type {
 	HistoricalDateProvider,
 	TemporalParseContext,
@@ -9,6 +11,8 @@ import type {
 export interface HistoricalDateServiceOptions {
 	providers?: HistoricalDateProvider[];
 	includeBuiltInBceCeProvider?: boolean;
+	calendarProviders?: CalendarProvider[];
+	includeTymeCalendarProvider?: boolean;
 }
 
 function temporalSignature(value: TemporalValue): string {
@@ -25,6 +29,7 @@ function temporalSignature(value: TemporalValue): string {
  */
 export class HistoricalDateService {
 	private readonly providers: HistoricalDateProvider[] = [];
+	private readonly calendarProviders = new Map<string, CalendarProvider>();
 
 	constructor(options: HistoricalDateServiceOptions = {}) {
 		if (options.includeBuiltInBceCeProvider ?? true) {
@@ -32,6 +37,13 @@ export class HistoricalDateService {
 		}
 		for (const provider of options.providers ?? []) {
 			this.registerProvider(provider);
+		}
+
+		if (options.includeTymeCalendarProvider ?? true) {
+			this.registerCalendarProvider(new TymeCalendarProvider());
+		}
+		for (const provider of options.calendarProviders ?? []) {
+			this.registerCalendarProvider(provider);
 		}
 	}
 
@@ -44,6 +56,21 @@ export class HistoricalDateService {
 
 	listProviders(): string[] {
 		return this.providers.map(provider => provider.id);
+	}
+
+	registerCalendarProvider(provider: CalendarProvider): void {
+		if (this.calendarProviders.has(provider.id)) {
+			throw new Error(`Calendar provider already registered: ${provider.id}`);
+		}
+		this.calendarProviders.set(provider.id, provider);
+	}
+
+	getCalendarProvider(id: string): CalendarProvider | undefined {
+		return this.calendarProviders.get(id);
+	}
+
+	listCalendarProviders(): string[] {
+		return [...this.calendarProviders.keys()];
 	}
 
 	parse(
