@@ -372,4 +372,52 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.match(officeProfileUi.assertionText, /建安十四年/);
 
 	await session.screenshot(path.join(ARTIFACTS, 'v2-office-profile.png'));
+
+	// Exercise the user-visible read-only migration preview command.
+	await session.evalInApp(`
+		const ok = app.commands.executeCommandById('charted-roots:preview-v2-migration');
+		if (!ok) throw new Error('Migration preview command was not registered.');
+		return true;
+	`);
+
+	await session.waitFor(
+		`document.querySelector('.cr-v2-migration-preview__title')?.textContent
+			=== 'Schema v2 migration preview'`
+	);
+
+	const migrationPreviewUi = await session.evalInApp(`
+		const root = document.querySelector('.cr-v2-migration-preview');
+		return {
+			text: root?.textContent ?? '',
+			paths: [...(root?.querySelectorAll('.cr-v2-migration-preview__file-path') ?? [])]
+				.map(el => el.textContent ?? ''),
+			statuses: [...(root?.querySelectorAll('.cr-v2-migration-preview__status') ?? [])]
+				.map(el => el.textContent ?? ''),
+			buttons: [...(root?.querySelectorAll('button') ?? [])]
+				.map(el => el.textContent ?? '')
+		};
+	`);
+
+	assert.deepEqual(migrationPreviewUi.paths, [
+		'Legacy/Broken-Membership.md',
+		'Legacy/Legacy-Event.md',
+		'Legacy/Legacy-Organization.md',
+		'Legacy/Aligned-Person.md'
+	]);
+	assert.deepEqual(migrationPreviewUi.statuses, [
+		'Blocked',
+		'Review required',
+		'Review required',
+		'Ready'
+	]);
+	assert.match(migrationPreviewUi.text, /Read-only preview\. No vault files will be modified\./);
+	assert.match(migrationPreviewUi.text, /Parallel fields for "membership_orgs" are misaligned/);
+	assert.match(migrationPreviewUi.text, /Legacy date_precision mixes precision/);
+	assert.deepEqual(migrationPreviewUi.buttons, ['Close']);
+
+	await session.screenshot(path.join(ARTIFACTS, 'v2-migration-preview.png'));
+	await session.evalInApp(`
+		document.querySelector('.cr-v2-migration-preview__close')?.click();
+		return true;
+	`);
 });
