@@ -23,5 +23,12 @@ export function createV2OntologyRegistry(
 		registry.registerPack(CHINESE_HISTORY_V1_PACK);
 	}
 
+	const errors = registry.validate().filter(issue => issue.severity === 'error');
+	if (errors.length > 0) {
+		throw new Error(
+			`Invalid built-in v2 ontology: ${errors.map(issue => issue.message).join('; ')}`
+		);
+	}
+
 	return registry;
 }
