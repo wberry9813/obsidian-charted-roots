@@ -21,7 +21,7 @@ import type { SemanticAssertion } from '../v2/semantic-assertion-service';
 // ────────────────────────────────────────────────────────────
 
 /** Entity types supported by the profile view */
-export type ProfileEntityType = 'person' | 'place' | 'event' | 'source' | 'organization';
+export type ProfileEntityType = 'person' | 'place' | 'event' | 'source' | 'organization' | 'office';
 
 /** Breadcrumb navigation entry */
 export interface BreadcrumbEntry {
@@ -131,13 +131,24 @@ export interface OrganizationProfileData {
 	sources: string[];
 }
 
+export interface OfficeProfileData {
+	entityType: 'office';
+	crId: string;
+	name: string;
+	file: TFile;
+	officeType?: string;
+	assertions: SemanticAssertion[];
+	sources: string[];
+}
+
 /** Union of all entity profile data types */
 export type ProfileEntityData =
 	| PersonProfileData
 	| PlaceProfileData
 	| EventProfileData
 	| SourceProfileData
-	| OrganizationProfileData;
+	| OrganizationProfileData
+	| OfficeProfileData;
 
 // ────────────────────────────────────────────────────────────
 // Source referenced facts
