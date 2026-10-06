@@ -37,3 +37,5 @@ export function createV2OntologyRegistry(
 }
 
 export * from './time';
+
+export * from './migration';
