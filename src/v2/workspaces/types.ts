@@ -78,12 +78,16 @@ export interface WorkspaceConfiguration extends WorkspaceCatalog {
 
 export interface WorkspaceValidationIssue {
 	code:
+		| 'invalid_definition'
 		| 'invalid_id'
 		| 'duplicate_id'
 		| 'empty_name'
 		| 'empty_registry'
 		| 'empty_root'
 		| 'invalid_root'
+		| 'invalid_mode'
+		| 'invalid_packs'
+		| 'unknown_folder_key'
 		| 'duplicate_root'
 		| 'overlapping_root'
 		| 'invalid_folder_override'
