@@ -31,7 +31,7 @@ import { PlaceGraphService } from './src/core/place-graph';
 import { EvidenceService, ProofSummaryService, SourceService } from './src/sources';
 import { EventService } from './src/events/services/event-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry } from './src/v2';
+import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, V2MigrationExecutor, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type MigrationExecutionOptions, type MigrationExecutionResult, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -114,6 +114,7 @@ export default class CanvasRootsPlugin extends Plugin {
 	private assertionService: AssertionService | null = null;
 	private semanticAssertionService: SemanticAssertionService | null = null;
 	private v2MigrationAnalyzer: V2MigrationAnalyzer | null = null;
+	private v2MigrationExecutor: V2MigrationExecutor | null = null;
 	private v2Linter: V2Linter | null = null;
 	private historicalDateService: HistoricalDateService | null = null;
 
@@ -382,6 +383,24 @@ export default class CanvasRootsPlugin extends Plugin {
 		plan: MigrationPlan
 	): Promise<MigrationPlanValidationResult> {
 		return validateMigrationPlanFreshness(this.app, plan);
+	}
+
+	/**
+	 * Internal execution boundary for the ready subset of an approved plan.
+	 * UI exposure is intentionally deferred until backup/rollback E2E coverage
+	 * is complete.
+	 */
+	async executeV2MigrationReady(
+		plan: MigrationPlan,
+		options: MigrationExecutionOptions = {}
+	): Promise<MigrationExecutionResult> {
+		if (!this.v2MigrationExecutor) {
+			this.v2MigrationExecutor = new V2MigrationExecutor(
+				this.app,
+				this.getAssertionService()
+			);
+		}
+		return this.v2MigrationExecutor.executeReady(plan, options);
 	}
 
 	/**
