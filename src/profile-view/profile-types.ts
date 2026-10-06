@@ -14,6 +14,7 @@ import type { ParsedRelationship } from '../relationships/types/relationship-typ
 import type { PersonResearchCoverage } from '../sources/types/source-types';
 import type { MediaItem } from '../core/media-service';
 import type { ProofSummaryNote } from '../sources/types/proof-types';
+import type { SemanticAssertion } from '../v2/semantic-assertion-service';
 
 // ────────────────────────────────────────────────────────────
 // Core types
@@ -68,6 +69,8 @@ export interface PersonProfileData {
 	media: MediaItem[];
 	researchCoverage: PersonResearchCoverage | null;
 	proofSummaries: ProofSummaryNote[];
+	/** Materialized v2 Assertions that reference this person as subject or object. */
+	assertions: SemanticAssertion[];
 	needsResearch: string[];
 	sources: string[];
 }
@@ -79,6 +82,8 @@ export interface PlaceProfileData {
 	file: TFile;
 	node: PlaceNode;
 	events: EventNote[];
+	/** Materialized v2 Assertions that reference this place. */
+	assertions: SemanticAssertion[];
 	media: MediaItem[];
 	needsResearch: string[];
 	sources: string[];
@@ -120,6 +125,8 @@ export interface OrganizationProfileData {
 	org: OrganizationInfo;
 	members: PersonMembership[];
 	events: EventNote[];
+	/** Materialized v2 Assertions that reference this organization. */
+	assertions: SemanticAssertion[];
 	media: MediaItem[];
 	sources: string[];
 }
