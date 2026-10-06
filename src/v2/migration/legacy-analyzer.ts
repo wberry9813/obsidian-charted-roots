@@ -352,18 +352,30 @@ export function analyzeLegacyFrontmatter(
 	const hasExplicitMembershipData =
 		MEMBERSHIP_FIELDS.some(field => hasOwn(frontmatter, field))
 		|| hasOwn(frontmatter, 'memberships');
+	const hasSimpleMembershipData =
+		nonEmpty(frontmatter.house)
+		|| nonEmpty(frontmatter.organization);
 	const hasExplicitRelationshipData = relationshipTypeIds.some(typeId =>
 		!PRESERVED_KINSHIP_FIELDS.has(typeId) && hasOwn(frontmatter, typeId)
 	);
-	const isPersonContext =
-		crType === 'person'
-		|| (!crType && (hasExplicitMembershipData || hasExplicitRelationshipData));
+	const hasUntypedLegacyPersonShape =
+		!crType
+		&& typeof frontmatter.cr_id === 'string'
+		&& !!frontmatter.cr_id.trim()
+		&& (
+			hasExplicitMembershipData
+			|| hasSimpleMembershipData
+			|| hasExplicitRelationshipData
+			|| nonEmpty(frontmatter.occupation)
+			|| nonEmpty(frontmatter.title)
+		);
+	const isPersonContext = crType === 'person' || hasUntypedLegacyPersonShape;
 
 	if (isPersonContext) {
 		findings.push(...analyzeMemberships(
 			filePath,
 			frontmatter,
-			crType === 'person'
+			crType === 'person' || hasUntypedLegacyPersonShape
 		));
 		findings.push(...analyzeRelationships(
 			filePath,
@@ -387,16 +399,18 @@ export function analyzeLegacyFrontmatter(
 		));
 	}
 
-	if (isPersonContext) for (const field of ['occupation', 'title']) {
-		if (nonEmpty(frontmatter[field])) {
-			findings.push(finding(
-				filePath,
-				'dynamic_identity_review',
-				'review',
-				`Legacy "${field}" may represent an office, title, status or free-text role and requires semantic review.`,
-				[field],
-				false
-			));
+	if (isPersonContext) {
+		for (const field of ['occupation', 'title']) {
+			if (nonEmpty(frontmatter[field])) {
+				findings.push(finding(
+					filePath,
+					'dynamic_identity_review',
+					'review',
+					`Legacy "${field}" may represent an office, title, status or free-text role and requires semantic review.`,
+					[field],
+					false
+				));
+			}
 		}
 	}
 
