@@ -554,7 +554,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		try {
 			result = await plugin.executeV2MigrationReady(plan, {
 				runId: 'e2e-rollback',
-				assertionFolder: 'Assertions/Rollback-E2E',
+				assertionFolder: 'Charted Roots/Assertions/Rollback-E2E',
 				backupRoot: '.charted-roots/e2e-migration'
 			});
 		} finally {
@@ -563,7 +563,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 
 		const restoredSource = await app.vault.read(source);
 		const remainingAssertions = app.vault.getMarkdownFiles()
-			.filter(file => file.path.startsWith('Assertions/Rollback-E2E/'))
+			.filter(file => file.path.startsWith('Charted Roots/Assertions/Rollback-E2E/'))
 			.map(file => file.path);
 		const manifest = JSON.parse(await adapter.read(
 			'.charted-roots/e2e-migration/e2e-rollback/manifest.json'
@@ -614,7 +614,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 
 		const result = await plugin.executeV2MigrationReady(plan, {
 			runId: 'e2e-success',
-			assertionFolder: 'Assertions/Migrated-E2E',
+			assertionFolder: 'Charted Roots/Assertions/Migrated-E2E',
 			backupRoot: '.charted-roots/e2e-migration'
 		});
 
@@ -654,7 +654,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const plugin = app.plugins.plugins['charted-roots'];
 		const sourceFm = app.metadataCache.getCache('Charted Roots/Legacy/Aligned-Person.md')?.frontmatter ?? {};
 		const migrated = plugin.getAssertionService().getAll()
-			.filter(record => record.filePath.startsWith('Assertions/Migrated-E2E/'))
+			.filter(record => record.filePath.startsWith('Charted Roots/Assertions/Migrated-E2E/'))
 			.map(record => ({
 				path: record.filePath,
 				type: record.assertion.assertion_type,
