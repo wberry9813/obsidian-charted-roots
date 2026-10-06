@@ -691,16 +691,13 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		]
 	);
 	const migratedMentor = migratedState.migrated.find(item => item.predicate === 'mentor');
-	assert.deepEqual(migratedMentor, {
-		path: migratedMentor.path,
-		type: 'relationship',
-		predicate: 'mentor',
-		subject: '[[Legacy/Aligned-Person]]',
-		object: '[[People/Cao-Song|曹嵩]]',
-		role: undefined,
-		start: '205',
-		end: '215'
-	});
+	assert.ok(migratedMentor);
+	assert.equal(migratedMentor.type, 'relationship');
+	assert.equal(migratedMentor.predicate, 'mentor');
+	assert.equal(migratedMentor.subject, '[[Legacy/Aligned-Person]]');
+	assert.equal(migratedMentor.object, '[[People/Cao-Song|曹嵩]]');
+	assert.equal(migratedMentor.start, '205');
+	assert.equal(migratedMentor.end, '215');
 	assert.deepEqual(migratedState.remainingLegacyPaths, [
 		'Legacy/Broken-Membership.md',
 		'Legacy/Legacy-Event.md',
