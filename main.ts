@@ -516,7 +516,12 @@ export default class CanvasRootsPlugin extends Plugin {
 				this.getAssertionService()
 			);
 		}
-		return this.v2MigrationExecutor.executeReady(plan, options);
+		return this.v2MigrationExecutor.executeReady(plan, {
+			...options,
+			assertionFolder: options.assertionFolder
+				?? this.workspaceService?.getFolder('assertions')
+				?? 'Assertions'
+		});
 	}
 
 	/**
