@@ -19,6 +19,13 @@ function assertDefinitionBase(definition: TypeDefinition): void {
 	}
 }
 
+export interface OntologyValidationIssue {
+	severity: 'error' | 'warning';
+	code: string;
+	message: string;
+	definitionId?: string;
+}
+
 function localizedValue(
 	values: Record<string, string> | undefined,
 	locale: string,
@@ -150,5 +157,83 @@ export class OntologyRegistry {
 		if (!predicate || !predicate.subjectTypes.includes(subjectType)) return false;
 		if (!objectType || !predicate.objectTypes || predicate.objectTypes.length === 0) return true;
 		return predicate.objectTypes.includes(objectType);
+	}
+
+	/**
+	 * Validate cross-definition invariants after all desired packs are loaded.
+	 * Registration validates local shape; this validates references between
+	 * predicates without making pack registration order significant.
+	 */
+	validate(): OntologyValidationIssue[] {
+		const issues: OntologyValidationIssue[] = [];
+
+		for (const definition of this.definitions.values()) {
+			for (const [locale, label] of Object.entries(definition.labels)) {
+				if (!locale.trim() || !label.trim()) {
+					issues.push({
+						severity: 'error',
+						code: 'empty_localized_label',
+						definitionId: definition.id,
+						message: `Definition "${definition.id}" contains an empty locale or label.`
+					});
+				}
+			}
+		}
+
+		for (const predicate of this.predicates.values()) {
+			if (new Set(predicate.subjectTypes).size !== predicate.subjectTypes.length) {
+				issues.push({
+					severity: 'warning',
+					code: 'duplicate_subject_type',
+					definitionId: predicate.id,
+					message: `Predicate "${predicate.id}" contains duplicate subject types.`
+				});
+			}
+
+			if (
+				predicate.objectTypes
+				&& new Set(predicate.objectTypes).size !== predicate.objectTypes.length
+			) {
+				issues.push({
+					severity: 'warning',
+					code: 'duplicate_object_type',
+					definitionId: predicate.id,
+					message: `Predicate "${predicate.id}" contains duplicate object types.`
+				});
+			}
+
+			if (!predicate.inverse) continue;
+
+			const inverse = this.predicates.get(predicate.inverse);
+			if (!inverse) {
+				issues.push({
+					severity: 'error',
+					code: 'missing_inverse_predicate',
+					definitionId: predicate.id,
+					message: `Predicate "${predicate.id}" references missing inverse "${predicate.inverse}".`
+				});
+				continue;
+			}
+
+			if (inverse.inverse !== predicate.id) {
+				issues.push({
+					severity: 'error',
+					code: 'nonreciprocal_inverse_predicate',
+					definitionId: predicate.id,
+					message: `Predicate "${predicate.id}" and inverse "${inverse.id}" must reference each other.`
+				});
+			}
+
+			if (predicate.symmetric && predicate.inverse !== predicate.id) {
+				issues.push({
+					severity: 'warning',
+					code: 'symmetric_predicate_with_distinct_inverse',
+					definitionId: predicate.id,
+					message: `Symmetric predicate "${predicate.id}" normally should not declare a distinct inverse.`
+				});
+			}
+		}
+
+		return issues;
 	}
 }
