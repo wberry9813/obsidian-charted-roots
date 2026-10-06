@@ -31,7 +31,7 @@ import { PlaceGraphService } from './src/core/place-graph';
 import { EvidenceService, ProofSummaryService, SourceService } from './src/sources';
 import { EventService } from './src/events/services/event-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, HistoricalDateService, V2Linter, createV2OntologyRegistry, type OntologyRegistry } from './src/v2';
+import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, createV2OntologyRegistry, type OntologyRegistry } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -112,6 +112,7 @@ export default class CanvasRootsPlugin extends Plugin {
 	private dateService: DateService | null = null;
 	private v2OntologyRegistry: OntologyRegistry | null = null;
 	private assertionService: AssertionService | null = null;
+	private semanticAssertionService: SemanticAssertionService | null = null;
 	private v2Linter: V2Linter | null = null;
 	private historicalDateService: HistoricalDateService | null = null;
 
@@ -296,9 +297,24 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	getAssertionService(): AssertionService {
 		if (!this.assertionService) {
-			this.assertionService = new AssertionService(this.app);
+			this.assertionService = new AssertionService(this.app, this.getV2OntologyRegistry());
+			this.assertionService.setupVaultListeners(this);
 		}
 		return this.assertionService;
+	}
+
+	/**
+	 * Unified semantic assertion stream over materialized Assertion notes and
+	 * compact virtual relations such as father/mother/spouse.
+	 */
+	getSemanticAssertionService(): SemanticAssertionService {
+		if (!this.semanticAssertionService) {
+			this.semanticAssertionService = new SemanticAssertionService(
+				this.app,
+				this.getAssertionService()
+			);
+		}
+		return this.semanticAssertionService;
 	}
 
 	/**
@@ -429,7 +445,9 @@ export default class CanvasRootsPlugin extends Plugin {
 		// Initialize v2 foundation services. These are additive in M0: legacy
 		// readers/writers remain unchanged until the migration path is ready.
 		this.v2OntologyRegistry = createV2OntologyRegistry();
-		this.assertionService = new AssertionService(this.app);
+		this.assertionService = new AssertionService(this.app, this.v2OntologyRegistry);
+		this.assertionService.setupVaultListeners(this);
+		this.semanticAssertionService = new SemanticAssertionService(this.app, this.assertionService);
 		this.v2Linter = new V2Linter(this.app, this.v2OntologyRegistry, this.assertionService);
 		this.historicalDateService = new HistoricalDateService();
 
