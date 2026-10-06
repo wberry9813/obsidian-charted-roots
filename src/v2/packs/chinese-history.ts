@@ -16,6 +16,22 @@ function organizationType(
 	};
 }
 
+function officeType(
+	id: string,
+	en: string,
+	zhCN: string,
+	aliases?: string[]
+): TypeDefinition {
+	return {
+		kind: 'office_type',
+		id,
+		labels: { en, 'zh-CN': zhCN },
+		aliases: aliases ? { 'zh-CN': aliases } : undefined,
+		pack: 'chinese-history',
+		builtIn: true
+	};
+}
+
 export const CHINESE_HISTORY_V1_PACK: DefinitionPack = {
 	id: 'chinese-history',
 	types: [
@@ -33,6 +49,12 @@ export const CHINESE_HISTORY_V1_PACK: DefinitionPack = {
 		organizationType('school', 'School of thought', '学派'),
 		organizationType('religious_organization', 'Religious organization', '宗教组织'),
 		organizationType('secret_society', 'Secret society', '秘密结社'),
+		officeType('central_government', 'Central government', '中央官职'),
+		officeType('local_government', 'Local government', '地方官职'),
+		officeType('military', 'Military office', '军事官职'),
+		officeType('court_household', 'Court / household office', '宫廷 / 内廷官职'),
+		officeType('honorary', 'Honorary office', '荣誉官职'),
+		officeType('acting', 'Acting / temporary office', '代理 / 临时官职'),
 		{
 			kind: 'designation_type',
 			id: 'given_name',
