@@ -31,7 +31,7 @@ import { PlaceGraphService } from './src/core/place-graph';
 import { EvidenceService, ProofSummaryService, SourceService } from './src/sources';
 import { EventService } from './src/events/services/event-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, HistoricalDateService, V2Linter, createV2OntologyRegistry, type OntologyRegistry } from './src/v2';
+import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, createV2OntologyRegistry, type OntologyRegistry } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -112,6 +112,7 @@ export default class CanvasRootsPlugin extends Plugin {
 	private dateService: DateService | null = null;
 	private v2OntologyRegistry: OntologyRegistry | null = null;
 	private assertionService: AssertionService | null = null;
+	private semanticAssertionService: SemanticAssertionService | null = null;
 	private v2Linter: V2Linter | null = null;
 	private historicalDateService: HistoricalDateService | null = null;
 
@@ -299,6 +300,20 @@ export default class CanvasRootsPlugin extends Plugin {
 			this.assertionService = new AssertionService(this.app);
 		}
 		return this.assertionService;
+	}
+
+	/**
+	 * Unified semantic Assertion projection. Materialized v2 Assertion notes and
+	 * compact genealogy fields are exposed through the same read interface.
+	 */
+	getSemanticAssertionService(): SemanticAssertionService {
+		if (!this.semanticAssertionService) {
+			this.semanticAssertionService = new SemanticAssertionService(
+				this.app,
+				this.getAssertionService()
+			);
+		}
+		return this.semanticAssertionService;
 	}
 
 	/**
