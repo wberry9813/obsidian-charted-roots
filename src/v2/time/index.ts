@@ -9,3 +9,4 @@ export * from './providers/solar-day-provider';
 export * from './chronology-provider';
 export * from './chinese-numerals';
 export * from './providers/static-chronology-provider';
+export * from './providers/sxwnl-chronology-provider';
