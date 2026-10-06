@@ -32,8 +32,23 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 
 		const registry = plugin.getV2OntologyRegistry();
 		const assertionService = plugin.getAssertionService();
+		const createdAssertion = await assertionService.createAssertion({
+			assertionType: 'office_holding',
+			subject: '[[People/Cao-Cao|曹操]]',
+			predicate: 'holds_office',
+			object: '[[Offices/Chancellor|丞相]]',
+			timeStart: '建安十四年',
+			timeStartPrecision: 'year',
+			timeStartCertainty: 'certain',
+			qualifiers: {
+				organization: '[[汉朝廷]]'
+			},
+			title: '曹操任丞相 E2E'
+		}, { folder: 'GeneratedAssertions' });
+		const createdFm = app.metadataCache.getFileCache(createdAssertion)?.frontmatter ?? {};
 		const assertions = assertionService.getAll();
 		const invalidAssertions = assertionService.getInvalid();
+		const touchingPerson = assertionService.getForFile(person);
 		const lintIssues = plugin.getV2Linter().lint();
 		const historicalTime = plugin.getHistoricalDateService();
 		const bce453 = historicalTime.parse('BCE 453');
@@ -55,7 +70,17 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			assertionService: {
 				validCount: assertions.length,
 				invalidCount: invalidAssertions.length,
-				predicates: assertions.map(record => record.assertion.predicate)
+				predicates: assertions.map(record => record.assertion.predicate),
+				touchingPersonCount: touchingPerson.length,
+				createdPath: createdAssertion.path,
+				createdFrontmatter: {
+					cr_schema: createdFm.cr_schema,
+					cr_type: createdFm.cr_type,
+					assertion_type: createdFm.assertion_type,
+					predicate: createdFm.predicate,
+					time_start: createdFm.time_start,
+					organization: createdFm.organization
+				}
 			},
 			linter: {
 				errorCount: lintIssues.filter(issue => issue.severity === 'error').length,
@@ -101,9 +126,17 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(summary.ontology.clanLabelZhCN, '宗族');
 	assert.equal(summary.ontology.politicalRivalLabel, '政治竞争');
 	assert.equal(summary.ontology.validationErrors, 0);
-	assert.equal(summary.assertionService.validCount, 1);
+	assert.equal(summary.assertionService.validCount, 2);
 	assert.equal(summary.assertionService.invalidCount, 0);
-	assert.deepEqual(summary.assertionService.predicates, ['holds_office']);
+	assert.deepEqual(summary.assertionService.predicates, ['holds_office', 'holds_office']);
+	assert.equal(summary.assertionService.touchingPersonCount, 2);
+	assert.match(summary.assertionService.createdPath, /^GeneratedAssertions\/曹操任丞相 E2E/);
+	assert.equal(summary.assertionService.createdFrontmatter.cr_schema, 2);
+	assert.equal(summary.assertionService.createdFrontmatter.cr_type, 'assertion');
+	assert.equal(summary.assertionService.createdFrontmatter.assertion_type, 'office_holding');
+	assert.equal(summary.assertionService.createdFrontmatter.predicate, 'holds_office');
+	assert.equal(summary.assertionService.createdFrontmatter.time_start, '建安十四年');
+	assert.equal(summary.assertionService.createdFrontmatter.organization, '[[汉朝廷]]');
 	assert.equal(summary.linter.errorCount, 0);
 	assert.equal(summary.linter.warningCount, 0);
 	assert.deepEqual(summary.historicalTime.providers, ['bce-ce-year', 'solar-day']);
