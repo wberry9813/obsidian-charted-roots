@@ -31,7 +31,7 @@ import { PlaceGraphService } from './src/core/place-graph';
 import { EvidenceService, ProofSummaryService, SourceService } from './src/sources';
 import { EventService } from './src/events/services/event-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, type MigrationPreview, type OntologyRegistry } from './src/v2';
+import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, type MigrationPlan, type MigrationPreview, type OntologyRegistry } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -360,6 +360,17 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	buildV2MigrationPreview(): MigrationPreview {
 		return buildMigrationPreview(this.getV2MigrationAnalyzer().analyze());
+	}
+
+	/**
+	 * Build a concrete but non-executable migration plan from one analyzer
+	 * snapshot. No vault mutations happen here.
+	 */
+	buildV2MigrationPlan(): MigrationPlan {
+		return buildMigrationPlan(
+			this.getV2MigrationAnalyzer().analyze(),
+			this.getV2OntologyRegistry()
+		);
 	}
 
 	/**
