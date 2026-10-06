@@ -57,7 +57,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				organization: '[[汉朝廷]]'
 			},
 			title: '曹操任丞相 E2E'
-		}, { folder: 'GeneratedAssertions' });
+		});
 		const createdFm = app.metadataCache.getFileCache(createdAssertion)?.frontmatter ?? {};
 		const assertions = assertionService.getAll();
 		const invalidAssertions = assertionService.getInvalid();
