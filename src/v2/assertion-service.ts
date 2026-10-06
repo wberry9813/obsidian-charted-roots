@@ -383,9 +383,37 @@ export class AssertionService {
 		const filePath = await this.nextAvailablePath(folder, stem);
 		const file = await this.app.vault.create(filePath, markdown);
 
+		// vault.create() and MetadataCache run on separate schedules. The generic
+		// changed-event helper can miss the first parse when Obsidian emits it
+		// before the listener is attached, so also wait until the newly-created
+		// note is observably indexed with the expected cr_id.
 		await waitForCacheRefresh(this.app, file);
+		await this.waitForIndexedAssertion(file, crId);
 		this.invalidateCache();
 		return file;
+	}
+
+	private async waitForIndexedAssertion(
+		file: TFile,
+		crId: string,
+		timeoutMs = 2500
+	): Promise<void> {
+		const deadline = Date.now() + timeoutMs;
+		for (;;) {
+			const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+			if (
+				frontmatter?.cr_type === 'assertion'
+				&& frontmatter.cr_id === crId
+			) {
+				return;
+			}
+			if (Date.now() >= deadline) {
+				throw new Error(
+					`Timed out waiting for Obsidian to index Assertion "${file.path}".`
+				);
+			}
+			await new Promise<void>(resolve => window.setTimeout(resolve, 25));
+		}
 	}
 
 	private async nextAvailablePath(folder: string, stem: string): Promise<string> {
