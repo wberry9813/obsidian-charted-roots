@@ -990,6 +990,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	});
 	assert.equal(workspaceState.history.active, 'history-cn');
 	assert.deepEqual(workspaceState.history.files, [
+		'Workspace-E2E/History/Assertions/History-Assertion.md',
 		'Workspace-E2E/History/Events/History-Event.md',
 		'Workspace-E2E/History/People/History-Person.md'
 	]);
@@ -1001,6 +1002,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 
 	assert.equal(workspaceState.shushan.active, 'shushan');
 	assert.deepEqual(workspaceState.shushan.files, [
+		'Workspace-E2E/Shushan/Assertions/Fiction-Assertion.md',
 		'Workspace-E2E/Shushan/People/Fiction-Person.md'
 	]);
 	assert.equal(
