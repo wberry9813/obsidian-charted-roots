@@ -170,8 +170,8 @@ function analyzeMemberships(
 		}
 
 		const records = membershipRecords(frontmatter);
-		const invalid = records.filter(record => !record.org || (!isWikilink(record.org) && !record.orgId));
-		if (invalid.length > 0) {
+		const missingTarget = records.filter(record => !record.org || (!isWikilink(record.org) && !record.orgId));
+		if (missingTarget.length > 0) {
 			findings.push(finding(
 				filePath,
 				'membership_invalid_target',
@@ -179,7 +179,21 @@ function analyzeMemberships(
 				'One or more legacy memberships have neither a wikilink organization target nor a usable organization id.',
 				['membership_orgs', 'membership_org_ids'].filter(field => hasOwn(frontmatter, field)),
 				false,
-				{ details: { invalidCount: invalid.length } }
+				{ details: { invalidCount: missingTarget.length } }
+			));
+			return findings;
+		}
+
+		const idOnlyTargets = records.filter(record => record.org && !isWikilink(record.org) && record.orgId);
+		if (idOnlyTargets.length > 0) {
+			findings.push(finding(
+				filePath,
+				'membership_invalid_target',
+				'review',
+				'One or more membership targets require cr_id-to-file resolution before they can be migrated safely.',
+				['membership_orgs', 'membership_org_ids'],
+				false,
+				{ details: { records: idOnlyTargets } }
 			));
 			return findings;
 		}
@@ -260,25 +274,38 @@ function analyzeMemberships(
 		} else {
 			const org = nonEmpty(house) ? house : organization;
 			const orgId = nonEmpty(house) ? frontmatter.house_id : frontmatter.organization_id;
-			findings.push(finding(
-				filePath,
-				'membership_simple',
-				'info',
-				'Convert the simple legacy organization/house membership to an Affiliation Assertion.',
-				['house', 'house_id', 'organization', 'organization_id', 'role']
-					.filter(field => hasOwn(frontmatter, field)),
-				true,
-				{
-					count: 1,
-					details: {
-						records: [{
-							org: stringValue(org),
-							orgId: stringValue(orgId),
-							role: stringValue(frontmatter.role)
-						}]
-					}
-				}
-			));
+			const orgValue = stringValue(org);
+			const details = {
+				records: [{
+					org: orgValue,
+					orgId: stringValue(orgId),
+					role: stringValue(frontmatter.role)
+				}]
+			};
+
+			if (!orgValue || !isWikilink(orgValue)) {
+				findings.push(finding(
+					filePath,
+					'membership_simple',
+					'review',
+					'Simple legacy membership requires a wikilink target before automatic migration.',
+					['house', 'house_id', 'organization', 'organization_id', 'role']
+						.filter(field => hasOwn(frontmatter, field)),
+					false,
+					{ count: 1, details }
+				));
+			} else {
+				findings.push(finding(
+					filePath,
+					'membership_simple',
+					'info',
+					'Convert the simple legacy organization/house membership to an Affiliation Assertion.',
+					['house', 'house_id', 'organization', 'organization_id', 'role']
+						.filter(field => hasOwn(frontmatter, field)),
+					true,
+					{ count: 1, details }
+				));
+			}
 		}
 	}
 
@@ -329,8 +356,8 @@ function analyzeRelationships(
 		}
 
 		const records = relationshipRecords(frontmatter, typeId);
-		const invalid = records.filter(record => !record.target || (!isWikilink(record.target) && !record.targetId));
-		if (invalid.length > 0) {
+		const missingTarget = records.filter(record => !record.target || (!isWikilink(record.target) && !record.targetId));
+		if (missingTarget.length > 0) {
 			findings.push(finding(
 				filePath,
 				'invalid_relationship_target',
@@ -338,7 +365,23 @@ function analyzeRelationships(
 				`Relationship "${typeId}" contains target values that cannot be resolved safely.`,
 				[typeId, `${typeId}_id`].filter(field => hasOwn(frontmatter, field)),
 				false,
-				{ details: { relationshipType: typeId, invalidTargetCount: invalid.length } }
+				{ details: { relationshipType: typeId, invalidTargetCount: missingTarget.length } }
+			));
+			continue;
+		}
+
+		const idOnlyTargets = records.filter(record =>
+			record.target && !isWikilink(record.target) && record.targetId
+		);
+		if (idOnlyTargets.length > 0) {
+			findings.push(finding(
+				filePath,
+				'invalid_relationship_target',
+				'review',
+				`Relationship "${typeId}" requires cr_id-to-file resolution before migration.`,
+				[typeId, `${typeId}_id`].filter(field => hasOwn(frontmatter, field)),
+				false,
+				{ details: { relationshipType: typeId, records: idOnlyTargets } }
 			));
 			continue;
 		}
