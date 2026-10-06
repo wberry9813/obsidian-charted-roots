@@ -50,6 +50,13 @@ import { requoteWikilinksInFrontmatter } from '../core/place-note-writer';
 export const VIEW_TYPE_ENTITY_PROFILE = 'charted-roots-entity-profile';
 
 /** Entity types the profile view can display */
+function currentOntologyLocale(): string {
+	const lang = document.documentElement.lang?.trim();
+	if (!lang) return 'en';
+	if (lang.toLowerCase().startsWith('zh')) return 'zh-CN';
+	return lang;
+}
+
 const PROFILE_ENTITY_TYPES: NoteType[] = ['person', 'place', 'event', 'source', 'organization', 'office'];
 
 export class ProfileView extends ItemView {
@@ -392,7 +399,11 @@ export class ProfileView extends ItemView {
 				return def.id === typeId ? def.name : typeId;
 			},
 			officeTypeResolver: (typeId) =>
-				this.plugin.getV2OntologyRegistry().getTypeLabel('office_type', typeId, 'en'),
+				this.plugin.getV2OntologyRegistry().getTypeLabel(
+					'office_type',
+					typeId,
+					currentOntologyLocale()
+				),
 			sourceTypeResolver: (typeId) => {
 				const settings = this.plugin.settings;
 				return settings.sourceTypeCustomizations?.[typeId]?.name
