@@ -23,18 +23,16 @@ describe('Tyme-backed solar day parsing', () => {
 
 	it('supports Chinese BCE day expressions using astronomical year internally', () => {
 		const service = new HistoricalDateService();
-		const result = service.parse('公元前1年12月31日');
+		const bceLastDay = service.parse('公元前1年12月31日');
+		const ceFirstDay = service.parse('1-01-01');
 
-		expect(result.status).toBe('resolved');
-		if (result.status !== 'resolved') return;
+		expect(bceLastDay.status).toBe('resolved');
+		expect(ceFirstDay.status).toBe('resolved');
+		if (bceLastDay.status !== 'resolved' || ceFirstDay.status !== 'resolved') return;
 
-		const tyme = service.getCalendarProvider('tyme');
-		expect(tyme).toBeDefined();
-		expect(tyme?.julianDayToSolar(result.value.canonical.start)).toEqual({
-			year: 0,
-			month: 12,
-			day: 31
-		});
+		expect(bceLastDay.value.canonical.scale).toBe('julian_day');
+		expect(ceFirstDay.value.canonical.scale).toBe('julian_day');
+		expect(ceFirstDay.value.canonical.start - bceLastDay.value.canonical.start).toBe(1);
 	});
 
 	it('preserves approximate certainty for day-precision expressions', () => {
@@ -54,12 +52,14 @@ describe('Tyme-backed solar day parsing', () => {
 		expect(result.reason).toMatch(/illegal/i);
 	});
 
-	it('keeps Tyme calendar conversion reversible across astronomical year zero', () => {
+	it('uses Tyme JulianDay for astronomical year zero without claiming reverse SolarDay support', () => {
 		const tyme = new TymeCalendarProvider();
-		const source = { year: 0, month: 12, day: 31 };
-		const jd = tyme.solarToJulianDay(source);
+		const bceLastDay = tyme.solarToJulianDay({ year: 0, month: 12, day: 31 });
+		const ceFirstDay = tyme.solarToJulianDay({ year: 1, month: 1, day: 1 });
 
-		expect(tyme.julianDayToSolar(jd)).toEqual(source);
+		expect(ceFirstDay - bceLastDay).toBe(1);
+		expect(() => tyme.solarToLunar({ year: 0, month: 12, day: 31 }))
+			.toThrow(/does not support BCE/i);
 	});
 
 	it('surfaces the historical 1582 calendar cutover gap used by Tyme', () => {
