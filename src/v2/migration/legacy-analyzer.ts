@@ -1,4 +1,5 @@
 import type { App } from 'obsidian';
+import { ALL_NOTE_TYPES, type NoteType } from '../../utils/note-type-detection';
 import type {
 	FileMigrationAnalysis,
 	LegacyAnalyzerOptions,
@@ -623,14 +624,34 @@ export function analyzeLegacyFrontmatter(
 		));
 	}
 
-	if (frontmatter.cr_schema !== 2 && findings.length > 0) {
+	const knownChartedRootsType =
+		typeof crType === 'string'
+		&& ALL_NOTE_TYPES.includes(crType as NoteType);
+
+	// Every recognized Charted Roots note needs an explicit v2 schema marker,
+	// even when its only data is intentionally-preserved compact genealogy.
+	// Otherwise a vault could be finalized while silent v1 notes remain.
+	if (frontmatter.cr_schema !== 2 && knownChartedRootsType) {
+		const usedLegacyTypeField =
+			typeof frontmatter.cr_type !== 'string'
+			&& typeof frontmatter.type === 'string';
+
 		findings.push(finding(
 			filePath,
 			'legacy_schema_candidate',
 			'info',
-			'This note contains legacy Charted Roots data and is a Schema v2 migration candidate.',
-			['cr_schema'],
-			false
+			'This Charted Roots note still requires the Schema v2 marker.',
+			[
+				'cr_schema',
+				...(usedLegacyTypeField ? ['type'] : [])
+			],
+			false,
+			{
+				details: {
+					canonicalCrType: crType,
+					usedLegacyTypeField
+				}
+			}
 		));
 	}
 
