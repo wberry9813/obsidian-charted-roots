@@ -64,6 +64,13 @@ export interface CreateAssertionOptions {
 	folder?: string;
 }
 
+export interface AssertionServiceOptions {
+	/** Dynamic file scope; omitted to preserve legacy whole-vault behavior. */
+	fileProvider?: () => TFile[];
+	/** Dynamic default creation folder, e.g. the active Workspace Assertions folder. */
+	defaultFolderProvider?: () => string;
+}
+
 interface AssertionCache {
 	valid: AssertionRecord[];
 	invalid: InvalidAssertionRecord[];
@@ -213,7 +220,8 @@ export class AssertionService {
 
 	constructor(
 		private readonly app: App,
-		private readonly ontology?: OntologyRegistry
+		private readonly ontology?: OntologyRegistry,
+		private readonly options: AssertionServiceOptions = {}
 	) {}
 
 	setupVaultListeners(plugin: Plugin): void {
@@ -288,7 +296,9 @@ export class AssertionService {
 		const byPredicate = new Map<string, AssertionRecord[]>();
 		const byAssertionType = new Map<string, AssertionRecord[]>();
 
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		const files = this.options.fileProvider?.()
+			?? this.app.vault.getMarkdownFiles();
+		for (const file of files) {
 			const parsed = this.parseFile(file);
 			if (!parsed) continue;
 
@@ -386,7 +396,11 @@ export class AssertionService {
 
 		const crId = generateCrId();
 		const markdown = buildAssertionMarkdown(crId, data);
-		const folder = normalizePath(options.folder ?? 'Assertions');
+		const folder = normalizePath(
+			options.folder
+			?? this.options.defaultFolderProvider?.()
+			?? 'Assertions'
+		);
 		await this.ensureFolderExists(folder);
 
 		const stem = sanitizeFilename(
