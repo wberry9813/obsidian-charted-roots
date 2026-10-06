@@ -1,4 +1,5 @@
 import type { DefinitionPack } from '../types';
+import { LEGACY_BUILTIN_RELATIONSHIP_PREDICATES } from '../adapters/relationship-type-adapter';
 
 export const CORE_V2_PACK: DefinitionPack = {
 	id: 'core',
@@ -191,6 +192,7 @@ export const CORE_V2_PACK: DefinitionPack = {
 			subjectTypes: ['organization'],
 			objectTypes: ['place'],
 			temporal: true
-		}
+		},
+		...LEGACY_BUILTIN_RELATIONSHIP_PREDICATES
 	]
 };
