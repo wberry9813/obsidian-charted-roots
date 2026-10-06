@@ -31,7 +31,7 @@ import { PlaceGraphService } from './src/core/place-graph';
 import { EvidenceService, ProofSummaryService, SourceService } from './src/sources';
 import { EventService } from './src/events/services/event-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, createV2OntologyRegistry, type OntologyRegistry } from './src/v2';
+import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, buildMigrationPreview, createV2OntologyRegistry, type MigrationPreview, type OntologyRegistry } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -113,6 +113,7 @@ export default class CanvasRootsPlugin extends Plugin {
 	private v2OntologyRegistry: OntologyRegistry | null = null;
 	private assertionService: AssertionService | null = null;
 	private semanticAssertionService: SemanticAssertionService | null = null;
+	private v2MigrationAnalyzer: V2MigrationAnalyzer | null = null;
 	private v2Linter: V2Linter | null = null;
 	private historicalDateService: HistoricalDateService | null = null;
 
@@ -315,6 +316,30 @@ export default class CanvasRootsPlugin extends Plugin {
 			);
 		}
 		return this.semanticAssertionService;
+	}
+
+	/**
+	 * Read-only Schema v1 -> v2 migration analyzer.
+	 *
+	 * Relationship ids are resolved live from RelationshipService so custom
+	 * user-defined relationship fields participate in analysis automatically.
+	 */
+	getV2MigrationAnalyzer(): V2MigrationAnalyzer {
+		if (!this.v2MigrationAnalyzer) {
+			const relationshipService = new RelationshipService(this);
+			this.v2MigrationAnalyzer = new V2MigrationAnalyzer(this.app, {
+				relationshipTypeIdProvider: () =>
+					relationshipService.getAllRelationshipTypes().map(type => type.id)
+			});
+		}
+		return this.v2MigrationAnalyzer;
+	}
+
+	/**
+	 * Build an immutable preview from the current analyzer snapshot.
+	 */
+	buildV2MigrationPreview(): MigrationPreview {
+		return buildMigrationPreview(this.getV2MigrationAnalyzer().analyze());
 	}
 
 	/**
