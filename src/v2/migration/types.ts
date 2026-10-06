@@ -49,3 +49,35 @@ export interface MigrationAnalysisReport {
 export interface LegacyAnalyzerOptions {
 	relationshipTypeIds?: string[];
 }
+
+
+export type MigrationPreviewStatus = 'ready' | 'review' | 'blocked';
+
+export type MigrationPreviewActionKind =
+	| 'create_assertions'
+	| 'rewrite_frontmatter'
+	| 'review'
+	| 'blocker'
+	| 'info';
+
+export interface MigrationPreviewAction {
+	kind: MigrationPreviewActionKind;
+	code: MigrationFindingCode;
+	description: string;
+	fields: string[];
+	count?: number;
+}
+
+export interface FileMigrationPreview {
+	filePath: string;
+	status: MigrationPreviewStatus;
+	actions: MigrationPreviewAction[];
+}
+
+export interface MigrationPreview {
+	files: FileMigrationPreview[];
+	readyFiles: number;
+	reviewFiles: number;
+	blockedFiles: number;
+	canRunWithoutReview: boolean;
+}
