@@ -162,3 +162,45 @@ export interface MigrationPlanValidationResult {
 	checkedFiles: number;
 	issues: MigrationPlanValidationIssue[];
 }
+
+
+export interface MigrationExecutionOptions {
+	/** Folder for newly materialized Assertion notes. */
+	assertionFolder?: string;
+	/** Hidden backup/report root inside the vault. */
+	backupRoot?: string;
+	/** Deterministic override used by tests; production normally omits this. */
+	runId?: string;
+}
+
+export interface MigrationExecutionError {
+	filePath?: string;
+	message: string;
+}
+
+export interface MigrationExecutionResult {
+	success: boolean;
+	runId: string;
+	backupDirectory?: string;
+	filesMigrated: number;
+	assertionsCreated: number;
+	rewrittenFiles: number;
+	createdAssertionPaths: string[];
+	rolledBack: boolean;
+	errors: MigrationExecutionError[];
+}
+
+export interface MigrationBackupManifest {
+	version: 1;
+	runId: string;
+	createdAt: string;
+	status: 'prepared' | 'completed' | 'rolled_back' | 'failed';
+	plan: MigrationPlan;
+	sourceBackups: Array<{
+		filePath: string;
+		fingerprint: string;
+		backupPath: string;
+	}>;
+	createdAssertionPaths: string[];
+	errors: MigrationExecutionError[];
+}
