@@ -1,6 +1,7 @@
 export * from './types';
 export * from './ontology-registry';
 export * from './schema-validation';
+export * from './adapters/relationship-type-adapter';
 export * from './assertion-service';
 export * from './semantic-assertion-service';
 export * from './linter';
