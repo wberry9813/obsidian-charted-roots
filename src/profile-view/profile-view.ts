@@ -50,7 +50,7 @@ import { requoteWikilinksInFrontmatter } from '../core/place-note-writer';
 export const VIEW_TYPE_ENTITY_PROFILE = 'charted-roots-entity-profile';
 
 /** Entity types the profile view can display */
-const PROFILE_ENTITY_TYPES: NoteType[] = ['person', 'place', 'event', 'source', 'organization'];
+const PROFILE_ENTITY_TYPES: NoteType[] = ['person', 'place', 'event', 'source', 'organization', 'office'];
 
 export class ProfileView extends ItemView {
 	plugin: CanvasRootsPlugin;
@@ -391,6 +391,8 @@ export class ProfileView extends ItemView {
 				);
 				return def.id === typeId ? def.name : typeId;
 			},
+			officeTypeResolver: (typeId) =>
+				this.plugin.getV2OntologyRegistry().getTypeLabel('office_type', typeId, 'en'),
 			sourceTypeResolver: (typeId) => {
 				const settings = this.plugin.settings;
 				return settings.sourceTypeCustomizations?.[typeId]?.name
@@ -447,6 +449,9 @@ export class ProfileView extends ItemView {
 				break;
 			case 'organization':
 				this.renderOrganizationSections(data, sectionOptions);
+				break;
+			case 'office':
+				this.renderOfficeSections(data, sectionOptions);
 				break;
 		}
 	}
@@ -633,6 +638,24 @@ export class ProfileView extends ItemView {
 			sectionId: 'media'
 		});
 	}
+
+	private renderOfficeSections(
+		data: ProfileEntityData & { entityType: 'office' },
+		options: SectionRenderOptions
+	): void {
+		if (!this.sectionsEl) return;
+
+		renderAssertionsSection(this.sectionsEl, data.assertions, {
+			...options,
+			entityFile: data.file
+		});
+
+		renderSourcesSection(this.sectionsEl, data.sources, {
+			...options,
+			sectionId: 'sources'
+		});
+	}
+
 
 	// ── Inline helper sections ──────────────────────────────
 
