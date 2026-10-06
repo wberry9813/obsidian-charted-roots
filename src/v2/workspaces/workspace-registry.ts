@@ -26,6 +26,13 @@ export function validateWorkspaceConfiguration(
 	const issues: WorkspaceValidationIssue[] = [];
 	const ids = new Map<string, WorkspaceDefinition>();
 
+	if (config.workspaces.length === 0) {
+		issues.push({
+			code: 'empty_registry',
+			message: 'At least one Workspace must be configured.'
+		});
+	}
+
 	for (const workspace of config.workspaces) {
 		if (!WORKSPACE_ID_PATTERN.test(workspace.id)) {
 			issues.push({
@@ -49,6 +56,13 @@ export function validateWorkspaceConfiguration(
 				workspaceId: workspace.id,
 				field: 'rootFolder',
 				message: 'Workspace rootFolder must not be empty.'
+			});
+		} else if (!isSafeRelativeWorkspacePath(workspace.rootFolder)) {
+			issues.push({
+				code: 'invalid_root',
+				workspaceId: workspace.id,
+				field: 'rootFolder',
+				message: 'Workspace rootFolder must be a safe vault-relative path.'
 			});
 		}
 
