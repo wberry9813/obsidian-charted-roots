@@ -75,6 +75,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		);
 		const migrationReport = plugin.getV2MigrationAnalyzer().analyze();
 		const migrationPreview = plugin.buildV2MigrationPreview();
+		const migrationPlan = plugin.buildV2MigrationPlan();
 		const legacyAfter = JSON.stringify(
 			app.metadataCache.getFileCache(legacyAligned)?.frontmatter ?? {}
 		);
@@ -170,6 +171,15 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					alignedFingerprint: migrationPreview.files.find(
 						file => file.filePath === 'Legacy/Aligned-Person.md'
 					)?.sourceFingerprint ?? null
+				},
+				plan: {
+					executableFiles: migrationPlan.executableFiles,
+					reviewFiles: migrationPlan.reviewFiles,
+					blockedFiles: migrationPlan.blockedFiles,
+					operationCount: migrationPlan.operationCount,
+					aligned: migrationPlan.files.find(
+						file => file.filePath === 'Legacy/Aligned-Person.md'
+					) ?? null
 				}
 			},
 			historicalTime: {
@@ -273,6 +283,25 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		canRunWithoutReview: false,
 		alignedFingerprint: summary.migration.aligned.fingerprint
 	});
+	assert.equal(summary.migration.plan.executableFiles, 1);
+	assert.equal(summary.migration.plan.reviewFiles, 2);
+	assert.equal(summary.migration.plan.blockedFiles, 1);
+	assert.equal(summary.migration.plan.operationCount, 4);
+	assert.equal(summary.migration.plan.aligned.status, 'ready');
+	assert.equal(
+		summary.migration.plan.aligned.operations.filter(operation => operation.kind === 'create_assertion').length,
+		3
+	);
+	assert.equal(
+		summary.migration.plan.aligned.operations.find(
+			operation => operation.kind === 'create_assertion' && operation.draft.predicate === 'mentor'
+		)?.draft.object,
+		'[[People/Cao-Song|曹嵩]]'
+	);
+	assert.equal(
+		summary.migration.plan.aligned.operations.at(-1).kind,
+		'rewrite_frontmatter'
+	);
 	assert.deepEqual(summary.historicalTime.providers, ['bce-ce-year', 'solar-day']);
 	assert.deepEqual(summary.historicalTime.calendarProviders, ['tyme']);
 	assert.deepEqual(summary.historicalTime.lunarExample, {
