@@ -31,6 +31,7 @@ import { PlaceGraphService } from './src/core/place-graph';
 import { EvidenceService, ProofSummaryService, SourceService } from './src/sources';
 import { EventService } from './src/events/services/event-service';
 import { DateService, createDateService } from './src/dates';
+import { AssertionService, V2Linter, createV2OntologyRegistry, type OntologyRegistry } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -109,6 +110,9 @@ export default class CanvasRootsPlugin extends Plugin {
 	private mediaService: MediaService | null = null;
 	private webClipperService: WebClipperService | null = null;
 	private dateService: DateService | null = null;
+	private v2OntologyRegistry: OntologyRegistry | null = null;
+	private assertionService: AssertionService | null = null;
+	private v2Linter: V2Linter | null = null;
 
 	/**
 	 * Flag to temporarily disable bidirectional sync during bulk operations (e.g., import)
@@ -276,6 +280,41 @@ export default class CanvasRootsPlugin extends Plugin {
 	}
 
 	/**
+	 * Shared v2 ontology registry. Built-in packs are initialized once per
+	 * plugin instance so all views/services resolve the same stable IDs.
+	 */
+	getV2OntologyRegistry(): OntologyRegistry {
+		if (!this.v2OntologyRegistry) {
+			this.v2OntologyRegistry = createV2OntologyRegistry();
+		}
+		return this.v2OntologyRegistry;
+	}
+
+	/**
+	 * Shared read-only Assertion service for incremental v2 adoption.
+	 */
+	getAssertionService(): AssertionService {
+		if (!this.assertionService) {
+			this.assertionService = new AssertionService(this.app);
+		}
+		return this.assertionService;
+	}
+
+	/**
+	 * Shared non-destructive v2 linter.
+	 */
+	getV2Linter(): V2Linter {
+		if (!this.v2Linter) {
+			this.v2Linter = new V2Linter(
+				this.app,
+				this.getV2OntologyRegistry(),
+				this.getAssertionService()
+			);
+		}
+		return this.v2Linter;
+	}
+
+	/**
 	 * Track a file access for the Dashboard recent files list
 	 */
 	async trackRecentFile(file: TFile, type: RecentEntityType): Promise<void> {
@@ -373,6 +412,12 @@ export default class CanvasRootsPlugin extends Plugin {
 		registerCustomIcons();
 
 		await this.loadSettings();
+
+		// Initialize v2 foundation services. These are additive in M0: legacy
+		// readers/writers remain unchanged until the migration path is ready.
+		this.v2OntologyRegistry = createV2OntologyRegistry();
+		this.assertionService = new AssertionService(this.app);
+		this.v2Linter = new V2Linter(this.app, this.v2OntologyRegistry, this.assertionService);
 
 		// Initialize logger with saved log level
 		LoggerFactory.setLogLevel(this.settings.logLevel);

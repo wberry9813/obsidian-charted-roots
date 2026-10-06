@@ -26,6 +26,12 @@ export type NoteType =
 	| 'source'
 	| 'map'
 	| 'organization'
+	// v2 historical/world graph entity types
+	| 'office'
+	| 'process'
+	| 'period'
+	| 'assertion'
+	| 'claim'
 	| 'schema'
 	| 'universe'
 	| 'proof_summary'
@@ -49,6 +55,12 @@ export const ALL_NOTE_TYPES: readonly NoteType[] = [
 	'source',
 	'map',
 	'organization',
+	// v2 historical/world graph entity types
+	'office',
+	'process',
+	'period',
+	'assertion',
+	'claim',
 	'schema',
 	'universe',
 	'proof_summary',
@@ -86,6 +98,12 @@ const TAG_TO_TYPE_MAP: Record<string, NoteType> = {
 	'source': 'source',
 	'map': 'map',
 	'organization': 'organization',
+	// v2 historical/world graph entity types
+	'office': 'office',
+	'process': 'process',
+	'period': 'period',
+	'assertion': 'assertion',
+	'claim': 'claim',
 	'schema': 'schema',
 	'universe': 'universe',
 	'proof-summary': 'proof_summary',
@@ -366,6 +384,61 @@ export function isOrganizationNote(
 	settings?: NoteTypeDetectionSettings | null
 ): boolean {
 	return isNoteType(frontmatter, 'organization', cache, settings);
+}
+
+/**
+ * Check if a note is an office note (v2)
+ */
+export function isOfficeNote(
+	frontmatter: Record<string, unknown> | undefined | null,
+	cache?: CachedMetadata | null,
+	settings?: NoteTypeDetectionSettings | null
+): boolean {
+	return isNoteType(frontmatter, 'office', cache, settings);
+}
+
+/**
+ * Check if a note is a process note (v2)
+ */
+export function isProcessNote(
+	frontmatter: Record<string, unknown> | undefined | null,
+	cache?: CachedMetadata | null,
+	settings?: NoteTypeDetectionSettings | null
+): boolean {
+	return isNoteType(frontmatter, 'process', cache, settings);
+}
+
+/**
+ * Check if a note is a period note (v2)
+ */
+export function isPeriodNote(
+	frontmatter: Record<string, unknown> | undefined | null,
+	cache?: CachedMetadata | null,
+	settings?: NoteTypeDetectionSettings | null
+): boolean {
+	return isNoteType(frontmatter, 'period', cache, settings);
+}
+
+/**
+ * Check if a note is an assertion note (v2)
+ */
+export function isAssertionNote(
+	frontmatter: Record<string, unknown> | undefined | null,
+	cache?: CachedMetadata | null,
+	settings?: NoteTypeDetectionSettings | null
+): boolean {
+	return isNoteType(frontmatter, 'assertion', cache, settings);
+}
+
+/**
+ * Check if a note is a claim note (v2)
+ */
+export function isClaimNote(
+	frontmatter: Record<string, unknown> | undefined | null,
+	cache?: CachedMetadata | null,
+	settings?: NoteTypeDetectionSettings | null
+): boolean {
+	return isNoteType(frontmatter, 'claim', cache, settings);
 }
 
 /**
