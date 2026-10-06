@@ -64,4 +64,27 @@ describe('v2 assertion schema invariants', () => {
 		expect(result.errors).toContain('Assertion requires subject.');
 		expect(result.errors).toContain('Assertion requires predicate.');
 	});
+	it('rejects unsupported temporal precision/certainty values', () => {
+		const result = validateAssertionShape({
+			...base,
+			object: '[[李建成]]',
+			time_start_precision: 'estimated' as never,
+			time_start_certainty: 'exact' as never
+		});
+
+		expect(result.valid).toBe(false);
+		expect(result.errors).toContain('time_start_precision has an unsupported value.');
+		expect(result.errors).toContain('time_start_certainty has an unsupported value.');
+	});
+
+	it('rejects non-string entity references', () => {
+		const result = validateAssertionShape({
+			...base,
+			object: 42 as never
+		});
+
+		expect(result.valid).toBe(false);
+		expect(result.errors).toContain('Assertion object must be a non-empty wikilink/reference string.');
+	});
+
 });
