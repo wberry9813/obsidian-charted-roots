@@ -1,5 +1,6 @@
 import { BceCeYearProvider } from './providers/bce-ce-provider';
 import { TymeCalendarProvider } from './providers/tyme-calendar-provider';
+import { SolarDayProvider } from './providers/solar-day-provider';
 import type { CalendarProvider } from './calendar-provider';
 import type {
 	HistoricalDateProvider,
@@ -13,6 +14,7 @@ export interface HistoricalDateServiceOptions {
 	includeBuiltInBceCeProvider?: boolean;
 	calendarProviders?: CalendarProvider[];
 	includeTymeCalendarProvider?: boolean;
+	includeSolarDayProvider?: boolean;
 }
 
 function temporalSignature(value: TemporalValue): string {
@@ -32,18 +34,30 @@ export class HistoricalDateService {
 	private readonly calendarProviders = new Map<string, CalendarProvider>();
 
 	constructor(options: HistoricalDateServiceOptions = {}) {
-		if (options.includeBuiltInBceCeProvider ?? true) {
-			this.providers.push(new BceCeYearProvider());
-		}
-		for (const provider of options.providers ?? []) {
-			this.registerProvider(provider);
-		}
+		const includeTyme = options.includeTymeCalendarProvider ?? true;
 
-		if (options.includeTymeCalendarProvider ?? true) {
+		if (includeTyme) {
 			this.registerCalendarProvider(new TymeCalendarProvider());
 		}
 		for (const provider of options.calendarProviders ?? []) {
 			this.registerCalendarProvider(provider);
+		}
+
+		if (options.includeBuiltInBceCeProvider ?? true) {
+			this.registerProvider(new BceCeYearProvider());
+		}
+
+		const includeSolarDay = options.includeSolarDayProvider ?? includeTyme;
+		if (includeSolarDay) {
+			const calendar = this.getCalendarProvider('tyme');
+			if (!calendar) {
+				throw new Error('Solar day provider requires the Tyme calendar provider.');
+			}
+			this.registerProvider(new SolarDayProvider(calendar));
+		}
+
+		for (const provider of options.providers ?? []) {
+			this.registerProvider(provider);
 		}
 	}
 
