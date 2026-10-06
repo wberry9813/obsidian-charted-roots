@@ -141,3 +141,24 @@ export interface MigrationPlan {
 	blockedFiles: number;
 	operationCount: number;
 }
+
+
+export type MigrationPlanValidationIssueCode =
+	| 'missing_file'
+	| 'missing_frontmatter'
+	| 'invalid_frontmatter'
+	| 'stale_source';
+
+export interface MigrationPlanValidationIssue {
+	code: MigrationPlanValidationIssueCode;
+	filePath: string;
+	message: string;
+	expectedFingerprint: string;
+	actualFingerprint?: string;
+}
+
+export interface MigrationPlanValidationResult {
+	valid: boolean;
+	checkedFiles: number;
+	issues: MigrationPlanValidationIssue[];
+}
