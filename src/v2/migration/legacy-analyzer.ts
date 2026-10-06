@@ -411,7 +411,7 @@ export function analyzeLegacyFrontmatter(
 			'info',
 			'This note contains legacy Charted Roots data and is a Schema v2 migration candidate.',
 			['cr_schema'],
-			true
+			false
 		));
 	}
 
