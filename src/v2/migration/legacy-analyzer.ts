@@ -672,7 +672,8 @@ export class V2MigrationAnalyzer {
 	) {}
 
 	analyze(): MigrationAnalysisReport {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.options.fileProvider?.()
+			?? this.app.vault.getMarkdownFiles();
 		const analyses = files
 			.map(file => {
 				const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
