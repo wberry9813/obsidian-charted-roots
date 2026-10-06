@@ -449,4 +449,43 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		document.querySelector('.cr-v2-migration-preview__close')?.click();
 		return true;
 	`);
+
+	// Validate the stale-plan guard against live Markdown rather than metadata
+	// cache state. The same frozen plan must become invalid immediately after
+	// a source edit, then the fixture is restored for artifact cleanliness.
+	const staleGuard = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const plan = plugin.buildV2MigrationPlan();
+		const fresh = await plugin.validateV2MigrationPlan(plan);
+		const file = app.vault.getAbstractFileByPath('Legacy/Aligned-Person.md');
+		if (!file) throw new Error('Aligned legacy fixture is missing.');
+
+		await app.fileManager.processFrontMatter(file, fm => {
+			fm.__e2e_stale_marker = 'changed-after-plan';
+		});
+		const stale = await plugin.validateV2MigrationPlan(plan);
+
+		await app.fileManager.processFrontMatter(file, fm => {
+			delete fm.__e2e_stale_marker;
+		});
+
+		return { fresh, stale };
+	`);
+
+	assert.deepEqual(staleGuard.fresh, {
+		valid: true,
+		checkedFiles: 1,
+		issues: []
+	});
+	assert.equal(staleGuard.stale.valid, false);
+	assert.equal(staleGuard.stale.checkedFiles, 1);
+	assert.equal(staleGuard.stale.issues.length, 1);
+	assert.equal(staleGuard.stale.issues[0].code, 'stale_source');
+	assert.equal(staleGuard.stale.issues[0].filePath, 'Legacy/Aligned-Person.md');
+	assert.match(staleGuard.stale.issues[0].expectedFingerprint, /^fnv1a32:/);
+	assert.match(staleGuard.stale.issues[0].actualFingerprint, /^fnv1a32:/);
+	assert.notEqual(
+		staleGuard.stale.issues[0].expectedFingerprint,
+		staleGuard.stale.issues[0].actualFingerprint
+	);
 });
