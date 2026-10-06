@@ -34,6 +34,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const assertionService = plugin.getAssertionService();
 		const assertions = assertionService.getAll();
 		const invalidAssertions = assertionService.getInvalid();
+		const lintIssues = plugin.getV2Linter().lint();
 
 		return {
 			pluginLoaded: !!plugin,
@@ -47,6 +48,11 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				validCount: assertions.length,
 				invalidCount: invalidAssertions.length,
 				predicates: assertions.map(record => record.assertion.predicate)
+			},
+			linter: {
+				errorCount: lintIssues.filter(issue => issue.severity === 'error').length,
+				warningCount: lintIssues.filter(issue => issue.severity === 'warning').length,
+				issues: lintIssues
 			},
 			fileCount: app.vault.getMarkdownFiles().length,
 			person: {
@@ -79,6 +85,8 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(summary.assertionService.validCount, 1);
 	assert.equal(summary.assertionService.invalidCount, 0);
 	assert.deepEqual(summary.assertionService.predicates, ['holds_office']);
+	assert.equal(summary.linter.errorCount, 0);
+	assert.equal(summary.linter.warningCount, 0);
 	assert.equal(summary.person.cr_schema, 2);
 	assert.equal(summary.person.cr_type, 'person');
 	assert.equal(summary.person.cr_id, 'person-cao-cao');
