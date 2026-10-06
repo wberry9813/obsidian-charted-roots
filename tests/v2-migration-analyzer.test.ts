@@ -76,7 +76,7 @@ describe('v2 legacy migration analyzer', () => {
 		});
 	});
 
-	it('requires a resolvable membership target but accepts a legacy id fallback', () => {
+	it('requires a wikilink for automatic membership migration and reviews id-only targets', () => {
 		const blocked = analyzeLegacyFrontmatter('People/A.md', {
 			cr_type: 'person',
 			membership_orgs: ['Plain Org']
@@ -84,13 +84,13 @@ describe('v2 legacy migration analyzer', () => {
 		expect(blocked.findings.find(item => item.code === 'membership_invalid_target'))
 			.toMatchObject({ severity: 'blocker' });
 
-		const safe = analyzeLegacyFrontmatter('People/A.md', {
+		const recoverable = analyzeLegacyFrontmatter('People/A.md', {
 			cr_type: 'person',
 			membership_orgs: ['Plain Org'],
 			membership_org_ids: ['org-a']
 		});
-		expect(safe.findings.find(item => item.code === 'membership_parallel_arrays'))
-			.toMatchObject({ autoMigrate: true });
+		expect(recoverable.findings.find(item => item.code === 'membership_invalid_target'))
+			.toMatchObject({ severity: 'review', autoMigrate: false });
 	});
 
 	it('blocks misaligned relationship metadata and preserves aligned record details', () => {
