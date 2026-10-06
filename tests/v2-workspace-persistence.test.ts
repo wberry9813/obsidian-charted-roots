@@ -138,6 +138,27 @@ describe('WorkspaceCatalogService', () => {
 		await expect(service.read()).resolves.toBeNull();
 	});
 
+	it('reports invalid hand-edited Workspace field types instead of throwing incidental runtime errors', async () => {
+		const invalid = JSON.stringify({
+			version: 1,
+			workspaces: [{
+				id: 'bad',
+				name: 42,
+				rootFolder: 'Bad',
+				mode: 'unsupported-mode',
+				enabledPacks: ['chinese-history'],
+				folders: {
+					people: '../Outside',
+					unknown_bucket: 'Something'
+				}
+			}]
+		});
+		const { app } = mockApp(invalid);
+		const service = new WorkspaceCatalogService(app);
+
+		await expect(service.read()).rejects.toThrow(/Workspace name must be a string/);
+	});
+
 	it('refuses overlapping Workspace roots from disk', async () => {
 		const invalid = JSON.stringify({
 			version: 1,
