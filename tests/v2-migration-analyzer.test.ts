@@ -127,7 +127,7 @@ describe('v2 legacy migration analyzer', () => {
 		});
 	});
 
-	it('preserves compact kinship fields instead of migrating them', () => {
+	it('preserves compact kinship fields while still requiring the v2 schema marker', () => {
 		const result = analyzeLegacyFrontmatter('People/A.md', {
 			cr_type: 'person',
 			father: '[[B]]',
@@ -138,7 +138,12 @@ describe('v2 legacy migration analyzer', () => {
 			relationshipTypeIds: ['father', 'mother', 'spouse', 'spouses']
 		});
 
-		expect(result.findings).toEqual([]);
+		expect(result.findings.map(item => item.code)).toEqual([
+			'legacy_schema_candidate'
+		]);
+		expect(result.findings.some(item =>
+			item.code === 'relationship_parallel_arrays'
+		)).toBe(false);
 	});
 
 	it('records legacy Event date and reversed relative-order mapping without rewriting', () => {
@@ -274,6 +279,7 @@ describe('migration snapshot safety', () => {
 describe('V2MigrationAnalyzer live relationship definitions', () => {
 	it('uses a live relationship type provider on every analyze call', () => {
 		const frontmatter = {
+			cr_schema: 2,
 			cr_type: 'person',
 			cr_id: 'a',
 			mentor: ['[[B]]']
