@@ -77,14 +77,31 @@ describe('SemanticAssertionService', () => {
 			}]
 		]);
 
+		const files = new Map([
+			['People/A.md', a],
+			['People/B.md', b]
+		]);
+		const byBasename = new Map([
+			['A', a],
+			['B', b]
+		]);
 		const app = {
 			vault: {
-				getMarkdownFiles: () => [a, b]
+				getMarkdownFiles: () => [a, b],
+				getAbstractFileByPath: (path: string) => files.get(
+					path.endsWith('.md') ? path : `${path}.md`
+				) ?? null
 			},
 			metadataCache: {
 				getFileCache: (file: { path: string }) => ({
 					frontmatter: frontmatter.get(file.path)
-				})
+				}),
+				getFirstLinkpathDest: (linkPath: string) => {
+					const normalized = linkPath.replace(/\.md$/, '');
+					const exact = files.get(`${normalized}.md`);
+					if (exact) return exact;
+					return byBasename.get(normalized.split('/').pop() ?? normalized) ?? null;
+				}
 			}
 		} as never;
 
