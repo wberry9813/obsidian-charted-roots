@@ -125,6 +125,48 @@ describe('HistoricalDateService', () => {
 		expect(result.candidates).toHaveLength(2);
 	});
 
+	it('keeps distinct chronology contexts ambiguous even when canonical years match', () => {
+		const providerA: HistoricalDateProvider = {
+			id: 'chronology-a',
+			parse: expression => ({
+				status: 'resolved',
+				value: {
+					original: expression,
+					precision: 'year',
+					certainty: 'certain',
+					calendar: 'chinese-historical',
+					chronology: 'polity-a-era-x',
+					resolver: 'chronology-a',
+					canonical: { scale: 'astronomical_year', start: 365, end: 365 }
+				}
+			})
+		};
+		const providerB: HistoricalDateProvider = {
+			id: 'chronology-b',
+			parse: expression => ({
+				status: 'resolved',
+				value: {
+					original: expression,
+					precision: 'year',
+					certainty: 'certain',
+					calendar: 'chinese-historical',
+					chronology: 'polity-b-era-x',
+					resolver: 'chronology-b',
+					canonical: { scale: 'astronomical_year', start: 365, end: 365 }
+				}
+			})
+		};
+
+		const result = new HistoricalDateService({
+			includeBuiltInBceCeProvider: false,
+			providers: [providerA, providerB]
+		}).parse('同名元年');
+
+		expect(result.status).toBe('ambiguous');
+		if (result.status !== 'ambiguous') return;
+		expect(result.candidates).toHaveLength(2);
+	});
+
 	it('deduplicates equivalent resolutions from multiple providers', () => {
 		const providerA: HistoricalDateProvider = {
 			id: 'test-a',
