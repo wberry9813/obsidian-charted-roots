@@ -32,13 +32,34 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 
 		const registry = plugin.getV2OntologyRegistry();
 		const assertionService = plugin.getAssertionService();
+		const createdAssertion = await assertionService.createAssertion({
+			assertionType: 'office_holding',
+			subject: '[[People/Cao-Cao|曹操]]',
+			predicate: 'holds_office',
+			object: '[[Offices/Chancellor|丞相]]',
+			timeStart: '建安十四年',
+			timeStartPrecision: 'year',
+			timeStartCertainty: 'certain',
+			qualifiers: {
+				organization: '[[汉朝廷]]'
+			},
+			title: '曹操任丞相 E2E'
+		}, { folder: 'GeneratedAssertions' });
+		const createdFm = app.metadataCache.getFileCache(createdAssertion)?.frontmatter ?? {};
 		const assertions = assertionService.getAll();
 		const invalidAssertions = assertionService.getInvalid();
+		const touchingPerson = assertionService.getForFile(person);
+		const semanticAssertions = plugin.getSemanticAssertionService().getForFile(person);
+		const virtualFather = semanticAssertions.find(item =>
+			item.origin === 'frontmatter' && item.predicate === 'father'
+		);
 		const lintIssues = plugin.getV2Linter().lint();
 		const historicalTime = plugin.getHistoricalDateService();
 		const bce453 = historicalTime.parse('BCE 453');
 		const bce497 = historicalTime.parse('BCE 497');
 		const exactDay = historicalTime.parse('2000-01-01');
+		const year453 = historicalTime.parse('453 CE');
+		const day453 = historicalTime.parse('453-06-01');
 		const tyme = historicalTime.getCalendarProvider('tyme');
 		if (!tyme) throw new Error('Tyme calendar provider is not registered.');
 		const lunarExample = tyme.solarToLunar({ year: 1986, month: 5, day: 29 });
@@ -52,10 +73,29 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				politicalRivalLabel: registry.getPredicateLabel('political_rival', 'zh-CN'),
 				validationErrors: registry.validate().filter(issue => issue.severity === 'error').length
 			},
+			semanticAssertions: {
+				touchingPersonCount: semanticAssertions.length,
+				origins: semanticAssertions.map(item => item.origin),
+				virtualFather: virtualFather ? {
+					subject: virtualFather.subject,
+					object: virtualFather.object,
+					predicate: virtualFather.predicate
+				} : null
+			},
 			assertionService: {
 				validCount: assertions.length,
 				invalidCount: invalidAssertions.length,
-				predicates: assertions.map(record => record.assertion.predicate)
+				predicates: assertions.map(record => record.assertion.predicate),
+				touchingPersonCount: touchingPerson.length,
+				createdPath: createdAssertion.path,
+				createdFrontmatter: {
+					cr_schema: createdFm.cr_schema,
+					cr_type: createdFm.cr_type,
+					assertion_type: createdFm.assertion_type,
+					predicate: createdFm.predicate,
+					time_start: createdFm.time_start,
+					organization: createdFm.organization
+				}
 			},
 			linter: {
 				errorCount: lintIssues.filter(issue => issue.severity === 'error').length,
@@ -69,6 +109,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				exactDay,
 				bceOrder: bce497.status === 'resolved' && bce453.status === 'resolved'
 					? historicalTime.compare(bce497.value, bce453.value)
+					: null,
+				mixedPrecisionSameYear: year453.status === 'resolved' && day453.status === 'resolved'
+					? historicalTime.compare(year453.value, day453.value)
 					: null,
 				lunarExample,
 				solarRoundTrip
@@ -101,9 +144,21 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(summary.ontology.clanLabelZhCN, '宗族');
 	assert.equal(summary.ontology.politicalRivalLabel, '政治竞争');
 	assert.equal(summary.ontology.validationErrors, 0);
-	assert.equal(summary.assertionService.validCount, 1);
+	assert.equal(summary.semanticAssertions.touchingPersonCount, 3);
+	assert.deepEqual(summary.semanticAssertions.origins.sort(), ['assertion_note', 'assertion_note', 'frontmatter']);
+	assert.equal(summary.semanticAssertions.virtualFather.predicate, 'father');
+	assert.equal(summary.semanticAssertions.virtualFather.object, '[[People/Cao-Song|曹嵩]]');
+	assert.equal(summary.assertionService.validCount, 2);
 	assert.equal(summary.assertionService.invalidCount, 0);
-	assert.deepEqual(summary.assertionService.predicates, ['holds_office']);
+	assert.deepEqual(summary.assertionService.predicates, ['holds_office', 'holds_office']);
+	assert.equal(summary.assertionService.touchingPersonCount, 2);
+	assert.match(summary.assertionService.createdPath, /^GeneratedAssertions\/曹操任丞相 E2E/);
+	assert.equal(summary.assertionService.createdFrontmatter.cr_schema, 2);
+	assert.equal(summary.assertionService.createdFrontmatter.cr_type, 'assertion');
+	assert.equal(summary.assertionService.createdFrontmatter.assertion_type, 'office_holding');
+	assert.equal(summary.assertionService.createdFrontmatter.predicate, 'holds_office');
+	assert.equal(summary.assertionService.createdFrontmatter.time_start, '建安十四年');
+	assert.equal(summary.assertionService.createdFrontmatter.organization, '[[汉朝廷]]');
 	assert.equal(summary.linter.errorCount, 0);
 	assert.equal(summary.linter.warningCount, 0);
 	assert.deepEqual(summary.historicalTime.providers, ['bce-ce-year', 'solar-day']);
@@ -125,6 +180,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(summary.historicalTime.bce453.status, 'resolved');
 	assert.equal(summary.historicalTime.bce453.value.canonical.start, -452);
 	assert.equal(summary.historicalTime.bceOrder, -1);
+	assert.equal(summary.historicalTime.mixedPrecisionSameYear, 0);
 	assert.equal(summary.person.cr_schema, 2);
 	assert.equal(summary.person.cr_type, 'person');
 	assert.equal(summary.person.cr_id, 'person-cao-cao');
