@@ -98,7 +98,8 @@ function checkParallelFields(
 
 function analyzeMemberships(
 	filePath: string,
-	frontmatter: Record<string, unknown>
+	frontmatter: Record<string, unknown>,
+	allowSimpleMembership: boolean
 ): MigrationFinding[] {
 	const findings: MigrationFinding[] = [];
 	const orgs = toArray(frontmatter.membership_orgs).filter(nonEmpty);
@@ -160,7 +161,7 @@ function analyzeMemberships(
 
 	const house = frontmatter.house;
 	const organization = frontmatter.organization;
-	if (nonEmpty(house) || nonEmpty(organization)) {
+	if (allowSimpleMembership && (nonEmpty(house) || nonEmpty(organization))) {
 		if (nonEmpty(house) && nonEmpty(organization) && house !== organization) {
 			findings.push(finding(
 				filePath,
@@ -347,12 +348,29 @@ export function analyzeLegacyFrontmatter(
 			? frontmatter.type
 			: undefined;
 
-	findings.push(...analyzeMemberships(filePath, frontmatter));
-	findings.push(...analyzeRelationships(
-		filePath,
-		frontmatter,
-		options.relationshipTypeIds ?? []
-	));
+	const relationshipTypeIds = options.relationshipTypeIds ?? [];
+	const hasExplicitMembershipData =
+		MEMBERSHIP_FIELDS.some(field => hasOwn(frontmatter, field))
+		|| hasOwn(frontmatter, 'memberships');
+	const hasExplicitRelationshipData = relationshipTypeIds.some(typeId =>
+		!PRESERVED_KINSHIP_FIELDS.has(typeId) && hasOwn(frontmatter, typeId)
+	);
+	const isPersonContext =
+		crType === 'person'
+		|| (!crType && (hasExplicitMembershipData || hasExplicitRelationshipData));
+
+	if (isPersonContext) {
+		findings.push(...analyzeMemberships(
+			filePath,
+			frontmatter,
+			crType === 'person'
+		));
+		findings.push(...analyzeRelationships(
+			filePath,
+			frontmatter,
+			relationshipTypeIds
+		));
+	}
 
 	if (crType === 'event') {
 		findings.push(...analyzeEventFields(filePath, frontmatter));
@@ -369,7 +387,7 @@ export function analyzeLegacyFrontmatter(
 		));
 	}
 
-	for (const field of ['occupation', 'title']) {
+	if (isPersonContext) for (const field of ['occupation', 'title']) {
 		if (nonEmpty(frontmatter[field])) {
 			findings.push(finding(
 				filePath,
