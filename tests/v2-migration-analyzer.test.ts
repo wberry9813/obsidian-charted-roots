@@ -148,3 +148,34 @@ describe('v2 legacy migration analyzer', () => {
 			]);
 	});
 });
+
+
+describe('migration analyzer entity scoping', () => {
+	it('does not mistake a v2 Assertion organization qualifier for legacy Person membership', () => {
+		const result = analyzeLegacyFrontmatter('Assertions/Office.md', {
+			cr_schema: 2,
+			cr_type: 'assertion',
+			cr_id: 'a1',
+			assertion_type: 'office_holding',
+			subject: '[[曹操]]',
+			predicate: 'holds_office',
+			object: '[[丞相]]',
+			organization: '[[汉朝廷]]'
+		}, { relationshipTypeIds: relationshipTypes });
+
+		expect(result.findings).toEqual([]);
+		expect(result.hasLegacyData).toBe(false);
+	});
+
+	it('still recognizes an untyped legacy person with simple organization membership', () => {
+		const result = analyzeLegacyFrontmatter('People/Legacy.md', {
+			cr_id: 'legacy-person',
+			name: 'Legacy Person',
+			organization: '[[Old Org]]',
+			role: 'Advisor'
+		});
+
+		expect(result.findings.find(item => item.code === 'membership_simple'))
+			.toMatchObject({ autoMigrate: true, count: 1 });
+	});
+});
