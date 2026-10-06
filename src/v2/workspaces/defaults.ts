@@ -14,7 +14,14 @@ export const DEFAULT_WORKSPACE_FOLDERS: Record<WorkspaceFolderKey, string> = {
 	citations: 'Citations',
 	research: 'Research',
 	maps: 'Maps',
-	universes: 'Universes'
+	universes: 'Universes',
+	schemas: 'Schemas',
+	canvases: 'Canvases',
+	staging: 'Staging',
+	notes: 'Notes',
+	bases: 'Bases',
+	timelines: 'Timelines',
+	reports: 'Reports'
 };
 
 export function defaultPacksForMode(mode: WorkspaceMode): string[] {
