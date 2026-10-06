@@ -29,6 +29,7 @@ import { CommandMenuModal } from '../ui/command-menu-modal';
 import { AddCitationModal } from '../sources/ui/add-citation-modal';
 import { CitationSyncService } from '../sources/services/citation-sync-service';
 import { formatChangeDescription } from '../core/relationship-history';
+import { V2MigrationPreviewModal } from '../v2/migration/preview-modal';
 import {
 	promptAssignReferenceNumbers,
 	promptClearReferenceNumbers,
@@ -188,6 +189,15 @@ export function registerCommandsAndEvents(plugin: CanvasRootsPlugin): void {
 		name: 'Open data quality',
 		callback: () => {
 			void plugin.activateDataQualityView();
+		}
+	});
+
+	// Add command: Preview Schema v2 migration (read-only)
+	plugin.addCommand({
+		id: 'preview-v2-migration',
+		name: 'Preview Schema v2 migration',
+		callback: () => {
+			new V2MigrationPreviewModal(plugin.app, plugin).open();
 		}
 	});
 
