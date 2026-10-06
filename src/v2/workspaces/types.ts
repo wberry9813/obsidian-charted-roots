@@ -17,7 +17,14 @@ export type WorkspaceFolderKey =
 	| 'citations'
 	| 'research'
 	| 'maps'
-	| 'universes';
+	| 'universes'
+	| 'schemas'
+	| 'canvases'
+	| 'staging'
+	| 'notes'
+	| 'bases'
+	| 'timelines'
+	| 'reports';
 
 export interface WorkspaceFolderOverrides {
 	people?: string;
@@ -34,6 +41,13 @@ export interface WorkspaceFolderOverrides {
 	research?: string;
 	maps?: string;
 	universes?: string;
+	schemas?: string;
+	canvases?: string;
+	staging?: string;
+	notes?: string;
+	bases?: string;
+	timelines?: string;
+	reports?: string;
 }
 
 export interface WorkspaceDefinition {
