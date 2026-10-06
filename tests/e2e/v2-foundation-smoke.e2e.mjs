@@ -15,6 +15,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	t.after(async () => session.close());
 
 	const summary = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
 		const person = app.vault.getAbstractFileByPath('People/Cao-Cao.md');
 		const office = app.vault.getAbstractFileByPath('Offices/Chancellor.md');
 		const assertion = app.vault.getAbstractFileByPath('Assertions/Cao-Cao-Chancellor.md');
@@ -29,8 +30,24 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 
 		await app.workspace.getLeaf(false).openFile(person);
 
+		const registry = plugin.getV2OntologyRegistry();
+		const assertionService = plugin.getAssertionService();
+		const assertions = assertionService.getAll();
+		const invalidAssertions = assertionService.getInvalid();
+
 		return {
-			pluginLoaded: !!app.plugins.plugins['charted-roots'],
+			pluginLoaded: !!plugin,
+			ontology: {
+				packs: registry.listPacks(),
+				clanLabelZhCN: registry.getTypeLabel('organization_type', 'clan', 'zh-CN'),
+				politicalRivalLabel: registry.getPredicateLabel('political_rival', 'zh-CN'),
+				validationErrors: registry.validate().filter(issue => issue.severity === 'error').length
+			},
+			assertionService: {
+				validCount: assertions.length,
+				invalidCount: invalidAssertions.length,
+				predicates: assertions.map(record => record.assertion.predicate)
+			},
 			fileCount: app.vault.getMarkdownFiles().length,
 			person: {
 				cr_schema: personFm.cr_schema,
@@ -55,6 +72,13 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	`);
 
 	assert.equal(summary.pluginLoaded, true);
+	assert.deepEqual(summary.ontology.packs.sort(), ['chinese-history', 'core']);
+	assert.equal(summary.ontology.clanLabelZhCN, '宗族');
+	assert.equal(summary.ontology.politicalRivalLabel, '政治竞争');
+	assert.equal(summary.ontology.validationErrors, 0);
+	assert.equal(summary.assertionService.validCount, 1);
+	assert.equal(summary.assertionService.invalidCount, 0);
+	assert.deepEqual(summary.assertionService.predicates, ['holds_office']);
 	assert.equal(summary.person.cr_schema, 2);
 	assert.equal(summary.person.cr_type, 'person');
 	assert.equal(summary.person.cr_id, 'person-cao-cao');
