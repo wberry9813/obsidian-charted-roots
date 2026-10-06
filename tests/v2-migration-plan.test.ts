@@ -164,9 +164,55 @@ describe('v2 migration plan builder', () => {
 				time_end: 'BCE 452',
 				chronologically_after: ['[[Later]]'],
 				chronologically_before: ['[[Earlier]]'],
-				cr_schema: 2
+				cr_schema: 2,
+				cr_type: 'event'
 			},
 			remove: ['date', 'date_end', 'before', 'after']
 		});
 	});
+	it('stamps compact legacy notes without materializing preserved kinship', () => {
+		const analysis = analyzeLegacyFrontmatter('People/Compact.md', {
+			cr_type: 'person',
+			cr_id: 'compact',
+			father: '[[People/Father|Father]]',
+			mother: '[[People/Mother|Mother]]'
+		}, {
+			relationshipTypeIds: ['father', 'mother']
+		});
+
+		const plan = buildMigrationPlan(reportFor(analysis), createV2OntologyRegistry());
+		const file = plan.files[0];
+
+		expect(file.status).toBe('ready');
+		expect(file.operations).toEqual([{
+			kind: 'rewrite_frontmatter',
+			set: {
+				cr_schema: 2,
+				cr_type: 'person'
+			},
+			remove: []
+		}]);
+	});
+
+	it('canonicalizes the legacy type field to cr_type during schema stamping', () => {
+		const analysis = analyzeLegacyFrontmatter('People/LegacyType.md', {
+			type: 'person',
+			cr_id: 'legacy-type',
+			father: '[[People/Father|Father]]'
+		});
+
+		const plan = buildMigrationPlan(reportFor(analysis), createV2OntologyRegistry());
+		const file = plan.files[0];
+
+		expect(file.status).toBe('ready');
+		expect(file.operations).toEqual([{
+			kind: 'rewrite_frontmatter',
+			set: {
+				cr_schema: 2,
+				cr_type: 'person'
+			},
+			remove: ['type']
+		}]);
+	});
+
 });
