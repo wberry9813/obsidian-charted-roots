@@ -31,7 +31,7 @@ import { PlaceGraphService } from './src/core/place-graph';
 import { EvidenceService, ProofSummaryService, SourceService } from './src/sources';
 import { EventService } from './src/events/services/event-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, createV2OntologyRegistry, type OntologyRegistry } from './src/v2';
+import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, createV2OntologyRegistry, type OntologyRegistry } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -314,6 +314,17 @@ export default class CanvasRootsPlugin extends Plugin {
 			);
 		}
 		return this.semanticAssertionService;
+	}
+
+	/**
+	 * Build a fresh, read-only v1 -> v2 migration analyzer using the currently
+	 * configured relationship vocabulary. It intentionally has no mutation API.
+	 */
+	getV2MigrationAnalyzer(): V2MigrationAnalyzer {
+		const relationshipTypeIds = new RelationshipService(this)
+			.getAllRelationshipTypes()
+			.map(type => type.id);
+		return new V2MigrationAnalyzer(this.app, { relationshipTypeIds });
 	}
 
 	/**
