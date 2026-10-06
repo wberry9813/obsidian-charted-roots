@@ -7,3 +7,4 @@ export * from './workspace-scope';
 export * from './workspace-catalog-service';
 export * from './legacy-workspace-derivation';
 export * from './workspace-service';
+export * from './workspace-bootstrap';
