@@ -14,6 +14,15 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	const session = await launchObsidian({ vault: VAULT });
 	t.after(async () => session.close());
 
+	// Plugin load and MetadataCache population are independent in Obsidian.
+	// Wait for fixture frontmatter explicitly so startup timing cannot make the
+	// E2E test read a half-populated cache.
+	await session.waitFor(
+		`app.metadataCache.getCache('People/Cao-Cao.md')?.frontmatter?.cr_schema === 2
+			&& app.metadataCache.getCache('Offices/Chancellor.md')?.frontmatter?.cr_type === 'office'
+			&& app.metadataCache.getCache('Assertions/Cao-Cao-Chancellor.md')?.frontmatter?.cr_type === 'assertion'`
+	);
+
 	const summary = await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
 		const person = app.vault.getAbstractFileByPath('People/Cao-Cao.md');
@@ -142,6 +151,13 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		};
 	`);
 
+	// Persist the service-layer snapshot before assertions so failures still
+	// leave useful diagnostics in the workflow artifact.
+	await writeFile(
+		path.join(ARTIFACTS, 'v2-foundation-smoke.json'),
+		JSON.stringify(summary, null, 2)
+	);
+
 	assert.equal(summary.pluginLoaded, true);
 	assert.deepEqual(summary.ontology.packs.sort(), ['chinese-history', 'core']);
 	assert.equal(summary.ontology.clanLabelZhCN, '宗族');
@@ -218,8 +234,4 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(profileAssertionUi.virtualFatherRows, 0);
 
 	await session.screenshot(path.join(ARTIFACTS, 'v2-foundation-smoke.png'));
-	await writeFile(
-		path.join(ARTIFACTS, 'v2-foundation-smoke.json'),
-		JSON.stringify(summary, null, 2)
-	);
 });
