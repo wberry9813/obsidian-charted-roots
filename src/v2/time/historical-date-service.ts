@@ -19,7 +19,15 @@ export interface HistoricalDateServiceOptions {
 
 function temporalSignature(value: TemporalValue): string {
 	const { scale, start, end } = value.canonical;
-	return [scale, start, end, value.precision, value.certainty].join(':');
+	return [
+		scale,
+		start,
+		end,
+		value.precision,
+		value.certainty,
+		value.calendar ?? '',
+		value.chronology ?? ''
+	].join(':');
 }
 
 /**
