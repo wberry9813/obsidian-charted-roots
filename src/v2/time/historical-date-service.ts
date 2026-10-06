@@ -155,12 +155,58 @@ export class HistoricalDateService {
 		return recognized[0];
 	}
 
+	private astronomicalYearBounds(value: TemporalValue): { start: number; end: number } | null {
+		if (value.canonical.scale === 'astronomical_year') {
+			return {
+				start: value.canonical.start,
+				end: value.canonical.end
+			};
+		}
+
+		if (value.canonical.scale === 'julian_day') {
+			const calendar = this.getCalendarProvider('tyme')
+				?? [...this.calendarProviders.values()][0];
+			if (!calendar) return null;
+
+			try {
+				const start = calendar.julianDayToSolar(value.canonical.start).year;
+				const end = calendar.julianDayToSolar(value.canonical.end).year;
+				return {
+					start: Math.min(start, end),
+					end: Math.max(start, end)
+				};
+			} catch {
+				return null;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Compare two temporal values without manufacturing false precision.
+	 *
+	 * Same-scale values are compared at their native precision. For mixed
+	 * astronomical-year / Julian-day values, the day value is projected only
+	 * to its astronomical year. Different years remain sortable; values that
+	 * overlap the same year compare equal because a year-only expression does
+	 * not justify ordering an exact day within that year.
+	 */
 	compare(a: TemporalValue, b: TemporalValue): number | null {
-		if (a.canonical.scale !== b.canonical.scale) return null;
-		if (a.canonical.start < b.canonical.start) return -1;
-		if (a.canonical.start > b.canonical.start) return 1;
-		if (a.canonical.end < b.canonical.end) return -1;
-		if (a.canonical.end > b.canonical.end) return 1;
+		if (a.canonical.scale === b.canonical.scale) {
+			if (a.canonical.start < b.canonical.start) return -1;
+			if (a.canonical.start > b.canonical.start) return 1;
+			if (a.canonical.end < b.canonical.end) return -1;
+			if (a.canonical.end > b.canonical.end) return 1;
+			return 0;
+		}
+
+		const aYears = this.astronomicalYearBounds(a);
+		const bYears = this.astronomicalYearBounds(b);
+		if (!aYears || !bYears) return null;
+
+		if (aYears.end < bYears.start) return -1;
+		if (aYears.start > bYears.end) return 1;
 		return 0;
 	}
 }
