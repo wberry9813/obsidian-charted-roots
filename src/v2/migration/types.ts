@@ -96,3 +96,48 @@ export interface MigrationPreview {
 	blockedFiles: number;
 	canRunWithoutReview: boolean;
 }
+
+
+export interface MigrationAssertionDraft {
+	assertionType: string;
+	subject: string;
+	predicate: string;
+	object?: string;
+	value?: string | number | boolean;
+	timeStart?: string;
+	timeEnd?: string;
+	notes?: string;
+	qualifiers?: Record<string, string>;
+}
+
+export interface CreateAssertionPlanOperation {
+	kind: 'create_assertion';
+	sourceFinding: MigrationFindingCode;
+	draft: MigrationAssertionDraft;
+}
+
+export interface RewriteFrontmatterPlanOperation {
+	kind: 'rewrite_frontmatter';
+	set: Record<string, unknown>;
+	remove: string[];
+}
+
+export type MigrationPlanOperation =
+	| CreateAssertionPlanOperation
+	| RewriteFrontmatterPlanOperation;
+
+export interface FileMigrationPlan {
+	filePath: string;
+	sourceFingerprint: string;
+	status: MigrationPreviewStatus;
+	operations: MigrationPlanOperation[];
+	reasons: string[];
+}
+
+export interface MigrationPlan {
+	files: FileMigrationPlan[];
+	executableFiles: number;
+	reviewFiles: number;
+	blockedFiles: number;
+	operationCount: number;
+}
