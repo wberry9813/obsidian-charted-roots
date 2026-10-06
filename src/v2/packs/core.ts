@@ -97,6 +97,33 @@ export const CORE_V2_PACK: DefinitionPack = {
 		},
 		{
 			kind: 'predicate',
+			id: 'holds_title',
+			labels: { en: 'Holds title', 'zh-CN': '持有头衔' },
+			pack: 'core',
+			builtIn: true,
+			subjectTypes: ['person'],
+			temporal: true
+		},
+		{
+			kind: 'predicate',
+			id: 'has_designation',
+			labels: { en: 'Has designation', 'zh-CN': '具有名号' },
+			pack: 'core',
+			builtIn: true,
+			subjectTypes: ['person'],
+			temporal: true
+		},
+		{
+			kind: 'predicate',
+			id: 'has_status',
+			labels: { en: 'Has status', 'zh-CN': '具有身份状态' },
+			pack: 'core',
+			builtIn: true,
+			subjectTypes: ['person'],
+			temporal: true
+		},
+		{
+			kind: 'predicate',
 			id: 'part_of',
 			labels: { en: 'Part of', 'zh-CN': '隶属于' },
 			pack: 'core',
