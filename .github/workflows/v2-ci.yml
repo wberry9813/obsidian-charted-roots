@@ -35,11 +35,7 @@ jobs:
         run: npm run type-check
 
       - name: V2 foundation tests
-        run: >
-          npm test --
-          tests/v2-note-types.test.ts
-          tests/v2-ontology-registry.test.ts
-          tests/v2-schema-validation.test.ts
+        run: npm test -- tests/v2-*.test.ts
 
   obsidian-smoke:
     name: Real Obsidian smoke
