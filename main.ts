@@ -31,7 +31,7 @@ import { PlaceGraphService } from './src/core/place-graph';
 import { EvidenceService, ProofSummaryService, SourceService } from './src/sources';
 import { EventService } from './src/events/services/event-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, V2MigrationExecutor, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type MigrationExecutionOptions, type MigrationExecutionResult, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry } from './src/v2';
+import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, V2MigrationExecutor, WorkspaceCatalogService, WorkspaceService, bootstrapWorkspaceFoundation, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type LegacyWorkspaceDerivation, type MigrationExecutionOptions, type MigrationExecutionResult, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry, type WorkspaceCatalog } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -117,6 +117,10 @@ export default class CanvasRootsPlugin extends Plugin {
 	private v2MigrationExecutor: V2MigrationExecutor | null = null;
 	private v2Linter: V2Linter | null = null;
 	private historicalDateService: HistoricalDateService | null = null;
+	private workspaceCatalogService: WorkspaceCatalogService | null = null;
+	private workspaceService: WorkspaceService | null = null;
+	private workspaceSetupReview: LegacyWorkspaceDerivation | null = null;
+	private workspaceSetupError: string | null = null;
 
 	/**
 	 * Flag to temporarily disable bidirectional sync during bulk operations (e.g., import)
@@ -281,6 +285,97 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	getDateService(): DateService | null {
 		return this.dateService;
+	}
+
+	/**
+	 * Active Workspace runtime service. Null means the legacy folder layout
+	 * could not be inferred safely and needs explicit Workspace setup.
+	 */
+	getWorkspaceService(): WorkspaceService | null {
+		return this.workspaceService;
+	}
+
+	getWorkspaceSetupStatus(): {
+		configured: boolean;
+		review: LegacyWorkspaceDerivation | null;
+		error: string | null;
+	} {
+		return {
+			configured: this.workspaceService !== null,
+			review: this.workspaceSetupReview,
+			error: this.workspaceSetupError
+		};
+	}
+
+	async setActiveWorkspace(id: string): Promise<void> {
+		if (!this.workspaceService) {
+			throw new Error('Workspace setup is required before selecting an active Workspace.');
+		}
+		this.workspaceService.setActive(id);
+		this.settings.activeWorkspaceId = this.workspaceService.getActiveId();
+		await this.saveSettings();
+	}
+
+	async replaceWorkspaceCatalog(catalog: WorkspaceCatalog): Promise<void> {
+		if (!this.workspaceCatalogService) {
+			this.workspaceCatalogService = new WorkspaceCatalogService(this.app);
+		}
+
+		// Persist only after catalog validation succeeds inside the service.
+		await this.workspaceCatalogService.write(catalog);
+
+		if (this.workspaceService) {
+			this.workspaceService.replaceCatalog(
+				catalog,
+				this.settings.activeWorkspaceId || undefined
+			);
+		} else {
+			this.workspaceService = new WorkspaceService(
+				this.app,
+				catalog,
+				this.settings.activeWorkspaceId || undefined
+			);
+		}
+
+		this.settings.activeWorkspaceId = this.workspaceService.getActiveId();
+		this.workspaceSetupReview = null;
+		this.workspaceSetupError = null;
+		await this.saveSettings();
+	}
+
+	private async initializeWorkspaceFoundation(): Promise<void> {
+		this.workspaceCatalogService = new WorkspaceCatalogService(this.app);
+		try {
+			const result = await bootstrapWorkspaceFoundation(
+				this.app,
+				this.settings,
+				this.settings.activeWorkspaceId || undefined,
+				this.workspaceCatalogService
+			);
+
+			this.workspaceService = result.service;
+			this.workspaceSetupReview = result.status === 'review'
+				? result.derivation ?? null
+				: null;
+			this.workspaceSetupError = null;
+
+			if (
+				this.workspaceService
+				&& this.settings.activeWorkspaceId !== this.workspaceService.getActiveId()
+			) {
+				this.settings.activeWorkspaceId = this.workspaceService.getActiveId();
+				await this.saveSettings();
+			}
+		} catch (error) {
+			this.workspaceService = null;
+			this.workspaceSetupReview = null;
+			this.workspaceSetupError = getErrorMessage(error);
+			logger.error(
+				'workspace-bootstrap',
+				'Failed to initialize Workspace foundation; keeping legacy folder behavior',
+				error
+			);
+		}
 	}
 
 	/**
@@ -527,6 +622,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		registerCustomIcons();
 
 		await this.loadSettings();
+		await this.initializeWorkspaceFoundation();
 
 		// Initialize v2 foundation services. These are additive in M0: legacy
 		// readers/writers remain unchanged until the migration path is ready.
