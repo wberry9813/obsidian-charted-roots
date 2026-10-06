@@ -239,7 +239,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(summary.assertionService.invalidCount, 0);
 	assert.deepEqual(summary.assertionService.predicates, ['holds_office', 'holds_office']);
 	assert.equal(summary.assertionService.touchingPersonCount, 2);
-	assert.match(summary.assertionService.createdPath, /^GeneratedAssertions\/曹操任丞相 E2E/);
+	assert.match(summary.assertionService.createdPath, /^Charted Roots\/Assertions\/曹操任丞相 E2E/);
 	assert.equal(summary.assertionService.createdFrontmatter.cr_schema, 2);
 	assert.equal(summary.assertionService.createdFrontmatter.cr_type, 'assertion');
 	assert.equal(summary.assertionService.createdFrontmatter.assertion_type, 'office_holding');
