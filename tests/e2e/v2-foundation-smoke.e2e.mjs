@@ -439,14 +439,44 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'Review required',
 		'Ready'
 	]);
-	assert.match(migrationPreviewUi.text, /Read-only preview\. No vault files will be modified\./);
+	assert.match(migrationPreviewUi.text, /Preview only\. Nothing changes until you explicitly confirm migration of Ready files\./);
 	assert.match(migrationPreviewUi.text, /Parallel fields for "membership_orgs" are misaligned/);
 	assert.match(migrationPreviewUi.text, /Legacy date_precision mixes precision/);
-	assert.deepEqual(migrationPreviewUi.buttons, ['Close']);
+	assert.deepEqual(migrationPreviewUi.buttons, ['Migrate 1 ready file…', 'Close']);
 
 	await session.screenshot(path.join(ARTIFACTS, 'v2-migration-preview.png'));
+
+	// Enter the second confirmation step but cancel before execution. The
+	// legacy source must remain untouched until the explicit execute click.
 	await session.evalInApp(`
-		document.querySelector('.cr-v2-migration-preview__close')?.click();
+		document.querySelector('.cr-v2-migration-preview__migrate')?.click();
+		return true;
+	`);
+	await session.waitFor(
+		`document.querySelector('.cr-v2-migration-confirm__title')?.textContent
+			=== 'Confirm Schema v2 migration'`
+	);
+
+	const migrationConfirmUi = await session.evalInApp(`
+		const root = document.querySelector('.cr-v2-migration-confirm');
+		return {
+			text: root?.textContent ?? '',
+			buttons: [...(root?.querySelectorAll('button') ?? [])]
+				.map(el => el.textContent ?? ''),
+			sourceStillLegacy:
+				app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.membership_orgs?.length === 2
+		};
+	`);
+	assert.match(migrationConfirmUi.text, /This will migrate 1 Ready file\./);
+	assert.match(migrationConfirmUi.text, /3 Review\/Blocked files will remain unchanged\./);
+	assert.match(migrationConfirmUi.text, /Exact source Markdown is backed up before any mutation\./);
+	assert.match(migrationConfirmUi.text, /\.charted-roots\/migration\//);
+	assert.deepEqual(migrationConfirmUi.buttons, ['Cancel', 'Migrate 1 ready file']);
+	assert.equal(migrationConfirmUi.sourceStillLegacy, true);
+
+	await session.screenshot(path.join(ARTIFACTS, 'v2-migration-confirm.png'));
+	await session.evalInApp(`
+		document.querySelector('.cr-v2-migration-confirm__cancel')?.click();
 		return true;
 	`);
 
