@@ -4,6 +4,7 @@ import {
 	rootsOverlap
 } from './path-utils';
 import type {
+	WorkspaceCatalog,
 	WorkspaceConfiguration,
 	WorkspaceDefinition,
 	WorkspaceValidationIssue,
@@ -20,20 +21,20 @@ function cloneWorkspace(workspace: WorkspaceDefinition): WorkspaceDefinition {
 	};
 }
 
-export function validateWorkspaceConfiguration(
-	config: WorkspaceConfiguration
+export function validateWorkspaceDefinitions(
+	workspaces: WorkspaceDefinition[]
 ): WorkspaceValidationResult {
 	const issues: WorkspaceValidationIssue[] = [];
 	const ids = new Map<string, WorkspaceDefinition>();
 
-	if (config.workspaces.length === 0) {
+	if (workspaces.length === 0) {
 		issues.push({
 			code: 'empty_registry',
 			message: 'At least one Workspace must be configured.'
 		});
 	}
 
-	for (const workspace of config.workspaces) {
+	for (const workspace of workspaces) {
 		if (!WORKSPACE_ID_PATTERN.test(workspace.id)) {
 			issues.push({
 				code: 'invalid_id',
@@ -93,13 +94,13 @@ export function validateWorkspaceConfiguration(
 		}
 	}
 
-	for (let i = 0; i < config.workspaces.length; i++) {
-		const current = config.workspaces[i];
+	for (let i = 0; i < workspaces.length; i++) {
+		const current = workspaces[i];
 		const currentRoot = normalizeWorkspacePath(current.rootFolder);
 		if (!currentRoot) continue;
 
-		for (let j = i + 1; j < config.workspaces.length; j++) {
-			const other = config.workspaces[j];
+		for (let j = i + 1; j < workspaces.length; j++) {
+			const other = workspaces[j];
 			const otherRoot = normalizeWorkspacePath(other.rootFolder);
 			if (!otherRoot || !rootsOverlap(currentRoot, otherRoot)) continue;
 
@@ -115,6 +116,24 @@ export function validateWorkspaceConfiguration(
 			});
 		}
 	}
+
+	return {
+		valid: issues.length === 0,
+		issues
+	};
+}
+
+export function validateWorkspaceCatalog(
+	catalog: WorkspaceCatalog
+): WorkspaceValidationResult {
+	return validateWorkspaceDefinitions(catalog.workspaces);
+}
+
+export function validateWorkspaceConfiguration(
+	config: WorkspaceConfiguration
+): WorkspaceValidationResult {
+	const result = validateWorkspaceDefinitions(config.workspaces);
+	const issues = [...result.issues];
 
 	if (
 		config.workspaces.length > 0
