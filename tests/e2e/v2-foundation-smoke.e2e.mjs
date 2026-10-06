@@ -62,6 +62,16 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		if (!tyme) throw new Error('Tyme calendar provider is not registered.');
 		const lunarExample = tyme.solarToLunar({ year: 1986, month: 5, day: 29 });
 		const solarRoundTrip = tyme.lunarToSolar(lunarExample);
+		const migration = plugin.getV2MigrationAnalyzer().analyze();
+		const alignedMigration = migration.files.find(item =>
+			item.filePath === 'Legacy/Aligned-Person.md'
+		);
+		const brokenMigration = migration.files.find(item =>
+			item.filePath === 'Legacy/Broken-Membership.md'
+		);
+		const eventMigration = migration.files.find(item =>
+			item.filePath === 'Legacy/Legacy-Event.md'
+		);
 
 		return {
 			pluginLoaded: !!plugin,
@@ -99,6 +109,20 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				errorCount: lintIssues.filter(issue => issue.severity === 'error').length,
 				warningCount: lintIssues.filter(issue => issue.severity === 'warning').length,
 				issues: lintIssues
+			},
+			migration: {
+				filesScanned: migration.filesScanned,
+				filesWithLegacyData: migration.filesWithLegacyData,
+				safeConversions: migration.safeConversions,
+				reviewItems: migration.reviewItems,
+				blockers: migration.blockers,
+				alignedCodes: alignedMigration?.findings.map(item => item.code) ?? [],
+				brokenCodes: brokenMigration?.findings.map(item => item.code) ?? [],
+				eventFindings: eventMigration?.findings.map(item => ({
+					code: item.code,
+					severity: item.severity,
+					details: item.details ?? null
+				})) ?? []
 			},
 			historicalTime: {
 				providers: historicalTime.listProviders(),
@@ -156,6 +180,20 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(summary.assertionService.createdFrontmatter.organization, '[[汉朝廷]]');
 	assert.equal(summary.linter.errorCount, 0);
 	assert.equal(summary.linter.warningCount, 0);
+	assert.equal(summary.migration.filesWithLegacyData, 3);
+	assert.equal(summary.migration.safeConversions, 4);
+	assert.equal(summary.migration.reviewItems, 3);
+	assert.equal(summary.migration.blockers, 1);
+	assert.ok(summary.migration.alignedCodes.includes('membership_parallel_arrays'));
+	assert.ok(summary.migration.alignedCodes.includes('relationship_parallel_arrays'));
+	assert.ok(summary.migration.brokenCodes.includes('parallel_array_misaligned'));
+	const relativeOrder = summary.migration.eventFindings.find(item =>
+		item.code === 'legacy_event_relative_order'
+	);
+	assert.deepEqual(relativeOrder.details, {
+		before: 'chronologically_after',
+		after: 'chronologically_before'
+	});
 	assert.deepEqual(summary.historicalTime.providers, ['bce-ce-year', 'solar-day']);
 	assert.deepEqual(summary.historicalTime.calendarProviders, ['tyme']);
 	assert.deepEqual(summary.historicalTime.lunarExample, {
