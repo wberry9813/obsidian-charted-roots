@@ -77,6 +77,46 @@ export const CORE_V2_PACK: DefinitionPack = {
 	predicates: [
 		{
 			kind: 'predicate',
+			id: 'father',
+			labels: { en: 'Father', 'zh-CN': '父亲' },
+			category: 'kinship',
+			pack: 'core',
+			builtIn: true,
+			subjectTypes: ['person'],
+			objectTypes: ['person'],
+			temporal: false,
+			includeOnFamilyTree: true,
+			familyGraphMapping: 'father'
+		},
+		{
+			kind: 'predicate',
+			id: 'mother',
+			labels: { en: 'Mother', 'zh-CN': '母亲' },
+			category: 'kinship',
+			pack: 'core',
+			builtIn: true,
+			subjectTypes: ['person'],
+			objectTypes: ['person'],
+			temporal: false,
+			includeOnFamilyTree: true,
+			familyGraphMapping: 'mother'
+		},
+		{
+			kind: 'predicate',
+			id: 'spouse',
+			labels: { en: 'Spouse', 'zh-CN': '配偶' },
+			category: 'kinship',
+			pack: 'core',
+			builtIn: true,
+			subjectTypes: ['person'],
+			objectTypes: ['person'],
+			temporal: true,
+			symmetric: true,
+			includeOnFamilyTree: true,
+			familyGraphMapping: 'spouse'
+		},
+		{
+			kind: 'predicate',
 			id: 'member_of',
 			labels: { en: 'Member of', 'zh-CN': '属于' },
 			pack: 'core',
