@@ -233,5 +233,50 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.match(profileAssertionUi.text, /建安十四年/);
 	assert.equal(profileAssertionUi.virtualFatherRows, 0);
 
-	await session.screenshot(path.join(ARTIFACTS, 'v2-foundation-smoke.png'));
+	await session.screenshot(path.join(ARTIFACTS, 'v2-person-profile.png'));
+
+	// Navigate the same real Profile View to the Office entity and verify that
+	// incoming office-holding Assertions are projected back onto the Office.
+	await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const office = app.vault.getAbstractFileByPath('Offices/Chancellor.md');
+		if (!office) throw new Error('Office fixture is missing.');
+		await plugin.activateProfileView(office);
+		return true;
+	`);
+
+	await session.waitFor(
+		`document.querySelector('.cr-profile__type-badge')?.textContent === 'Office'
+			&& document.querySelector('.cr-profile__header-name')?.textContent?.includes('丞相')
+			&& [...document.querySelectorAll('.cr-profile__section-title')]
+				.some(el => el.textContent === 'Structured assertions')`
+	);
+
+	const officeProfileUi = await session.evalInApp(`
+		const title = [...document.querySelectorAll('.cr-profile__section-title')]
+			.find(el => el.textContent === 'Structured assertions');
+		const section = title?.closest('.cr-profile__section');
+		return {
+			typeBadge: document.querySelector('.cr-profile__type-badge')?.textContent ?? null,
+			name: document.querySelector('.cr-profile__header-name')?.textContent ?? '',
+			meta: document.querySelector('.cr-profile__header-meta')?.textContent ?? '',
+			assertionText: section?.textContent ?? '',
+			materializedRows: section?.querySelectorAll('.cr-profile__assertion-item').length ?? 0,
+			predicates: [...(section?.querySelectorAll('.cr-profile__assertion-predicate') ?? [])]
+				.map(el => el.textContent ?? ''),
+			targets: [...(section?.querySelectorAll('.cr-profile__assertion-target') ?? [])]
+				.map(el => el.textContent ?? '')
+		};
+	`);
+
+	assert.equal(officeProfileUi.typeBadge, 'Office');
+	assert.match(officeProfileUi.name, /丞相/);
+	assert.match(officeProfileUi.meta, /Central government/i);
+	assert.equal(officeProfileUi.materializedRows, 2);
+	assert.equal(officeProfileUi.predicates.filter(text => /Holds office/i.test(text)).length, 2);
+	assert.deepEqual(officeProfileUi.targets, ['曹操', '曹操']);
+	assert.match(officeProfileUi.assertionText, /建安十三年/);
+	assert.match(officeProfileUi.assertionText, /建安十四年/);
+
+	await session.screenshot(path.join(ARTIFACTS, 'v2-office-profile.png'));
 });
