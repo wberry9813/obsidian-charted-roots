@@ -6,6 +6,7 @@ name: 曹操
 aliases:
   - 曹孟德
 sex: male
+father: "[[People/Cao-Song|曹嵩]]"
 ---
 
 # 曹操
