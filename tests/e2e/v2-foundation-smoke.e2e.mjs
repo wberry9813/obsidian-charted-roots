@@ -38,6 +38,10 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const historicalTime = plugin.getHistoricalDateService();
 		const bce453 = historicalTime.parse('BCE 453');
 		const bce497 = historicalTime.parse('BCE 497');
+		const tyme = historicalTime.getCalendarProvider('tyme');
+		if (!tyme) throw new Error('Tyme calendar provider is not registered.');
+		const lunarExample = tyme.solarToLunar({ year: 1986, month: 5, day: 29 });
+		const solarRoundTrip = tyme.lunarToSolar(lunarExample);
 
 		return {
 			pluginLoaded: !!plugin,
@@ -59,10 +63,13 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			},
 			historicalTime: {
 				providers: historicalTime.listProviders(),
+				calendarProviders: historicalTime.listCalendarProviders(),
 				bce453,
 				bceOrder: bce497.status === 'resolved' && bce453.status === 'resolved'
 					? historicalTime.compare(bce497.value, bce453.value)
-					: null
+					: null,
+				lunarExample,
+				solarRoundTrip
 			},
 			fileCount: app.vault.getMarkdownFiles().length,
 			person: {
@@ -98,6 +105,18 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(summary.linter.errorCount, 0);
 	assert.equal(summary.linter.warningCount, 0);
 	assert.deepEqual(summary.historicalTime.providers, ['bce-ce-year']);
+	assert.deepEqual(summary.historicalTime.calendarProviders, ['tyme']);
+	assert.deepEqual(summary.historicalTime.lunarExample, {
+		year: 1986,
+		month: 4,
+		day: 21,
+		leapMonth: false
+	});
+	assert.deepEqual(summary.historicalTime.solarRoundTrip, {
+		year: 1986,
+		month: 5,
+		day: 29
+	});
 	assert.equal(summary.historicalTime.bce453.status, 'resolved');
 	assert.equal(summary.historicalTime.bce453.value.canonical.start, -452);
 	assert.equal(summary.historicalTime.bceOrder, -1);
