@@ -4,3 +4,5 @@ export * from './historical-date-service';
 export * from './providers/bce-ce-provider';
 export * from './calendar-provider';
 export * from './providers/tyme-calendar-provider';
+export * from './expression-utils';
+export * from './providers/solar-day-provider';
