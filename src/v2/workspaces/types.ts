@@ -63,10 +63,17 @@ export interface WorkspaceDefinition {
 	folders?: WorkspaceFolderOverrides;
 }
 
-export interface WorkspaceConfiguration {
+export interface WorkspaceCatalog {
 	version: 1;
-	activeWorkspaceId: string;
 	workspaces: WorkspaceDefinition[];
+}
+
+/**
+ * Runtime configuration combines the persisted catalog with one local active
+ * selection. activeWorkspaceId itself is not persisted in the catalog.
+ */
+export interface WorkspaceConfiguration extends WorkspaceCatalog {
+	activeWorkspaceId: string;
 }
 
 export interface WorkspaceValidationIssue {
