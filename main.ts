@@ -313,6 +313,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		}
 		this.workspaceService.setActive(id);
 		this.settings.activeWorkspaceId = this.workspaceService.getActiveId();
+		this.assertionService?.invalidateCache();
 		await this.saveSettings();
 	}
 
@@ -340,6 +341,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.settings.activeWorkspaceId = this.workspaceService.getActiveId();
 		this.workspaceSetupReview = null;
 		this.workspaceSetupError = null;
+		this.assertionService?.invalidateCache();
 		await this.saveSettings();
 	}
 
@@ -414,7 +416,18 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	getAssertionService(): AssertionService {
 		if (!this.assertionService) {
-			this.assertionService = new AssertionService(this.app, this.getV2OntologyRegistry());
+			this.assertionService = new AssertionService(
+				this.app,
+				this.getV2OntologyRegistry(),
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles(),
+					defaultFolderProvider: () =>
+						this.workspaceService?.getFolder('assertions')
+						?? 'Assertions'
+				}
+			);
 			this.assertionService.setupVaultListeners(this);
 		}
 		return this.assertionService;
@@ -428,7 +441,12 @@ export default class CanvasRootsPlugin extends Plugin {
 		if (!this.semanticAssertionService) {
 			this.semanticAssertionService = new SemanticAssertionService(
 				this.app,
-				this.getAssertionService()
+				this.getAssertionService(),
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles()
+				}
 			);
 		}
 		return this.semanticAssertionService;
@@ -445,7 +463,10 @@ export default class CanvasRootsPlugin extends Plugin {
 			const relationshipService = new RelationshipService(this);
 			this.v2MigrationAnalyzer = new V2MigrationAnalyzer(this.app, {
 				relationshipTypeIdProvider: () =>
-					relationshipService.getAllRelationshipTypes().map(type => type.id)
+					relationshipService.getAllRelationshipTypes().map(type => type.id),
+				fileProvider: () =>
+					this.workspaceService?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles()
 			});
 		}
 		return this.v2MigrationAnalyzer;
@@ -627,9 +648,28 @@ export default class CanvasRootsPlugin extends Plugin {
 		// Initialize v2 foundation services. These are additive in M0: legacy
 		// readers/writers remain unchanged until the migration path is ready.
 		this.v2OntologyRegistry = createV2OntologyRegistry();
-		this.assertionService = new AssertionService(this.app, this.v2OntologyRegistry);
+		this.assertionService = new AssertionService(
+			this.app,
+			this.v2OntologyRegistry,
+			{
+				fileProvider: () =>
+					this.workspaceService?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles(),
+				defaultFolderProvider: () =>
+					this.workspaceService?.getFolder('assertions')
+					?? 'Assertions'
+			}
+		);
 		this.assertionService.setupVaultListeners(this);
-		this.semanticAssertionService = new SemanticAssertionService(this.app, this.assertionService);
+		this.semanticAssertionService = new SemanticAssertionService(
+			this.app,
+			this.assertionService,
+			{
+				fileProvider: () =>
+					this.workspaceService?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles()
+			}
+		);
 		this.v2Linter = new V2Linter(this.app, this.v2OntologyRegistry, this.assertionService);
 		this.historicalDateService = new HistoricalDateService();
 
