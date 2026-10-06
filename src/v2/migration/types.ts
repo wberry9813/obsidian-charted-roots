@@ -204,3 +204,18 @@ export interface MigrationBackupManifest {
 	createdAssertionPaths: string[];
 	errors: MigrationExecutionError[];
 }
+
+
+export interface MigrationFinalizationLintError {
+	code: string;
+	message: string;
+	filePath?: string;
+	crId?: string;
+}
+
+export interface MigrationFinalizationStatus {
+	alreadyFinalized: boolean;
+	canFinalize: boolean;
+	remainingLegacyFiles: string[];
+	lintErrors: MigrationFinalizationLintError[];
+}
