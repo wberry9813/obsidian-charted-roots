@@ -488,4 +488,226 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		staleGuard.stale.issues[0].expectedFingerprint,
 		staleGuard.stale.issues[0].actualFingerprint
 	);
+
+	// Wait until MetadataCache catches up with the restored source before
+	// building the next plan.
+	await session.waitFor(
+		`app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.membership_orgs?.length === 2
+			&& app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.cr_schema !== 2
+			&& !('__e2e_stale_marker' in (app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter ?? {}))`
+	);
+
+	// Inject a failure only when the executor tries to mark the migration
+	// manifest completed. This happens after Assertions and source rewrites,
+	// so a successful rollback proves both sides of the transaction recover.
+	const rollbackRun = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const plan = plugin.buildV2MigrationPlan();
+		const source = app.vault.getAbstractFileByPath('Legacy/Aligned-Person.md');
+		if (!source) throw new Error('Aligned legacy fixture is missing.');
+		const originalSource = await app.vault.read(source);
+		const adapter = app.vault.adapter;
+		const originalWrite = adapter.write.bind(adapter);
+
+		adapter.write = async (path, data, options) => {
+			if (
+				path.endsWith('/manifest.json')
+				&& typeof data === 'string'
+				&& data.includes('"status": "completed"')
+			) {
+				throw new Error('E2E injected completion-manifest failure');
+			}
+			return originalWrite(path, data, options);
+		};
+
+		let result;
+		try {
+			result = await plugin.executeV2MigrationReady(plan, {
+				runId: 'e2e-rollback',
+				assertionFolder: 'Assertions/Rollback-E2E',
+				backupRoot: '.charted-roots/e2e-migration'
+			});
+		} finally {
+			adapter.write = originalWrite;
+		}
+
+		const restoredSource = await app.vault.read(source);
+		const remainingAssertions = app.vault.getMarkdownFiles()
+			.filter(file => file.path.startsWith('Assertions/Rollback-E2E/'))
+			.map(file => file.path);
+		const manifest = JSON.parse(await adapter.read(
+			'.charted-roots/e2e-migration/e2e-rollback/manifest.json'
+		));
+		const backupSource = await adapter.read(
+			'.charted-roots/e2e-migration/e2e-rollback/originals/Legacy/Aligned-Person.md'
+		);
+
+		return {
+			result,
+			sourceRestoredExactly: originalSource === restoredSource,
+			backupMatchesOriginal: backupSource === originalSource,
+			remainingAssertions,
+			manifestStatus: manifest.status,
+			manifestCreatedAssertions: manifest.createdAssertionPaths
+		};
+	`);
+
+	assert.equal(rollbackRun.result.success, false);
+	assert.equal(rollbackRun.result.rolledBack, true);
+	assert.equal(rollbackRun.result.filesMigrated, 0);
+	assert.equal(rollbackRun.result.assertionsCreated, 0);
+	assert.equal(rollbackRun.result.rewrittenFiles, 0);
+	assert.deepEqual(rollbackRun.result.createdAssertionPaths, []);
+	assert.match(
+		rollbackRun.result.errors.map(error => error.message).join(' '),
+		/E2E injected completion-manifest failure/
+	);
+	assert.equal(rollbackRun.sourceRestoredExactly, true);
+	assert.equal(rollbackRun.backupMatchesOriginal, true);
+	assert.deepEqual(rollbackRun.remainingAssertions, []);
+	assert.equal(rollbackRun.manifestStatus, 'rolled_back');
+	assert.equal(rollbackRun.manifestCreatedAssertions.length, 3);
+
+	await session.waitFor(
+		`app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.membership_orgs?.length === 2
+			&& app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.mentor?.length === 1
+			&& app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.cr_schema !== 2`
+	);
+
+	// Execute the same ready migration normally.
+	const successRun = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const plan = plugin.buildV2MigrationPlan();
+		const source = app.vault.getAbstractFileByPath('Legacy/Aligned-Person.md');
+		if (!source) throw new Error('Aligned legacy fixture is missing.');
+		const originalSource = await app.vault.read(source);
+
+		const result = await plugin.executeV2MigrationReady(plan, {
+			runId: 'e2e-success',
+			assertionFolder: 'Assertions/Migrated-E2E',
+			backupRoot: '.charted-roots/e2e-migration'
+		});
+
+		const adapter = app.vault.adapter;
+		const manifest = JSON.parse(await adapter.read(
+			'.charted-roots/e2e-migration/e2e-success/manifest.json'
+		));
+		const backupSource = await adapter.read(
+			'.charted-roots/e2e-migration/e2e-success/originals/Legacy/Aligned-Person.md'
+		);
+
+		return {
+			result,
+			backupMatchesOriginal: backupSource === originalSource,
+			manifestStatus: manifest.status,
+			manifestCreatedAssertions: manifest.createdAssertionPaths
+		};
+	`);
+
+	assert.equal(successRun.result.success, true);
+	assert.equal(successRun.result.rolledBack, false);
+	assert.equal(successRun.result.filesMigrated, 1);
+	assert.equal(successRun.result.assertionsCreated, 3);
+	assert.equal(successRun.result.rewrittenFiles, 1);
+	assert.equal(successRun.result.createdAssertionPaths.length, 3);
+	assert.equal(successRun.backupMatchesOriginal, true);
+	assert.equal(successRun.manifestStatus, 'completed');
+	assert.equal(successRun.manifestCreatedAssertions.length, 3);
+
+	await session.waitFor(
+		`app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.cr_schema === 2
+			&& !app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.membership_orgs
+			&& !app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter?.mentor`
+	);
+
+	const migratedState = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const sourceFm = app.metadataCache.getCache('Legacy/Aligned-Person.md')?.frontmatter ?? {};
+		const migrated = plugin.getAssertionService().getAll()
+			.filter(record => record.filePath.startsWith('Assertions/Migrated-E2E/'))
+			.map(record => ({
+				path: record.filePath,
+				type: record.assertion.assertion_type,
+				predicate: record.assertion.predicate,
+				subject: record.assertion.subject,
+				object: record.assertion.object,
+				role: record.raw.role,
+				start: record.assertion.time_start,
+				end: record.assertion.time_end
+			}))
+			.sort((a, b) => a.predicate.localeCompare(b.predicate) || (a.object ?? '').localeCompare(b.object ?? ''));
+
+		const remainingReport = plugin.getV2MigrationAnalyzer().analyze();
+		return {
+			source: {
+				cr_schema: sourceFm.cr_schema,
+				cr_type: sourceFm.cr_type,
+				cr_id: sourceFm.cr_id,
+				name: sourceFm.name,
+				hasMembership: !!sourceFm.membership_orgs,
+				hasMentor: !!sourceFm.mentor
+			},
+			migrated,
+			remainingLegacyPaths: remainingReport.files.map(file => file.filePath).sort(),
+			blockedStillUntouched:
+				app.metadataCache.getCache('Legacy/Broken-Membership.md')?.frontmatter?.membership_orgs?.length === 3,
+			reviewEventStillUntouched:
+				app.metadataCache.getCache('Legacy/Legacy-Event.md')?.frontmatter?.date_precision === 'exact'
+		};
+	`);
+
+	assert.deepEqual(migratedState.source, {
+		cr_schema: 2,
+		cr_type: 'person',
+		cr_id: 'legacy-aligned-person',
+		name: 'Legacy Aligned Person',
+		hasMembership: false,
+		hasMentor: false
+	});
+	assert.equal(migratedState.migrated.length, 3);
+	assert.deepEqual(
+		migratedState.migrated.filter(item => item.predicate === 'member_of').map(item => ({
+			type: item.type,
+			object: item.object,
+			role: item.role,
+			start: item.start,
+			end: item.end
+		})),
+		[
+			{
+				type: 'affiliation',
+				object: '[[Legacy/Org-A|Org A]]',
+				role: 'Ruler',
+				start: '200',
+				end: '209'
+			},
+			{
+				type: 'affiliation',
+				object: '[[Legacy/Org-B|Org B]]',
+				role: 'Advisor',
+				start: '210',
+				end: undefined
+			}
+		]
+	);
+	const migratedMentor = migratedState.migrated.find(item => item.predicate === 'mentor');
+	assert.deepEqual(migratedMentor, {
+		path: migratedMentor.path,
+		type: 'relationship',
+		predicate: 'mentor',
+		subject: '[[Legacy/Aligned-Person]]',
+		object: '[[People/Cao-Song|曹嵩]]',
+		role: undefined,
+		start: '205',
+		end: '215'
+	});
+	assert.deepEqual(migratedState.remainingLegacyPaths, [
+		'Legacy/Broken-Membership.md',
+		'Legacy/Legacy-Event.md',
+		'Legacy/Legacy-Organization.md'
+	]);
+	assert.equal(migratedState.blockedStillUntouched, true);
+	assert.equal(migratedState.reviewEventStillUntouched, true);
+
+	await session.screenshot(path.join(ARTIFACTS, 'v2-migration-executed.png'));
 });
