@@ -217,6 +217,8 @@ export interface CanvasRootsSettings {
 	horizontalSpacing: number;
 	verticalSpacing: number;
 	autoGenerateCrId: boolean;
+	/** Local UI preference; Workspace definitions live in .charted-roots/workspaces.json. */
+	activeWorkspaceId: string;
 	peopleFolder: string;
 	placesFolder: string;
 	mapsFolder: string;
@@ -771,6 +773,7 @@ export const DEFAULT_SETTINGS: CanvasRootsSettings = {
 	horizontalSpacing: 400,  // Base horizontal spacing (multiplied by 1.5x in layout engine)
 	verticalSpacing: 250,    // Vertical spacing between generations (used directly)
 	autoGenerateCrId: true,
+	activeWorkspaceId: '',
 	peopleFolder: 'Charted Roots/People',
 	placesFolder: 'Charted Roots/Places',
 	mapsFolder: 'Charted Roots/Places/Maps',
