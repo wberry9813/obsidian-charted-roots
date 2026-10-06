@@ -65,6 +65,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const lunarExample = tyme.solarToLunar({ year: 1986, month: 5, day: 29 });
 		const solarRoundTrip = tyme.lunarToSolar(lunarExample);
 
+		// Exercise the actual Charted Roots Profile View, not only services.
+		await plugin.activateProfileView(person);
+
 		return {
 			pluginLoaded: !!plugin,
 			ontology: {
@@ -189,6 +192,30 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(summary.assertion.assertion_type, 'office_holding');
 	assert.equal(summary.assertion.predicate, 'holds_office');
 	assert.equal(summary.assertion.time_start, '建安十三年');
+
+	await session.waitFor(
+		`[...document.querySelectorAll('.cr-profile__section-title')]
+			.some(el => el.textContent === 'Structured assertions')`
+	);
+	const profileAssertionUi = await session.evalInApp(`
+		const title = [...document.querySelectorAll('.cr-profile__section-title')]
+			.find(el => el.textContent === 'Structured assertions');
+		const section = title?.closest('.cr-profile__section');
+		return {
+			title: title?.textContent ?? null,
+			text: section?.textContent ?? '',
+			materializedRows: section?.querySelectorAll('.cr-profile__assertion-item').length ?? 0,
+			virtualFatherRows: [...(section?.querySelectorAll('.cr-profile__assertion-predicate') ?? [])]
+				.filter(el => el.textContent?.includes('Father')).length
+		};
+	`);
+	assert.equal(profileAssertionUi.title, 'Structured assertions');
+	assert.equal(profileAssertionUi.materializedRows, 2);
+	assert.match(profileAssertionUi.text, /Holds office/i);
+	assert.match(profileAssertionUi.text, /丞相/);
+	assert.match(profileAssertionUi.text, /建安十三年/);
+	assert.match(profileAssertionUi.text, /建安十四年/);
+	assert.equal(profileAssertionUi.virtualFatherRows, 0);
 
 	await session.screenshot(path.join(ARTIFACTS, 'v2-foundation-smoke.png'));
 	await writeFile(
