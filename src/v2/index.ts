@@ -2,6 +2,7 @@ export * from './types';
 export * from './ontology-registry';
 export * from './schema-validation';
 export * from './assertion-service';
+export * from './semantic-assertion-service';
 export * from './linter';
 export * from './vault-schema';
 export * from './packs/core';
