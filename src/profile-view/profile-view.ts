@@ -39,6 +39,7 @@ import { renderReferencedFactsSection } from './sections/referenced-facts-sectio
 import { renderParentSourceSection, renderChildSourcesSection, renderSiblingSourcesSection, renderSourceTreeSection } from './sections/source-hierarchy-section';
 import { renderMembersSection } from './sections/members-section';
 import { renderResearchSection } from './sections/research-section';
+import { renderAssertionsSection } from './sections/assertions-section';
 import { renderProfileSection } from './sections/section-base';
 import { detectNoteType, isPersonNote } from '../utils/note-type-detection';
 import type { NoteType } from '../utils/note-type-detection';
@@ -467,6 +468,11 @@ export class ProfileView extends ItemView {
 
 		renderMembershipsSection(this.sectionsEl, data.memberships, options);
 
+		renderAssertionsSection(this.sectionsEl, data.assertions, {
+			...options,
+			entityFile: data.file
+		});
+
 		renderEventsSection(this.sectionsEl, data.events, {
 			...options,
 			sectionId: 'events',
@@ -513,6 +519,11 @@ export class ProfileView extends ItemView {
 		renderSourcesSection(this.sectionsEl, data.sources, {
 			...options,
 			sectionId: 'sources'
+		});
+
+		renderAssertionsSection(this.sectionsEl, data.assertions, {
+			...options,
+			entityFile: data.file
 		});
 
 		renderMediaSection(this.sectionsEl, data.media, {
@@ -605,6 +616,11 @@ export class ProfileView extends ItemView {
 			...options,
 			sectionId: 'events',
 			title: 'Events'
+		});
+
+		renderAssertionsSection(this.sectionsEl, data.assertions, {
+			...options,
+			entityFile: data.file
 		});
 
 		renderSourcesSection(this.sectionsEl, data.sources, {
