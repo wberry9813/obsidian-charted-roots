@@ -35,6 +35,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const assertions = assertionService.getAll();
 		const invalidAssertions = assertionService.getInvalid();
 		const lintIssues = plugin.getV2Linter().lint();
+		const historicalTime = plugin.getHistoricalDateService();
+		const bce453 = historicalTime.parse('BCE 453');
+		const bce497 = historicalTime.parse('BCE 497');
 
 		return {
 			pluginLoaded: !!plugin,
@@ -53,6 +56,13 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				errorCount: lintIssues.filter(issue => issue.severity === 'error').length,
 				warningCount: lintIssues.filter(issue => issue.severity === 'warning').length,
 				issues: lintIssues
+			},
+			historicalTime: {
+				providers: historicalTime.listProviders(),
+				bce453,
+				bceOrder: bce497.status === 'resolved' && bce453.status === 'resolved'
+					? historicalTime.compare(bce497.value, bce453.value)
+					: null
 			},
 			fileCount: app.vault.getMarkdownFiles().length,
 			person: {
@@ -87,6 +97,10 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.deepEqual(summary.assertionService.predicates, ['holds_office']);
 	assert.equal(summary.linter.errorCount, 0);
 	assert.equal(summary.linter.warningCount, 0);
+	assert.deepEqual(summary.historicalTime.providers, ['bce-ce-year']);
+	assert.equal(summary.historicalTime.bce453.status, 'resolved');
+	assert.equal(summary.historicalTime.bce453.value.canonical.start, -452);
+	assert.equal(summary.historicalTime.bceOrder, -1);
 	assert.equal(summary.person.cr_schema, 2);
 	assert.equal(summary.person.cr_type, 'person');
 	assert.equal(summary.person.cr_id, 'person-cao-cao');
