@@ -1,0 +1,98 @@
+name: V2 CI
+
+on:
+  push:
+    branches:
+      - 'feat/**'
+      - 'fix/**'
+      - 'infra/**'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Type check and v2 tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: V2 foundation tests
+        run: >
+          npm test --
+          tests/v2-note-types.test.ts
+          tests/v2-ontology-registry.test.ts
+          tests/v2-schema-validation.test.ts
+
+  obsidian-smoke:
+    name: Real Obsidian smoke
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      OBSIDIAN_CACHE: ${{ github.workspace }}/.obsidian-cache
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: Install Electron runtime libraries and Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libgbm1 libgtk-3-0 libnss3 libasound2t64
+
+      - name: Cache Obsidian downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.obsidian-cache
+          key: obsidian-cache-${{ runner.os }}-v1
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Install E2E harness dependencies
+        run: npm install --no-save obsidian-launcher@3.1.1 chrome-remote-interface@0.34.0
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Run real Obsidian smoke test
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p tests/e2e/artifacts
+          xvfb-run -a node --test tests/e2e/v2-foundation-smoke.e2e.mjs \
+            2>&1 | tee tests/e2e/artifacts/e2e.log
+
+      - name: Upload Obsidian E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2-obsidian-smoke-${{ github.sha }}
+          path: tests/e2e/artifacts/
+          if-no-files-found: warn
+          retention-days: 14
