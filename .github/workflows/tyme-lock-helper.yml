@@ -6,17 +6,19 @@ on:
       - feat/v2-foundation
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   generate:
-    name: Generate Tyme package lock
+    name: Generate and commit Tyme package lock
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Checkout
+      - name: Checkout head branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Use Node.js
         uses: actions/setup-node@v4
@@ -27,14 +29,15 @@ jobs:
       - name: Generate package metadata
         run: npm install --save --package-lock-only --ignore-scripts tyme4ts@1.5.2
 
-      - name: Show dependency diff
-        run: git diff -- package.json package-lock.json
-
-      - name: Upload generated package files
-        uses: actions/upload-artifact@v4
-        with:
-          name: tyme-package-lock-${{ github.sha }}
-          path: |
-            package.json
-            package-lock.json
-          retention-days: 1
+      - name: Commit generated dependency metadata
+        shell: bash
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "Package metadata already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore(time): add tyme4ts dependency"
+          git push origin HEAD:${{ github.head_ref }}
