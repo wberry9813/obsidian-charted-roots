@@ -13,6 +13,7 @@ describe('v2 OntologyRegistry', () => {
 		expect(registry.listPacks()).toContain('core');
 		expect(registry.listPacks()).toContain('chinese-history');
 		expect(registry.hasType('organization_type', 'clan')).toBe(true);
+		expect(registry.hasType('office_type', 'central_government')).toBe(true);
 		expect(registry.hasPredicate('political_rival')).toBe(true);
 	});
 
@@ -21,6 +22,8 @@ describe('v2 OntologyRegistry', () => {
 
 		expect(registry.getTypeLabel('organization_type', 'clan', 'zh-CN')).toBe('宗族');
 		expect(registry.getTypeLabel('organization_type', 'clan', 'en')).toBe('Clan');
+		expect(registry.getTypeLabel('office_type', 'central_government', 'zh-CN')).toBe('中央官职');
+		expect(registry.getTypeLabel('office_type', 'central_government', 'en')).toBe('Central government');
 		expect(registry.getTypeLabel('organization_type', 'clan', 'fr')).toBe('Clan');
 		expect(registry.getTypeLabel('organization_type', 'missing', 'zh-CN')).toBe('missing');
 	});
