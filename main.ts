@@ -31,7 +31,7 @@ import { PlaceGraphService } from './src/core/place-graph';
 import { EvidenceService, ProofSummaryService, SourceService } from './src/sources';
 import { EventService } from './src/events/services/event-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, type MigrationPlan, type MigrationPreview, type OntologyRegistry } from './src/v2';
+import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -371,6 +371,17 @@ export default class CanvasRootsPlugin extends Plugin {
 			this.getV2MigrationAnalyzer().analyze(),
 			this.getV2OntologyRegistry()
 		);
+	}
+
+	/**
+	 * Re-check a frozen migration plan against the live Markdown files.
+	 * Future destructive execution must pass this guard immediately before
+	 * mutating the vault.
+	 */
+	async validateV2MigrationPlan(
+		plan: MigrationPlan
+	): Promise<MigrationPlanValidationResult> {
+		return validateMigrationPlanFreshness(this.app, plan);
 	}
 
 	/**
