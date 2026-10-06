@@ -142,6 +142,14 @@ Current direction:
 
 Exact bundling and redistribution details must be verified before implementation.
 
+### SXWNL redistribution boundary
+
+The original SXWNL project publishes source and explicitly permits use of its core algorithms/data, while also requiring that origin not be misrepresented and cautioning against modifying historical-calendar data/algorithms.
+
+Because that is a project-specific usage statement rather than a standard SPDX license, v2 keeps the **SXWNL adapter** in core but does **not** treat the full upstream chronology table as ordinary MIT-licensed plugin source.
+
+During development/tests, the adapter uses small injected fixtures. A future bundled chronology dataset must carry an explicit third-party notice and a reviewed redistribution boundary before release.
+
 ## 13. Canonical values should not pollute frontmatter by default
 
 Avoid writing implementation fields such as `canonical_jdn`, `astronomical_year` or `normalized_start` into every note.
