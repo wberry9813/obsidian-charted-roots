@@ -1,6 +1,7 @@
 import {
 	historicalYearToAstronomical
 } from '../historical-year';
+import { stripApproximationPrefix } from '../expression-utils';
 import type {
 	HistoricalDateProvider,
 	TemporalParseContext,
@@ -13,39 +14,11 @@ interface ParsedHistoricalYearExpression {
 	approximate: boolean;
 }
 
-function stripApproximation(input: string): {
-	expression: string;
-	approximate: boolean;
-} {
-	let expression = input.trim();
-	let approximate = false;
-
-	const patterns = [
-		/^约\s*/u,
-		/^約\s*/u,
-		/^大约\s*/u,
-		/^大約\s*/u,
-		/^circa\s+/iu,
-		/^ca\.?\s+/iu,
-		/^c\.\s*/iu,
-		/^~\s*/
-	];
-
-	for (const pattern of patterns) {
-		if (pattern.test(expression)) {
-			expression = expression.replace(pattern, '').trim();
-			approximate = true;
-			break;
-		}
-	}
-
-	return { expression, approximate };
-}
 
 function parseHistoricalYear(
 	raw: string
 ): ParsedHistoricalYearExpression | null {
-	const { expression, approximate } = stripApproximation(raw);
+	const { expression, approximate } = stripApproximationPrefix(raw);
 	let match: RegExpMatchArray | null;
 
 	match = expression.match(/^(?:公元)?前\s*(\d+)\s*年?$/u);
