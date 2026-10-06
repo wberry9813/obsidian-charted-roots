@@ -430,6 +430,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		// readers/writers remain unchanged until the migration path is ready.
 		this.v2OntologyRegistry = createV2OntologyRegistry();
 		this.assertionService = new AssertionService(this.app);
+		this.assertionService.setupVaultListeners(this);
 		this.v2Linter = new V2Linter(this.app, this.v2OntologyRegistry, this.assertionService);
 		this.historicalDateService = new HistoricalDateService();
 
