@@ -1,5 +1,4 @@
-import { stripApproximationPrefix } from '../expression-utils';
-import { parseChineseYearNumber } from '../chinese-numerals';
+import { parseChronologyExpression } from '../chronology-expression';
 import type {
 	ChronologyDefinition,
 	ChronologyMatch,
@@ -10,24 +9,6 @@ import type {
 	TemporalParseResult,
 	TemporalValue
 } from '../types';
-
-interface ParsedChronologyExpression {
-	name: string;
-	yearNumber: number;
-	approximate: boolean;
-}
-
-function parseExpression(raw: string): ParsedChronologyExpression | null {
-	const { expression, approximate } = stripApproximationPrefix(raw);
-	const match = expression.match(/^(.+?)(元|[〇零一二两兩三四五六七八九十百\d]+)年$/u);
-	if (!match) return null;
-
-	const name = match[1].trim();
-	const yearNumber = parseChineseYearNumber(match[2]);
-	if (!name || yearNumber === null) return null;
-
-	return { name, yearNumber, approximate };
-}
 
 function matchesContext(
 	definition: ChronologyDefinition,
@@ -89,7 +70,7 @@ export class StaticChronologyProvider implements ChronologyProvider {
 		expression: string,
 		context: TemporalParseContext = {}
 	): ChronologyMatch[] {
-		const parsed = parseExpression(expression);
+		const parsed = parseChronologyExpression(expression);
 		if (!parsed) return [];
 
 		const matches: ChronologyMatch[] = [];
@@ -110,7 +91,7 @@ export class StaticChronologyProvider implements ChronologyProvider {
 		expression: string,
 		context: TemporalParseContext = {}
 	): TemporalParseResult | null {
-		const parsed = parseExpression(expression);
+		const parsed = parseChronologyExpression(expression);
 		if (!parsed) return null;
 
 		const nameDefinitions = this.definitions.filter(
