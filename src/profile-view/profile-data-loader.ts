@@ -134,7 +134,7 @@ export class ProfileDataLoader {
 
 		// v2 Assertions touching this person. Legacy relationships/memberships remain
 		// alongside these until their writers are retired after migration.
-		const assertions = this.plugin.getAssertionService().getForFile(file);
+		const assertions = this.plugin.getSemanticAssertionService().getForFile(file);
 
 		// Research coverage
 		const evidenceService = new EvidenceService(app, settings);
@@ -195,7 +195,7 @@ export class ProfileDataLoader {
 		const events = eventService?.getEventsAtPlace(`[[${file.basename}]]`) ?? [];
 
 		// v2 Assertions touching this place
-		const assertions = this.plugin.getAssertionService().getForFile(file);
+		const assertions = this.plugin.getSemanticAssertionService().getForFile(file);
 
 		// Media
 		const media = this.resolveMedia(node.media);
@@ -342,7 +342,7 @@ export class ProfileDataLoader {
 		const events = eventService?.getEventsForOrganization(`[[${file.basename}]]`) ?? [];
 
 		// v2 Assertions touching this organization
-		const assertions = this.plugin.getAssertionService().getForFile(file);
+		const assertions = this.plugin.getSemanticAssertionService().getForFile(file);
 
 		// Media
 		const media = this.resolveMedia(org.media);
