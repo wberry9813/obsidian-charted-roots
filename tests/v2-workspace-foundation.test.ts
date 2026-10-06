@@ -148,6 +148,10 @@ describe('WorkspacePathResolver', () => {
 			.toBe('History/Chinese-History/People');
 		expect(resolver.getFolder(history, 'assertions'))
 			.toBe('History/Chinese-History/Assertions');
+		expect(resolver.getFolder(history, 'timelines'))
+			.toBe('History/Chinese-History/Timelines');
+		expect(resolver.getFolder(history, 'reports'))
+			.toBe('History/Chinese-History/Reports');
 		expect(resolver.resolve(history, 'people', 'Cao-Cao.md'))
 			.toBe('History/Chinese-History/People/Cao-Cao.md');
 	});
