@@ -49,6 +49,29 @@ describe('HistoricalDateService', () => {
 		expect(service.compare(older.value, newer.value)).toBe(-1);
 	});
 
+	it('compares year precision against exact days without inventing intra-year order', () => {
+		const service = new HistoricalDateService();
+		const year = service.parse('453 CE');
+		const earlierDay = service.parse('452-12-31');
+		const sameYearDay = service.parse('453-06-01');
+		const laterDay = service.parse('454-01-01');
+
+		expect(year.status).toBe('resolved');
+		expect(earlierDay.status).toBe('resolved');
+		expect(sameYearDay.status).toBe('resolved');
+		expect(laterDay.status).toBe('resolved');
+		if (
+			year.status !== 'resolved'
+			|| earlierDay.status !== 'resolved'
+			|| sameYearDay.status !== 'resolved'
+			|| laterDay.status !== 'resolved'
+		) return;
+
+		expect(service.compare(earlierDay.value, year.value)).toBe(-1);
+		expect(service.compare(year.value, sameYearDay.value)).toBe(0);
+		expect(service.compare(year.value, laterDay.value)).toBe(-1);
+	});
+
 	it('rejects historical year zero', () => {
 		const result = new HistoricalDateService().parse('0 BCE');
 
