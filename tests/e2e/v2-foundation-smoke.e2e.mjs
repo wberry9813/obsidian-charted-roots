@@ -737,4 +737,143 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(migratedState.reviewEventStillUntouched, true);
 
 	await session.screenshot(path.join(ARTIFACTS, 'v2-migration-executed.png'));
+
+	// Finally exercise the complete user-facing execution path on a fresh
+	// dynamically-created legacy note: Command -> Preview -> Confirm -> Execute.
+	await session.evalInApp(`
+		const existing = app.vault.getAbstractFileByPath('Legacy/Ui-Ready.md');
+		if (existing) await app.vault.delete(existing);
+		await app.vault.create('Legacy/Ui-Ready.md', [
+			'---',
+			'cr_type: person',
+			'cr_id: legacy-ui-ready',
+			'name: UI Ready Person',
+			'membership_orgs:',
+			'  - "[[Legacy/Org-A|Org A]]"',
+			'membership_org_ids:',
+			'  - org-a',
+			'membership_roles:',
+			'  - Tester',
+			'---',
+			'',
+			'# UI Ready Person',
+			''
+		].join('\\n'));
+		return true;
+	`);
+
+	await session.waitFor(
+		`app.metadataCache.getCache('Legacy/Ui-Ready.md')?.frontmatter?.membership_orgs?.length === 1`
+	);
+
+	await session.evalInApp(`
+		const ok = app.commands.executeCommandById('charted-roots:preview-v2-migration');
+		if (!ok) throw new Error('Migration preview command was not registered.');
+		return true;
+	`);
+	await session.waitFor(
+		`document.querySelector('.cr-v2-migration-preview__migrate')?.textContent
+			=== 'Migrate 1 ready file…'`
+	);
+
+	await session.evalInApp(`
+		document.querySelector('.cr-v2-migration-preview__migrate')?.click();
+		return true;
+	`);
+	await session.waitFor(
+		`document.querySelector('.cr-v2-migration-confirm__execute')?.textContent
+			=== 'Migrate 1 ready file'`
+	);
+
+	await session.evalInApp(`
+		document.querySelector('.cr-v2-migration-confirm__execute')?.click();
+		return true;
+	`);
+
+	await session.waitFor(
+		`app.metadataCache.getCache('Legacy/Ui-Ready.md')?.frontmatter?.cr_schema === 2
+			&& !app.metadataCache.getCache('Legacy/Ui-Ready.md')?.frontmatter?.membership_orgs
+			&& document.querySelector('.cr-v2-migration-preview__title')?.textContent
+				=== 'Schema v2 migration preview'`,
+		{ timeout: 90000 }
+	);
+
+	const uiExecution = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const sourceFm = app.metadataCache.getCache('Legacy/Ui-Ready.md')?.frontmatter ?? {};
+		const assertions = plugin.getAssertionService().getAll()
+			.filter(record => record.assertion.subject === '[[Legacy/Ui-Ready]]')
+			.map(record => ({
+				path: record.filePath,
+				type: record.assertion.assertion_type,
+				predicate: record.assertion.predicate,
+				object: record.assertion.object,
+				role: record.raw.role
+			}));
+
+		const adapter = app.vault.adapter;
+		const backupListing = await adapter.list('.charted-roots/migration');
+		const runFolders = backupListing.folders ?? [];
+		if (runFolders.length !== 1) {
+			throw new Error('Expected exactly one default UI migration backup folder, got ' + runFolders.length);
+		}
+		const runFolder = runFolders[0];
+		const manifest = JSON.parse(await adapter.read(runFolder + '/manifest.json'));
+		const backup = await adapter.read(
+			runFolder + '/originals/Legacy/Ui-Ready.md'
+		);
+
+		const previewRoot = document.querySelector('.cr-v2-migration-preview');
+		return {
+			source: {
+				cr_schema: sourceFm.cr_schema,
+				cr_type: sourceFm.cr_type,
+				cr_id: sourceFm.cr_id,
+				name: sourceFm.name,
+				hasMembership: !!sourceFm.membership_orgs
+			},
+			assertions,
+			backup: {
+				runFolder,
+				manifestStatus: manifest.status,
+				sourcePath: manifest.sourceBackups?.[0]?.filePath ?? null,
+				createdCount: manifest.createdAssertionPaths?.length ?? 0,
+				containsLegacyMembership: backup.includes('membership_orgs:')
+			},
+			preview: {
+				text: previewRoot?.textContent ?? '',
+				hasMigrateButton: !!previewRoot?.querySelector('.cr-v2-migration-preview__migrate'),
+				buttons: [...(previewRoot?.querySelectorAll('button') ?? [])]
+					.map(el => el.textContent ?? '')
+			}
+		};
+	`);
+
+	assert.deepEqual(uiExecution.source, {
+		cr_schema: 2,
+		cr_type: 'person',
+		cr_id: 'legacy-ui-ready',
+		name: 'UI Ready Person',
+		hasMembership: false
+	});
+	assert.equal(uiExecution.assertions.length, 1);
+	assert.deepEqual(uiExecution.assertions[0], {
+		path: uiExecution.assertions[0].path,
+		type: 'affiliation',
+		predicate: 'member_of',
+		object: '[[Legacy/Org-A|Org A]]',
+		role: 'Tester'
+	});
+	assert.match(uiExecution.backup.runFolder, /^\.charted-roots\/migration\//);
+	assert.equal(uiExecution.backup.manifestStatus, 'completed');
+	assert.equal(uiExecution.backup.sourcePath, 'Legacy/Ui-Ready.md');
+	assert.equal(uiExecution.backup.createdCount, 1);
+	assert.equal(uiExecution.backup.containsLegacyMembership, true);
+	assert.match(uiExecution.preview.text, /0 Ready/);
+	assert.match(uiExecution.preview.text, /2 Review required/);
+	assert.match(uiExecution.preview.text, /1 Blocked/);
+	assert.equal(uiExecution.preview.hasMigrateButton, false);
+	assert.deepEqual(uiExecution.preview.buttons, ['Close']);
+
+	await session.screenshot(path.join(ARTIFACTS, 'v2-migration-ui-executed.png'));
 });
