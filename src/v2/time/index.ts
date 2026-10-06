@@ -6,3 +6,6 @@ export * from './calendar-provider';
 export * from './providers/tyme-calendar-provider';
 export * from './expression-utils';
 export * from './providers/solar-day-provider';
+export * from './chronology-provider';
+export * from './chinese-numerals';
+export * from './providers/static-chronology-provider';
