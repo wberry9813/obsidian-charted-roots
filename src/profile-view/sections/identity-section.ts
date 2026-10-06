@@ -48,6 +48,8 @@ export interface IdentityHeaderOptions {
 	 * (#735).
 	 */
 	sourceTypeResolver?: (typeId: string) => string;
+	/** Resolve a v2 office type id to its localized display label. */
+	officeTypeResolver?: (typeId: string) => string;
 }
 
 export function renderIdentityHeader(
@@ -185,6 +187,9 @@ function renderEntityMeta(
 			break;
 		case 'organization':
 			renderOrgMeta(container, data, options);
+			break;
+		case 'office':
+			renderMetaFields(container, getOfficeFields(data, options), editable, options);
 			break;
 	}
 }
@@ -487,6 +492,25 @@ function renderOrgMeta(
 			container.createSpan({ text: stripWikilink(data.org.seat || '') });
 		}
 	}
+}
+
+// ── Office (v2) ────────────────────────────────────────────
+
+function getOfficeFields(
+	data: ProfileEntityData & { entityType: 'office' },
+	options: IdentityHeaderOptions
+): EditableFieldConfig[] {
+	const officeType = data.officeType || '';
+	return [{
+		property: 'office_type',
+		label: 'Office type',
+		displayValue: officeType
+			? (options.officeTypeResolver?.(officeType) ?? officeType)
+			: '',
+		rawValue: officeType,
+		inputType: 'text',
+		placeholder: 'Office type...'
+	}];
 }
 
 // ── Shared field renderer ───────────────────────────────────
