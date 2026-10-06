@@ -876,4 +876,156 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.deepEqual(uiExecution.preview.buttons, ['Close']);
 
 	await session.screenshot(path.join(ARTIFACTS, 'v2-migration-ui-executed.png'));
+
+	// Multi-Workspace Foundation: verify the startup-derived Default Workspace,
+	// then replace it with two independent datasets and prove scope/path
+	// switching in the real Obsidian host.
+	const workspaceState = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const adapter = app.vault.adapter;
+		const initialCatalog = JSON.parse(
+			await adapter.read('.charted-roots/workspaces.json')
+		);
+		const initialService = plugin.getWorkspaceService();
+		if (!initialService) throw new Error('Workspace service did not bootstrap.');
+
+		const initial = {
+			active: initialService.getActiveId(),
+			root: initialService.getActive().rootFolder,
+			localSetting: plugin.settings.activeWorkspaceId,
+			catalogHasActive: Object.prototype.hasOwnProperty.call(
+				initialCatalog,
+				'activeWorkspaceId'
+			)
+		};
+
+		const catalog = {
+			version: 1,
+			workspaces: [
+				{
+					id: 'history-cn',
+					name: '中国历史',
+					rootFolder: 'Workspace-E2E/History',
+					mode: 'historical',
+					enabledPacks: ['core', 'chinese-history']
+				},
+				{
+					id: 'shushan',
+					name: '蜀山',
+					rootFolder: 'Workspace-E2E/Shushan',
+					mode: 'worldbuilding',
+					enabledPacks: ['core']
+				}
+			]
+		};
+
+		await plugin.replaceWorkspaceCatalog(catalog);
+		const service = plugin.getWorkspaceService();
+		if (!service) throw new Error('Workspace service disappeared after catalog replacement.');
+
+		const history = {
+			active: service.getActiveId(),
+			files: service.getScope().getMarkdownFiles().map(file => file.path).sort(),
+			assertionPath: service.resolvePath('assertions', 'New.md'),
+			outsideWorkspace: service.getScope().getWorkspaceForPath(
+				'Legacy/Broken-Membership.md'
+			) ?? null
+		};
+
+		await plugin.setActiveWorkspace('shushan');
+
+		const shushan = {
+			active: service.getActiveId(),
+			files: service.getScope().getMarkdownFiles().map(file => file.path).sort(),
+			personPath: service.resolvePath('people', 'Li-Yingqiong.md'),
+			localSetting: plugin.settings.activeWorkspaceId
+		};
+
+		const persisted = JSON.parse(
+			await adapter.read('.charted-roots/workspaces.json')
+		);
+
+		let overlapRejected = false;
+		let overlapMessage = '';
+		try {
+			await plugin.replaceWorkspaceCatalog({
+				version: 1,
+				workspaces: [
+					catalog.workspaces[0],
+					{
+						...catalog.workspaces[1],
+						rootFolder: 'Workspace-E2E/History/Nested'
+					}
+				]
+			});
+		} catch (error) {
+			overlapRejected = true;
+			overlapMessage = error instanceof Error ? error.message : String(error);
+		}
+
+		const persistedAfterRejected = JSON.parse(
+			await adapter.read('.charted-roots/workspaces.json')
+		);
+
+		await plugin.setActiveWorkspace('history-cn');
+
+		return {
+			initial,
+			history,
+			shushan,
+			persisted,
+			overlapRejected,
+			overlapMessage,
+			persistedAfterRejected,
+			finalActive: service.getActiveId(),
+			finalLocalSetting: plugin.settings.activeWorkspaceId
+		};
+	`);
+
+	assert.deepEqual(workspaceState.initial, {
+		active: 'default',
+		root: 'Charted Roots',
+		localSetting: 'default',
+		catalogHasActive: false
+	});
+	assert.equal(workspaceState.history.active, 'history-cn');
+	assert.deepEqual(workspaceState.history.files, [
+		'Workspace-E2E/History/Events/History-Event.md',
+		'Workspace-E2E/History/People/History-Person.md'
+	]);
+	assert.equal(
+		workspaceState.history.assertionPath,
+		'Workspace-E2E/History/Assertions/New.md'
+	);
+	assert.equal(workspaceState.history.outsideWorkspace, null);
+
+	assert.equal(workspaceState.shushan.active, 'shushan');
+	assert.deepEqual(workspaceState.shushan.files, [
+		'Workspace-E2E/Shushan/People/Fiction-Person.md'
+	]);
+	assert.equal(
+		workspaceState.shushan.personPath,
+		'Workspace-E2E/Shushan/People/Li-Yingqiong.md'
+	);
+	assert.equal(workspaceState.shushan.localSetting, 'shushan');
+
+	assert.equal(workspaceState.persisted.version, 1);
+	assert.equal(workspaceState.persisted.workspaces.length, 2);
+	assert.equal(
+		Object.prototype.hasOwnProperty.call(
+			workspaceState.persisted,
+			'activeWorkspaceId'
+		),
+		false
+	);
+	assert.equal(workspaceState.overlapRejected, true);
+	assert.match(workspaceState.overlapMessage, /overlap/i);
+	assert.deepEqual(
+		workspaceState.persistedAfterRejected,
+		workspaceState.persisted
+	);
+	assert.equal(workspaceState.finalActive, 'history-cn');
+	assert.equal(workspaceState.finalLocalSetting, 'history-cn');
+
+	await session.screenshot(path.join(ARTIFACTS, 'v2-workspaces-foundation.png'));
 });
