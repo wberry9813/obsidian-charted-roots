@@ -132,6 +132,10 @@ export class ProfileDataLoader {
 		const membershipService = new MembershipService(this.plugin, orgService);
 		const memberships = this.sortMemberships(membershipService.getPersonMemberships(crId));
 
+		// v2 Assertions touching this person. Legacy relationships/memberships remain
+		// alongside these until their writers are retired after migration.
+		const assertions = this.plugin.getSemanticAssertionService().getForFile(file);
+
 		// Research coverage
 		const evidenceService = new EvidenceService(app, settings);
 		const researchCoverage = evidenceService.getFactCoverage(crId);
@@ -159,6 +163,7 @@ export class ProfileDataLoader {
 			relationships,
 			inverseRelationships,
 			memberships,
+			assertions,
 			media,
 			researchCoverage,
 			proofSummaries,
@@ -189,6 +194,9 @@ export class ProfileDataLoader {
 		const eventService = this.plugin.getEventService();
 		const events = eventService?.getEventsAtPlace(`[[${file.basename}]]`) ?? [];
 
+		// v2 Assertions touching this place
+		const assertions = this.plugin.getSemanticAssertionService().getForFile(file);
+
 		// Media
 		const media = this.resolveMedia(node.media);
 
@@ -203,6 +211,7 @@ export class ProfileDataLoader {
 			file,
 			node,
 			events,
+			assertions,
 			media,
 			needsResearch,
 			sources
@@ -332,6 +341,9 @@ export class ProfileDataLoader {
 		const eventService = this.plugin.getEventService();
 		const events = eventService?.getEventsForOrganization(`[[${file.basename}]]`) ?? [];
 
+		// v2 Assertions touching this organization
+		const assertions = this.plugin.getSemanticAssertionService().getForFile(file);
+
 		// Media
 		const media = this.resolveMedia(org.media);
 
@@ -346,6 +358,7 @@ export class ProfileDataLoader {
 			org,
 			members,
 			events,
+			assertions,
 			media,
 			sources
 		};
