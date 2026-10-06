@@ -59,6 +59,37 @@ describe('v2 OntologyRegistry', () => {
 		expect(registry.hasType('organization_type', 'clan')).toBe(false);
 	});
 
+	it('validates reciprocal inverse predicates after packs are loaded', () => {
+		const registry = createV2OntologyRegistry();
+
+		expect(registry.validate().filter(issue => issue.severity === 'error')).toEqual([]);
+		expect(registry.getPredicate('mentor_of')?.inverse).toBe('disciple_of');
+		expect(registry.getPredicate('disciple_of')?.inverse).toBe('mentor_of');
+	});
+
+	it('reports a missing inverse predicate', () => {
+		const registry = new OntologyRegistry();
+		registry.registerPredicate({
+			kind: 'predicate',
+			id: 'broken_inverse',
+			labels: { en: 'Broken inverse' },
+			pack: 'test',
+			builtIn: false,
+			subjectTypes: ['person'],
+			objectTypes: ['person'],
+			temporal: true,
+			inverse: 'does_not_exist'
+		});
+
+		expect(registry.validate()).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				severity: 'error',
+				code: 'missing_inverse_predicate',
+				definitionId: 'broken_inverse'
+			})
+		]));
+	});
+
 	it('rejects a definition whose declared pack does not match its container', () => {
 		const registry = new OntologyRegistry();
 		const invalid = {
