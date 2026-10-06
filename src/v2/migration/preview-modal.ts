@@ -1,7 +1,8 @@
-import { App, Modal } from 'obsidian';
+import { App, Modal, Notice } from 'obsidian';
 import type CanvasRootsPlugin from '../../../main';
 import type {
 	FileMigrationPreview,
+	MigrationPlan,
 	MigrationPreview,
 	MigrationPreviewAction
 } from './types';
@@ -31,12 +32,16 @@ function actionLabel(action: MigrationPreviewAction): string {
 	}
 }
 
+function fileWord(count: number): string {
+	return count === 1 ? 'file' : 'files';
+}
+
 /**
- * Read-only Schema v2 migration preview.
+ * Schema v2 migration preview.
  *
- * This modal intentionally contains no execute/migrate action. It presents a
- * frozen analyzer snapshot so users can understand what is safe, ambiguous or
- * blocked before destructive migration is implemented/enabled.
+ * The preview itself never mutates the vault. Ready files can proceed only
+ * through a second explicit confirmation modal. Review/blocked files are never
+ * passed to the executor.
  */
 export class V2MigrationPreviewModal extends Modal {
 	constructor(
@@ -57,7 +62,7 @@ export class V2MigrationPreviewModal extends Modal {
 		});
 
 		contentEl.createEl('p', {
-			text: 'Read-only preview. No vault files will be modified.',
+			text: 'Preview only. Nothing changes until you explicitly confirm migration of Ready files.',
 			cls: 'cr-v2-migration-preview__notice'
 		});
 
@@ -68,9 +73,21 @@ export class V2MigrationPreviewModal extends Modal {
 		const buttons = contentEl.createDiv({
 			cls: 'modal-button-container cr-v2-migration-preview__buttons'
 		});
+
+		if (preview.readyFiles > 0) {
+			const migrate = buttons.createEl('button', {
+				text: `Migrate ${preview.readyFiles} ready ${fileWord(preview.readyFiles)}…`,
+				cls: 'mod-cta cr-v2-migration-preview__migrate'
+			});
+			migrate.addEventListener('click', () => {
+				this.close();
+				new V2MigrationConfirmModal(this.app, this.plugin).open();
+			});
+		}
+
 		const close = buttons.createEl('button', {
 			text: 'Close',
-			cls: 'mod-cta cr-v2-migration-preview__close'
+			cls: 'cr-v2-migration-preview__close'
 		});
 		close.addEventListener('click', () => this.close());
 	}
@@ -131,5 +148,117 @@ export class V2MigrationPreviewModal extends Modal {
 				}
 			}
 		}
+	}
+}
+
+/**
+ * Second-step confirmation for the ready subset only.
+ *
+ * The plan is frozen when this modal opens; the executor revalidates its
+ * fingerprints against live Markdown immediately before mutation.
+ */
+export class V2MigrationConfirmModal extends Modal {
+	private plan: MigrationPlan | null = null;
+
+	constructor(
+		app: App,
+		private readonly plugin: CanvasRootsPlugin
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass('cr-v2-migration-confirm');
+
+		this.plan = this.plugin.buildV2MigrationPlan();
+
+		contentEl.createEl('h2', {
+			text: 'Confirm Schema v2 migration',
+			cls: 'cr-v2-migration-confirm__title'
+		});
+
+		const ready = this.plan.executableFiles;
+		const unresolved = this.plan.reviewFiles + this.plan.blockedFiles;
+
+		contentEl.createEl('p', {
+			text: `This will migrate ${ready} Ready ${fileWord(ready)}. ${unresolved} Review/Blocked ${fileWord(unresolved)} will remain unchanged.`,
+			cls: 'cr-v2-migration-confirm__summary'
+		});
+
+		contentEl.createEl('p', {
+			text: 'Exact source Markdown is backed up before any mutation. If a source changed after this plan was created, execution stops instead of using stale data.',
+			cls: 'cr-v2-migration-confirm__safety'
+		});
+
+		contentEl.createEl('p', {
+			text: 'Backups and the migration manifest are stored under .charted-roots/migration/.',
+			cls: 'cr-v2-migration-confirm__backup'
+		});
+
+		const status = contentEl.createDiv({
+			cls: 'cr-v2-migration-confirm__status'
+		});
+
+		const buttons = contentEl.createDiv({
+			cls: 'modal-button-container cr-v2-migration-confirm__buttons'
+		});
+
+		const cancel = buttons.createEl('button', {
+			text: 'Cancel',
+			cls: 'cr-v2-migration-confirm__cancel'
+		});
+		cancel.addEventListener('click', () => this.close());
+
+		const execute = buttons.createEl('button', {
+			text: `Migrate ${ready} ready ${fileWord(ready)}`,
+			cls: 'mod-cta cr-v2-migration-confirm__execute'
+		});
+		execute.disabled = ready === 0;
+
+		execute.addEventListener('click', () => {
+			void this.executePlan(execute, cancel, status);
+		});
+	}
+
+	private async executePlan(
+		execute: HTMLButtonElement,
+		cancel: HTMLButtonElement,
+		status: HTMLElement
+	): Promise<void> {
+		const plan = this.plan;
+		if (!plan || plan.executableFiles === 0) return;
+
+		execute.disabled = true;
+		cancel.disabled = true;
+		status.setText('Migrating Ready files…');
+
+		const result = await this.plugin.executeV2MigrationReady(plan);
+
+		if (!result.success) {
+			const message = result.errors.map(error =>
+				error.filePath ? `${error.filePath}: ${error.message}` : error.message
+			).join(' ');
+			status.setText(`Migration stopped: ${message || 'Unknown error.'}`);
+			execute.disabled = false;
+			cancel.disabled = false;
+			new Notice('Schema v2 migration stopped. No unsafe partial migration was kept.');
+			return;
+		}
+
+		const backup = result.backupDirectory
+			? ` Backup: ${result.backupDirectory}`
+			: '';
+		new Notice(
+			`Migrated ${result.filesMigrated} ready ${fileWord(result.filesMigrated)} and created ${result.assertionsCreated} Assertions.${backup}`,
+			8000
+		);
+
+		this.close();
+
+		// Re-analyze the vault after successful execution so the user
+		// immediately sees what still needs review.
+		new V2MigrationPreviewModal(this.app, this.plugin).open();
 	}
 }
