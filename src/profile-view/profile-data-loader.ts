@@ -12,6 +12,7 @@ import type {
 	ProfileEntityType,
 	ProfileEntityData,
 	PersonProfileData,
+	OfficeProfileData,
 	PlaceProfileData,
 	EventProfileData,
 	SourceProfileData,
@@ -83,6 +84,9 @@ export class ProfileDataLoader {
 					break;
 				case 'organization':
 					data = this.loadOrganization(file, fm, crId);
+					break;
+				case 'office':
+					data = this.loadOffice(file, fm, crId);
 					break;
 			}
 		} catch (err) {
@@ -363,6 +367,32 @@ export class ProfileDataLoader {
 			sources
 		};
 	}
+
+	// ── Office (v2) ─────────────────────────────────────────
+
+	private loadOffice(
+		file: TFile,
+		fm: Record<string, unknown>,
+		crId: string
+	): OfficeProfileData {
+		const name = (fm.name as string) || file.basename;
+		const officeType = typeof fm.office_type === 'string'
+			? fm.office_type
+			: undefined;
+		const assertions = this.plugin.getSemanticAssertionService().getForFile(file);
+		const sources = this.parseStringArray(fm.sources);
+
+		return {
+			entityType: 'office',
+			crId,
+			name,
+			file,
+			officeType,
+			assertions,
+			sources
+		};
+	}
+
 
 	// ── Referenced facts (for Source profile) ────────────────
 
