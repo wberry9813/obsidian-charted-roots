@@ -1,6 +1,6 @@
 # Historical Map Foundation
 
-> Status: **M6 C0-C3 coordinate, basemap and historical Place identity implemented; C4 control layers next**
+> Status: **M6 C0-C4 historical map foundation implemented; C5 bidirectional Timeline/Map synchronization next**
 >
 > M6 follows the implemented M5 Temporal Views foundation.
 
@@ -145,11 +145,11 @@ WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
 - [x] manifest metadata and referenced `.geojson` modifications refresh open Map views without re-reading layers on ordinary map filters;
 - [x] storage loader rejects malformed/unsupported geometry and reports missing assets per layer;
 - [x] non-canonical persisted CRS is normalized for compatibility but surfaced as a data-quality issue;
-- [ ] import writer/UI for creating canonical WGS84 GeoJSON + manifest pairs.
+- [x] import writer/UI creates Workspace-scoped canonical WGS84 GeoJSON + manifest pairs, preserves source CRS provenance, rolls back partial writes and refreshes open Map views.
 
 ### C5 — full Timeline <-> Map synchronization
 
-- [ ] retain M5 shared-focus -> Map state projection;
+- [x] retain M5 shared-focus -> Map state projection;
 - [ ] define bridge from legacy Map standard/fictional calendars into v2
   chronology axes;
 - [ ] only then allow Map time controls to write shared TemporalFocus;
