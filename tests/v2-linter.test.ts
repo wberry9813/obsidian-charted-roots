@@ -26,7 +26,7 @@ function makeApp(entries: Array<{ path: string; frontmatter?: Record<string, unk
 				return item?.frontmatter ? { frontmatter: item.frontmatter } : null;
 			}
 		}
-	} as never;
+	};
 }
 
 describe('v2 foundation linter', () => {
@@ -64,8 +64,8 @@ describe('v2 foundation linter', () => {
 			}
 		]);
 
-		const assertions = new AssertionService(app);
-		const linter = new V2Linter(app, createV2OntologyRegistry(), assertions);
+		const assertions = new AssertionService(app as never);
+		const linter = new V2Linter(app as never, createV2OntologyRegistry(), assertions);
 
 		expect(linter.lint()).toEqual([]);
 	});
@@ -94,8 +94,8 @@ describe('v2 foundation linter', () => {
 			}
 		]);
 
-		const assertions = new AssertionService(app);
-		const issues = new V2Linter(app, createV2OntologyRegistry(), assertions).lint();
+		const assertions = new AssertionService(app as never);
+		const issues = new V2Linter(app as never, createV2OntologyRegistry(), assertions).lint();
 
 		expect(issues).toEqual(expect.arrayContaining([
 			expect.objectContaining({ code: 'duplicate_cr_id' }),
@@ -138,7 +138,7 @@ describe('v2 foundation linter', () => {
 		const historyFiles = () => app.vault.getMarkdownFiles()
 			.filter((file: { path: string }) => file.path.startsWith('History/'));
 		const assertions = new AssertionService(
-			app,
+			app as never,
 			undefined,
 			{ fileProvider: historyFiles as never }
 		);
