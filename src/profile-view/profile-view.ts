@@ -42,6 +42,7 @@ import { renderResearchSection } from './sections/research-section';
 import { renderAssertionsSection } from './sections/assertions-section';
 import { HistoricalNameModal } from './historical-name-modal';
 import { PlaceDesignationService } from '../v2/maps/place-designation-service';
+import { isJulianDayFocus } from '../v2/temporal/temporal-focus-service';
 import { renderTemporalInstitutionSection } from './sections/temporal-institution-section';
 import { renderProfileSection } from './sections/section-base';
 import { detectNoteType, isPersonNote } from '../utils/note-type-detection';
@@ -580,7 +581,7 @@ export class ProfileView extends ItemView {
 			}
 			| undefined;
 
-		if (temporalAssertions && focus) {
+		if (temporalAssertions && isJulianDayFocus(focus)) {
 			const designations = new PlaceDesignationService(temporalAssertions);
 			const snapshot = focus.kind === 'point'
 				? designations.getAt(data.crId, focus.position)
