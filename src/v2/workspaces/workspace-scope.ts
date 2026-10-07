@@ -36,4 +36,14 @@ export class WorkspaceScope {
 			this.contains(file, workspaceId)
 		);
 	}
+
+	/**
+	 * Return every file under a Workspace root, including attachments/media.
+	 * Used by Workspace-scoped reports that must inspect non-Markdown files.
+	 */
+	getFiles(workspaceId?: string): TFile[] {
+		return this.app.vault.getFiles().filter(file =>
+			this.contains(file, workspaceId)
+		);
+	}
 }
