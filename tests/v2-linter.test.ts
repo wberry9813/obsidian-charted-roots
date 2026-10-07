@@ -143,7 +143,7 @@ describe('v2 foundation linter', () => {
 			{ fileProvider: historyFiles as never }
 		);
 		const issues = new V2Linter(
-			app,
+			app as never,
 			createV2OntologyRegistry(),
 			assertions,
 			{
