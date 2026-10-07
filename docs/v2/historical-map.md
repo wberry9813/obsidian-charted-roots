@@ -69,7 +69,9 @@ Supported first-stage geographic CRS:
 - [x] route geographic map click and Place drag write-back through the inverse adapter;
 - [x] persist map center state as canonical WGS84 instead of basemap-shifted coordinates;
 - [ ] prove current WGS84 rendering remains unchanged in the latest real-Obsidian smoke after integration;
-- [ ] keep GeoJSON export canonical WGS84 and add import/render adapter coverage;
+- [x] keep GeoJSON export canonical WGS84;
+- [x] route SVG current-view marker/path projection through the basemap adapter;
+- [ ] add GeoJSON import/render adapter coverage;
 - [ ] add China-friendly GCJ-02/BD-09 basemap options only after adapter tests.
 
 ### C3 — historical place identity

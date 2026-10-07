@@ -2949,11 +2949,12 @@ export class MapController {
 	 * Get current map state
 	 */
 	getState(): MapState {
-		const center = this.map?.getCenter()
-			|| L.latLng(this.settings.defaultCenter.lat, this.settings.defaultCenter.lng);
-		const canonicalCenter = this.currentCRS === 'pixel'
-			? { lat: center.lat, lng: center.lng }
-			: this.mapLatLngToCanonicalGeographic(center.lat, center.lng);
+		const center = this.map?.getCenter();
+		const canonicalCenter = center
+			? (this.currentCRS === 'pixel'
+				? { lat: center.lat, lng: center.lng }
+				: this.mapLatLngToCanonicalGeographic(center.lat, center.lng))
+			: { ...this.settings.defaultCenter };
 		const zoom = this.map?.getZoom() || this.settings.defaultZoom;
 
 		return {
@@ -3063,8 +3064,16 @@ export class MapController {
 
 		// Migration paths
 		for (const path of paths) {
-			const start = project(path.origin.lat, path.origin.lng);
-			const end = project(path.destination.lat, path.destination.lng);
+			const startDisplay = this.canonicalGeographicToMapLatLng(
+				path.origin.lat,
+				path.origin.lng
+			);
+			const endDisplay = this.canonicalGeographicToMapLatLng(
+				path.destination.lat,
+				path.destination.lng
+			);
+			const start = project(startDisplay.lat, startDisplay.lng);
+			const end = project(endDisplay.lat, endDisplay.lng);
 
 			// Bezier curve for nicer paths
 			const midX = (start.x + end.x) / 2;
@@ -3084,7 +3093,8 @@ export class MapController {
 
 		// Markers
 		for (const marker of markers) {
-			const pos = project(marker.lat, marker.lng);
+			const display = this.canonicalGeographicToMapLatLng(marker.lat, marker.lng);
+			const pos = project(display.lat, display.lng);
 			const color = this.getMarkerColorForType(marker.type);
 
 			svg += `  <circle cx="${pos.x}" cy="${pos.y}" r="6" fill="${color}" stroke="white" stroke-width="1"/>\n`;
