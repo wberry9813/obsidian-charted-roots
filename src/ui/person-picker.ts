@@ -231,6 +231,7 @@ export class PersonPickerModal extends Modal {
 	private loadPeople(): void {
 		this.allPeople = [];
 		const files = this.fileProvider?.()
+			?? this.plugin?.getWorkspaceService()?.getScope().getMarkdownFiles()
 			?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {

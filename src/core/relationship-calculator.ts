@@ -63,9 +63,13 @@ export class RelationshipCalculator {
 	private app: App;
 	private familyGraph: FamilyGraphService;
 
-	constructor(app: App, folderFilter?: FolderFilterService) {
+	constructor(
+		app: App,
+		folderFilter?: FolderFilterService,
+		familyGraph?: FamilyGraphService
+	) {
 		this.app = app;
-		this.familyGraph = new FamilyGraphService(app);
+		this.familyGraph = familyGraph ?? new FamilyGraphService(app);
 		if (folderFilter) {
 			this.familyGraph.setFolderFilter(folderFilter);
 		}
