@@ -841,15 +841,21 @@ export function registerCommandsAndEvents(plugin: CanvasRootsPlugin): void {
 		id: 'merge-duplicate-places',
 		name: 'Merge duplicate place notes',
 		callback: () => {
+			const fileProvider = () =>
+				plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+				?? plugin.app.vault.getMarkdownFiles();
 			const duplicateGroups = findDuplicatePlaceNotes(plugin.app, {
 				settings: plugin.settings,
-				folderFilter: plugin.getFolderFilter()
+				folderFilter: plugin.getFolderFilter(),
+				fileProvider
 			});
 			if (duplicateGroups.length === 0) {
 				new Notice('No duplicate place notes found. Your places are unique!');
 				return;
 			}
-			new MergeDuplicatePlacesModal(plugin.app, duplicateGroups).open();
+			new MergeDuplicatePlacesModal(plugin.app, duplicateGroups, {
+				fileProvider
+			}).open();
 		}
 	});
 
