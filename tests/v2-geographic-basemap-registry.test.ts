@@ -71,6 +71,19 @@ describe('M6 geographic basemap registry', () => {
 		).toContain('unsupported_coordinate_crs');
 	});
 
+	it('does not echo provider URL secrets in validation issues', () => {
+		const secret = 'super-secret-token';
+		const { issues } = buildGeographicBasemapRegistry([{
+			id: 'broken-secret-provider',
+			label: 'Broken secret provider',
+			coordinateCRS: 'wgs84',
+			tileUrl: `https://tiles.example.invalid/static.png?key=${secret}`
+		}]);
+
+		expect(issues.map(issue => issue.code)).toContain('invalid_tile_url');
+		expect(JSON.stringify(issues)).not.toContain(secret);
+	});
+
 	it('falls back to the built-in provider for unknown saved IDs', () => {
 		const { registry } = buildGeographicBasemapRegistry();
 		expect(registry.resolve('removed-provider').id)

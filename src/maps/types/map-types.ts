@@ -3,6 +3,7 @@
  */
 
 import type * as L from 'leaflet';
+import type { CustomGeographicBasemapConfig } from '../../v2/maps/basemaps';
 
 // ============================================================================
 // Core Map Data Types
@@ -629,6 +630,10 @@ export interface MapSettings {
 	tileProvider: 'openstreetmap' | 'custom';
 	/** Custom tile URL template (if tileProvider is 'custom') */
 	customTileUrl?: string;
+	/** Selected provider inside the Real-world map slot. */
+	geographicBasemapId: string;
+	/** User-defined validated XYZ/WebMercator raster providers. */
+	customGeographicBasemaps: CustomGeographicBasemapConfig[];
 
 	/** Default center for initial map view */
 	defaultCenter: { lat: number; lng: number };
@@ -711,6 +716,8 @@ export interface MapSettings {
  */
 export const DEFAULT_MAP_SETTINGS: MapSettings = {
 	tileProvider: 'openstreetmap',
+	geographicBasemapId: 'carto-voyager',
+	customGeographicBasemaps: [],
 	defaultCenter: { lat: 40, lng: -40 },
 	defaultZoom: 3,
 

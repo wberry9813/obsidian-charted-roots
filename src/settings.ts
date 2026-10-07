@@ -13,6 +13,7 @@ import type { OrganizationCategoryDefinition } from './organizations/types/organ
 import type { RelationshipCategoryDefinition } from './relationships/types/relationship-types';
 import type { PlaceTypeDefinition, PlaceTypeCategoryDefinition } from './places/types/place-types';
 import type { GedcomCompatibilityMode } from './gedcom/gedcom-preprocessor';
+import type { CustomGeographicBasemapConfig } from './v2/maps/basemaps';
 import { getSpouseCompoundLabel } from './utils/terminology';
 import {
 	PropertyAliasService,
@@ -326,6 +327,10 @@ export interface CanvasRootsSettings {
 	};
 	/** Outline color around map path labels for legibility on colorful or dark backgrounds */
 	pathLabelStroke: 'none' | 'white' | 'black';
+	/** Selected provider inside the Real-world map slot. */
+	geographicBasemapId: string;
+	/** User-defined XYZ/WebMercator raster providers. Provider secrets stay in local plugin settings. */
+	customGeographicBasemaps: CustomGeographicBasemapConfig[];
 	// Custom relationship types
 	customRelationshipTypes: RelationshipTypeDefinition[];
 	showBuiltInRelationshipTypes: boolean;
@@ -854,6 +859,8 @@ export const DEFAULT_SETTINGS: CanvasRootsSettings = {
 		high: { radius: 0.9, blur: 0.7, opacity: 0.18 },
 	},
 	pathLabelStroke: 'none' as const,        // Map path label outline (none / white / black)
+	geographicBasemapId: 'carto-voyager', // Provider inside the Real-world map slot
+	customGeographicBasemaps: [],         // User-configured XYZ/WebMercator providers
 	// Custom relationship types
 	customRelationshipTypes: [],   // User-defined relationship types (built-ins are always available)
 	showBuiltInRelationshipTypes: true,  // Whether to show built-in types in UI

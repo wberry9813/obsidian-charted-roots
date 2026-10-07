@@ -2984,6 +2984,8 @@ export class MapView extends ItemView {
 		// TODO: Add full map settings to plugin settings when implementing map settings tab
 		return {
 			tileProvider: 'openstreetmap',
+			geographicBasemapId: this.plugin.settings.geographicBasemapId || 'carto-voyager',
+			customGeographicBasemaps: this.plugin.settings.customGeographicBasemaps || [],
 			defaultCenter: { lat: 40, lng: -40 },
 			defaultZoom: 3,
 			// Core life event colors

@@ -72,7 +72,23 @@ Supported first-stage geographic CRS:
 - [x] keep GeoJSON export canonical WGS84;
 - [x] route SVG current-view marker/path projection through the basemap adapter;
 - [ ] add GeoJSON import/render adapter coverage;
-- [ ] add China-friendly GCJ-02/BD-09 basemap options only after adapter tests.
+- [x] define an XYZ/WebMercator provider registry with runtime validation and safe fallback;
+- [x] persist global selected provider ID and user-defined XYZ provider configs through plugin settings;
+- [x] Controller validates saved provider configs and falls back to Carto for missing/invalid IDs without logging tile URL secrets;
+- [ ] expose Real-world basemap selection without mixing it into custom image maps;
+- [ ] add China-friendly provider templates only through documented/authorized APIs or user-supplied endpoints;
+- [ ] add dedicated WMTS / EPSG:4490 support before treating Tianditu CGCS2000 services as compatible.
+
+#### C2 provider scope
+
+The first provider registry intentionally accepts only ordinary XYZ raster
+tiles on a WebMercator tile matrix. `coordinateCRS` describes the geographic
+datum used to align overlays; it is **not** a Leaflet projection declaration.
+
+This means WGS84, GCJ-02 and BD-09 XYZ providers can share the same rendering
+boundary, while WMTS services with a different matrix/projection (for example
+CGCS2000 / EPSG:4490) require a separate adapter rather than being mislabeled
+as XYZ.
 
 ### C3 — historical place identity
 

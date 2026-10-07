@@ -93,9 +93,12 @@ import type {
 import { getMarkerColor, isMarkerTypeVisible, formatPopupDateRange, coordsBelongToCRS } from './types/map-types';
 import { ImageMapManager } from './image-map-manager';
 import {
+	buildGeographicBasemapRegistry,
 	DEFAULT_GEOGRAPHIC_BASEMAP,
 	GeographicBasemapCoordinateAdapter,
-	type GeographicBasemapDefinition
+	type BasemapRegistryIssue,
+	type GeographicBasemapDefinition,
+	type GeographicBasemapRegistry
 } from '../v2/maps/basemaps';
 import {
 	CanonicalCoordinateService,
@@ -118,6 +121,8 @@ export class MapController {
 	private tileLayer: L.TileLayer | null = null;
 	private geographicBasemap: GeographicBasemapDefinition =
 		DEFAULT_GEOGRAPHIC_BASEMAP;
+	private geographicBasemapRegistry: GeographicBasemapRegistry;
+	private basemapRegistryIssues: BasemapRegistryIssue[] = [];
 	private basemapCoordinateAdapter: GeographicBasemapCoordinateAdapter;
 
 	// Unified cluster group for all event markers (birth, death, marriage, etc.)
@@ -209,6 +214,28 @@ export class MapController {
 		this.settings = settings;
 		this.plugin = plugin;
 		this.imageMapManager = new ImageMapManager(plugin.app, settings.customMapsFolder);
+
+		const basemaps = buildGeographicBasemapRegistry(
+			settings.customGeographicBasemaps ?? []
+		);
+		this.geographicBasemapRegistry = basemaps.registry;
+		this.basemapRegistryIssues = basemaps.issues;
+		this.geographicBasemap = this.geographicBasemapRegistry.resolve(
+			settings.geographicBasemapId || DEFAULT_GEOGRAPHIC_BASEMAP.id
+		);
+		if (this.basemapRegistryIssues.length > 0) {
+			logger.warn(
+				'basemap-registry',
+				'Ignored invalid geographic basemap configuration',
+				{
+					issues: this.basemapRegistryIssues.map(issue => ({
+						basemapId: issue.basemapId,
+						code: issue.code,
+						message: issue.message
+					}))
+				}
+			);
+		}
 		this.basemapCoordinateAdapter = new GeographicBasemapCoordinateAdapter(
 			new CanonicalCoordinateService(
 				new GcoordCoordinateTransformProvider()
@@ -267,6 +294,14 @@ export class MapController {
 
 	getGeographicBasemapDefinition(): GeographicBasemapDefinition {
 		return { ...this.geographicBasemap };
+	}
+
+	getAvailableGeographicBasemaps(): GeographicBasemapDefinition[] {
+		return this.geographicBasemapRegistry.list();
+	}
+
+	getBasemapRegistryIssues(): BasemapRegistryIssue[] {
+		return this.basemapRegistryIssues.map(issue => ({ ...issue }));
 	}
 
 	/**
