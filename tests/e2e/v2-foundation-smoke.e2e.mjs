@@ -949,6 +949,14 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const evidenceService = plugin.getEvidenceService();
 		const proofService = plugin.getProofSummaryService();
 		const temporalProjectionService = plugin.getTemporalProjectionService();
+		const temporalAssertionStateService = plugin.getTemporalAssertionStateService();
+		if (!temporalAssertionStateService) {
+			throw new Error('Temporal Assertion state service is unavailable.');
+		}
+		const historicalCalendar = plugin.getHistoricalDateService().getCalendarProvider('tyme');
+		if (!historicalCalendar) {
+			throw new Error('Historical calendar provider is unavailable.');
+		}
 		const readTimelineView = () => {
 			const leaf = app.workspace.getLeavesOfType('charted-roots-temporal-timeline')[0];
 			const root = leaf?.view?.containerEl;
@@ -1006,6 +1014,14 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			})
 		];
 
+		const historyAssertionState = temporalAssertionStateService.getAt(
+			historicalCalendar.solarToJulianDay({
+				year: -456,
+				month: 6,
+				day: 1
+			})
+		);
+
 		const history = {
 			active: service.getActiveId(),
 			files: service.getScope().getMarkdownFiles()
@@ -1048,6 +1064,10 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				.filter(proof => !proof.title.includes('Created Proof E2E'))
 				.map(proof => proof.title)
 				.sort(),
+			temporalAssertionState: {
+				active: historyAssertionState.active.map(entry => entry.id).sort(),
+				possible: historyAssertionState.possible.map(entry => entry.id).sort()
+			},
 			temporalItems: temporalProjectionService.getAll()
 				.filter(item => !historyCreated.some(created => created.path === item.filePath))
 				.map(item => ({
@@ -1110,6 +1130,14 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		await plugin.setActiveWorkspace('shushan');
 		await new Promise(resolve => window.setTimeout(resolve, 50));
 		const shushanTimeline = readTimelineView();
+
+		const shushanAssertionState = temporalAssertionStateService.getAt(
+			historicalCalendar.solarToJulianDay({
+				year: 115,
+				month: 6,
+				day: 1
+			})
+		);
 
 		const shushanCreated = [
 			await eventService.createEvent({
@@ -1179,6 +1207,10 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				.filter(proof => !proof.title.includes('Created Proof E2E'))
 				.map(proof => proof.title)
 				.sort(),
+			temporalAssertionState: {
+				active: shushanAssertionState.active.map(entry => entry.id).sort(),
+				possible: shushanAssertionState.possible.map(entry => entry.id).sort()
+			},
 			temporalItems: temporalProjectionService.getAll()
 				.filter(item => !shushanCreated.some(created => created.path === item.filePath))
 				.map(item => ({
@@ -1284,6 +1316,10 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		shushan: null
 	});
 	assert.deepEqual(workspaceState.history.proofs, ['History Proof']);
+	assert.deepEqual(workspaceState.history.temporalAssertionState, {
+		active: ['workspace-history-assertion'],
+		possible: []
+	});
 	assert.deepEqual(workspaceState.history.temporalItems, [
 		{
 			id: 'history-event',
@@ -1420,6 +1456,10 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		shushan: 'Workspace-E2E/Shushan/People/Fiction-Person.md'
 	});
 	assert.deepEqual(workspaceState.shushan.proofs, ['Fiction Proof']);
+	assert.deepEqual(workspaceState.shushan.temporalAssertionState, {
+		active: ['workspace-shushan-assertion'],
+		possible: []
+	});
 	assert.deepEqual(workspaceState.shushan.temporalItems, [
 		{
 			id: 'fiction-event',

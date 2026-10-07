@@ -4,3 +4,4 @@ export * from './axis-projection';
 export * from './timeline-model';
 export * from './timeline-query';
 export * from './timeline-grouping';
+export * from './temporal-assertion-state-service';

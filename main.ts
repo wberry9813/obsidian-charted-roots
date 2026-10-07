@@ -33,7 +33,7 @@ import { EvidenceService, ProofSummaryService, SourceService } from './src/sourc
 import { EventService } from './src/events/services/event-service';
 import { OrganizationService } from './src/organizations/services/organization-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, HistoricalDateService, SemanticAssertionService, TemporalProjectionService, V2Linter, V2MigrationAnalyzer, V2MigrationExecutor, WorkspaceCatalogService, WorkspaceService, bootstrapWorkspaceFoundation, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type LegacyWorkspaceDerivation, type MigrationExecutionOptions, type MigrationExecutionResult, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry, type WorkspaceCatalog } from './src/v2';
+import { AssertionService, HistoricalDateService, SemanticAssertionService, TemporalAssertionStateService, TemporalProjectionService, V2Linter, V2MigrationAnalyzer, V2MigrationExecutor, WorkspaceCatalogService, WorkspaceService, bootstrapWorkspaceFoundation, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type LegacyWorkspaceDerivation, type MigrationExecutionOptions, type MigrationExecutionResult, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry, type WorkspaceCatalog } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -124,6 +124,7 @@ export default class CanvasRootsPlugin extends Plugin {
 	private v2Linter: V2Linter | null = null;
 	private historicalDateService: HistoricalDateService | null = null;
 	private temporalProjectionService: TemporalProjectionService | null = null;
+	private temporalAssertionStateService: TemporalAssertionStateService | null = null;
 	private workspaceCatalogService: WorkspaceCatalogService | null = null;
 	private workspaceService: WorkspaceService | null = null;
 	private workspaceSetupReview: LegacyWorkspaceDerivation | null = null;
@@ -661,6 +662,24 @@ export default class CanvasRootsPlugin extends Plugin {
 			);
 		}
 		return this.temporalProjectionService;
+	}
+
+	/**
+	 * Time-sliced v2 Assertion state for graph/map consumers. The underlying
+	 * projection is Workspace-dynamic, so one service instance follows Active
+	 * Workspace switches without owning another cache.
+	 */
+	getTemporalAssertionStateService(): TemporalAssertionStateService | null {
+		if (!this.temporalAssertionStateService) {
+			const calendar = this.getHistoricalDateService()
+				.getCalendarProvider('tyme');
+			if (!calendar) return null;
+			this.temporalAssertionStateService = new TemporalAssertionStateService(
+				this.getTemporalProjectionService(),
+				calendar
+			);
+		}
+		return this.temporalAssertionStateService;
 	}
 
 	/**

@@ -172,7 +172,8 @@ additional mapping layer that is unnecessary with D3.
 
 ### T4 — temporal graph/map integration
 
-- relationship state at a selected date;
+- [x] read-only Assertion relationship state at an exact axis position / range;
+- [ ] relationship state wired into the relationship graph UI;
 - organization/office/affiliation state over time;
 - timeline ↔ map synchronization;
 - Period/Process contextual overlays.
