@@ -39,6 +39,7 @@ import { DescendantChartGenerator } from './descendant-chart-generator';
 import { SourceSummaryGenerator } from './source-summary-generator';
 import { SourcesByRoleGenerator } from './sources-by-role-generator';
 import { TimelineGenerator } from './timeline-generator';
+import { WorkspaceTimelineGenerator } from './workspace-timeline-generator';
 import { PlaceSummaryGenerator } from './place-summary-generator';
 import { MediaInventoryGenerator } from './media-inventory-generator';
 import { UniverseOverviewGenerator } from './universe-overview-generator';
@@ -121,7 +122,7 @@ export class ReportGenerationService {
 			})
 		);
 		this.sourcesByRoleGenerator = new SourcesByRoleGenerator(app, this.settings);
-		this.timelineGenerator = new TimelineGenerator(app, this.settings);
+		this.timelineGenerator = new WorkspaceTimelineGenerator(app, this.settings, context);
 		this.placeSummaryGenerator = new PlaceSummaryGenerator(app, this.settings);
 		this.mediaInventoryGenerator = new MediaInventoryGenerator(app, this.settings);
 		this.universeOverviewGenerator = new UniverseOverviewGenerator(app, this.settings);
@@ -132,7 +133,6 @@ export class ReportGenerationService {
 		this.kinshipReportGenerator = new KinshipReportGenerator(app, this.settings);
 	}
 
-	/** Generate a report based on type and options. */
 	async generateReport(
 		type: ReportType,
 		options: FamilyGroupSheetOptions | IndividualSummaryOptions | AhnentafelOptions | GapsReportOptions | RegisterReportOptions | PedigreeChartOptions | DescendantChartOptions | SourceSummaryOptions | SourcesByRoleOptions | TimelineReportOptions | PlaceSummaryOptions | MediaInventoryOptions | UniverseOverviewOptions | CollectionOverviewOptions | ResearchReportExportOptions | BrickWallReportOptions | UnconnectedPeopleOptions | KinshipReportOptions
@@ -180,7 +180,6 @@ export class ReportGenerationService {
 		return result;
 	}
 
-	/** Save report content to the active data scope. */
 	async saveToVault(content: string, filename: string, folder?: string): Promise<string> {
 		const normalizedFilename = filename.endsWith('.md') ? filename : `${filename}.md`;
 		const selectedFolder = normalizePath(
@@ -248,7 +247,6 @@ export class ReportGenerationService {
 		}
 	}
 
-	/** Workspace mode exposes only output folders below the active root. */
 	getAvailableFolders(): string[] {
 		const workspaceRoot = this.context.workspaceRootProvider?.();
 		if (workspaceRoot) {
