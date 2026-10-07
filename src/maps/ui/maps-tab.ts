@@ -621,8 +621,11 @@ function importMapFromJson(
 
 			const content = frontmatterLines.join('\n');
 
-			// Determine file path - use configured maps folder or vault root
-			const mapsDir = plugin.settings.mapsFolder || '';
+			// New maps belong to the active Workspace. Preserve the legacy
+			// configured folder only when Workspace Foundation is unavailable.
+			const mapsDir = plugin.getWorkspaceService()?.getFolder('maps')
+				?? plugin.settings.mapsFolder
+				?? '';
 			const safeFileName = String(data.name).replace(/[^a-z0-9\s-]/gi, '').replace(/\s+/g, '-');
 			const filePath = mapsDir
 				? `${mapsDir}/${safeFileName}.md`
@@ -863,7 +866,8 @@ export function renderMapsTab(options: MapsTabOptions): void {
 			.onClick(() => {
 				closeModal();
 				new CreateMapWizardModal(app, plugin, {
-					directory: plugin.settings.mapsFolder
+					directory: plugin.getWorkspaceService()?.getFolder('maps')
+						?? plugin.settings.mapsFolder
 				}).open();
 			}))
 		.addButton(button => button
@@ -871,7 +875,8 @@ export function renderMapsTab(options: MapsTabOptions): void {
 			.onClick(() => {
 				closeModal();
 				new CreateMapModal(app, {
-					directory: plugin.settings.mapsFolder,
+					directory: plugin.getWorkspaceService()?.getFolder('maps')
+						?? plugin.settings.mapsFolder,
 					propertyAliases: plugin.settings.propertyAliases,
 					onCreated: () => {
 						// Note: Control Center is closed, so we can't refresh
