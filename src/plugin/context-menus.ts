@@ -1342,7 +1342,7 @@ function buildPersonContextMenu(
 							const crId = cache?.frontmatter?.cr_id;
 							const personName = cache?.frontmatter?.name || file.basename;
 							if (crId) {
-								new FindOnCanvasModal(plugin.app, personName, crId).open();
+								new FindOnCanvasModal(plugin.app, personName, crId, plugin).open();
 							}
 						});
 				});
@@ -1605,7 +1605,7 @@ function buildPersonContextMenu(
 					const crId = cache?.frontmatter?.cr_id;
 					const personName = cache?.frontmatter?.name || file.basename;
 					if (crId) {
-						new FindOnCanvasModal(plugin.app, personName, crId).open();
+						new FindOnCanvasModal(plugin.app, personName, crId, plugin).open();
 					}
 				});
 		});
