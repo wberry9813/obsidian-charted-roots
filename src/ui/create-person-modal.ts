@@ -191,7 +191,9 @@ export class CreatePersonModal extends Modal {
 		}
 	) {
 		super(app);
-		this.directory = options?.directory || '';
+		this.directory = options?.directory
+			?? options?.plugin?.getWorkspaceService()?.getFolder('people')
+			?? '';
 		this.onCreated = options?.onCreated;
 		this.onUpdated = options?.onUpdated;
 		this.familyGraph = options?.familyGraph;
