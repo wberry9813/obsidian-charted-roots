@@ -63,7 +63,9 @@ Supported first-stage geographic CRS:
 - [x] define a project-owned `GeographicBasemapDefinition` contract;
 - [x] declare the existing Carto Voyager / OSM-backed Real world basemap as WGS84;
 - [x] route main-map, MiniMap, map-switch and CRS-recreation tile creation through one definition;
-- [ ] transform WGS84 canonical coordinates at render time only;
+- [x] define a bidirectional canonical WGS84 <-> basemap datum coordinate adapter;
+- [ ] route geographic marker/path/heat/fitBounds rendering through the adapter;
+- [ ] route geographic click/drag write-back through the inverse adapter;
 - [ ] prove current WGS84 marker/path/heat/GeoJSON rendering remains unchanged through the adapter;
 - [ ] add China-friendly GCJ-02/BD-09 basemap options only after adapter tests.
 
