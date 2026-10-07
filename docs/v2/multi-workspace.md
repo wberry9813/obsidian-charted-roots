@@ -1,6 +1,6 @@
 # Multi-Workspace Foundation
 
-> Status: **Confirmed design baseline before implementation**
+> Status: **Foundation implemented on `feat/v2-workspaces`; automated acceptance covered; ready for user testing after final CI**
 >
 > This document defines how one Obsidian vault can host multiple independent
 > Charted Roots datasets without mixing their entities, assertions or views.
@@ -435,6 +435,8 @@ input scope changes from whole-vault to Workspace.
 
 ## 17. First implementation scope
 
+W0-W4 are implemented on `feat/v2-workspaces`. The milestones below now describe the shipped Foundation boundary rather than future work.
+
 ### W0 — contracts and registry
 
 - WorkspaceDefinition
@@ -493,7 +495,9 @@ Not part of Foundation:
 
 ## 19. Acceptance tests
 
-Foundation is not complete until tests prove:
+All ten Foundation acceptance conditions are now represented by automated unit/integration tests and real-Obsidian E2E coverage on `feat/v2-workspaces`.
+
+The acceptance contract remains:
 
 1. two Workspaces in one real Obsidian vault do not mix Person/Event/Assertion
    discovery;

@@ -83,7 +83,10 @@ Implemented on `feat/v2-workspaces`:
 - Staging/Web Clipper;
 - Report generation context;
 - Map data;
-- Data Quality and destructive cleanup/migration surfaces.
+- Data Quality and destructive cleanup/migration surfaces;
+- ReferenceNumberingService;
+- LineageTrackingService;
+- RelationshipCalculator.
 
 Caches must either be invalidated on active Workspace change or include the
 Workspace id in their cache scope key.
@@ -125,7 +128,10 @@ intentional override.
 - Family Chart graph;
 - Unified Tree Wizard;
 - Reports and Book Builder;
-- Import/Export default entity folders.
+- Import/Export default entity folders;
+- PersonPicker defaults and legacy relationship/person selection entry points;
+- Map Journey person selection;
+- Reference numbering and lineage commands.
 
 ## 7. Import/export policy
 
@@ -169,25 +175,27 @@ Possible future policies:
 
 This decision should not block entity/data isolation.
 
-## 9. Remaining audit areas
+## 9. Post-Foundation follow-up audit areas
 
-Before Foundation is frozen, verify these categories rather than blindly
-replacing every whole-vault scan:
+The Foundation audit has covered the known picker/graph consumers, destructive
+operations, report/book/tree selectors, import/export defaults and active-view
+cache boundaries.
 
-- import/export edge cases and format-specific exporters;
-- picker modals that instantiate their own graph/index services;
-- tree/canvas helpers outside the main wizard;
-- book/report selectors that read Markdown directly;
-- merge/duplicate/cleanup entry points not already routed through Data Quality;
-- media tooling once asset policy is chosen;
-- any background watcher whose cache survives Workspace switches.
+Remaining follow-up work is intentionally narrower:
+
+- format-specific import/export edge cases when new formats are added;
+- media tooling once the asset ownership policy is chosen;
+- newly-added background watchers or caches that survive Workspace switches;
+- future features that intentionally introduce cross-Workspace behavior.
 
 A whole-vault scan is acceptable only when its semantic purpose is explicitly
 vault-global (for example `cr_id` uniqueness).
 
 ## 10. Acceptance gate
 
-Multi-Workspace Foundation is ready for user testing when:
+Automated coverage now locks every item below. Once the final branch CI is green, Multi-Workspace Foundation is ready for user testing.
+
+The gate is:
 
 - fast type-check/unit tests pass;
 - real Obsidian E2E passes;
