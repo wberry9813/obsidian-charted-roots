@@ -102,4 +102,71 @@ describe('v2 foundation linter', () => {
 			expect.objectContaining({ code: 'unknown_predicate' })
 		]));
 	});
+
+	it('keeps content lint Workspace-scoped while enforcing cr_id globally', () => {
+		const app = makeApp([
+			{
+				path: 'History/People/A.md',
+				frontmatter: {
+					cr_schema: 2,
+					cr_type: 'person',
+					cr_id: 'dup-global',
+					name: 'History A'
+				}
+			},
+			{
+				path: 'Fiction/Assertions/Bad.md',
+				frontmatter: {
+					cr_schema: 2,
+					cr_type: 'assertion',
+					cr_id: 'dup-global',
+					assertion_type: 'relationship',
+					subject: '[[Fiction/People/X]]',
+					predicate: 'invented_relation',
+					object: '[[Fiction/People/Y]]'
+				}
+			},
+			{
+				path: 'Fiction/People/Missing-Id.md',
+				frontmatter: {
+					cr_schema: 2,
+					cr_type: 'person'
+				}
+			}
+		]);
+
+		const historyFiles = () => app.vault.getMarkdownFiles()
+			.filter((file: { path: string }) => file.path.startsWith('History/'));
+		const assertions = new AssertionService(
+			app,
+			undefined,
+			{ fileProvider: historyFiles as never }
+		);
+		const issues = new V2Linter(
+			app,
+			createV2OntologyRegistry(),
+			assertions,
+			{
+				fileProvider: historyFiles as never,
+				globalFileProvider: () => app.vault.getMarkdownFiles()
+			}
+		).lint();
+
+		expect(issues).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				code: 'duplicate_cr_id',
+				crId: 'dup-global',
+				filePath: 'Fiction/Assertions/Bad.md'
+			})
+		]));
+		expect(issues.some(issue =>
+			issue.code === 'unknown_predicate'
+			&& issue.filePath === 'Fiction/Assertions/Bad.md'
+		)).toBe(false);
+		expect(issues.some(issue =>
+			issue.code === 'missing_cr_id'
+			&& issue.filePath === 'Fiction/People/Missing-Id.md'
+		)).toBe(false);
+	});
+
 });
