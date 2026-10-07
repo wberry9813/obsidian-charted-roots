@@ -37,7 +37,10 @@ import {
 	buildTemporalMapOverlay,
 	type TemporalMapOverlayMarker
 } from '../v2/temporal/temporal-map-overlay';
-import type { TemporalFocus } from '../v2/temporal/temporal-focus-service';
+import {
+	isJulianDayFocus,
+	type TemporalFocus
+} from '../v2/temporal/temporal-focus-service';
 import {
 	applyFocusedHistoricalPlaceNames,
 	CanonicalCoordinateService,
@@ -2387,14 +2390,25 @@ export class MapView extends ItemView {
 			this.mapContainerEl.dataset.mapTemporalBridgeStatus = result.status;
 			this.mapContainerEl.dataset.mapTemporalBridgeReason =
 				result.status === 'unsupported' ? result.reason : '';
+			this.mapContainerEl.dataset.mapTemporalBridgeAxis =
+				result.status === 'resolved' ? result.axis.kind : '';
 		}
 
 		if (result.status === 'resolved') {
-			focusService.setRange(
-				result.start,
-				result.endExclusive,
-				'map-time-slider'
-			);
+			if (result.axis.kind === 'julian_day') {
+				focusService.setRange(
+					result.start,
+					result.endExclusive,
+					'map-time-slider'
+				);
+			} else {
+				focusService.setAxisRange(
+					result.start,
+					result.endExclusive,
+					result.axis,
+					'map-time-slider'
+				);
+			}
 		} else {
 			// The Map time action now owns navigation but cannot safely map to
 			// the shared axis. Clear stale focus instead of mixing chronologies.
@@ -2497,7 +2511,7 @@ export class MapView extends ItemView {
 		data: MapData,
 		focus: TemporalFocus | null
 	): MapData {
-		if (!focus) return data;
+		if (!isJulianDayFocus(focus)) return data;
 		const temporalAssertions =
 			this.plugin.getTemporalAssertionStateService();
 		if (!temporalAssertions) return data;
@@ -2581,22 +2595,23 @@ export class MapView extends ItemView {
 		}
 
 		const universe = this.filters.universe;
-		const snapshot = !focus
+		const historicalFocus = isJulianDayFocus(focus) ? focus : null;
+		const snapshot = !historicalFocus
 			? this.historicalControlStateService.getWithoutFocus(
 				this.historicalControlLayers,
 				universe
 			)
-			: focus.kind === 'point'
+			: historicalFocus.kind === 'point'
 				? this.historicalControlStateService.getAt(
 					this.historicalControlLayers,
-					focus.position,
+					historicalFocus.position,
 					universe
 				)
 				: this.historicalControlStateService.getRange(
 					this.historicalControlLayers,
 					{
-						start: focus.start,
-						endExclusive: focus.endExclusive
+						start: historicalFocus.start,
+						endExclusive: historicalFocus.endExclusive
 					},
 					universe
 				);
@@ -2669,7 +2684,7 @@ export class MapView extends ItemView {
 			this.mapContainerEl.dataset.temporalPossibleCount = '0';
 		}
 
-		if (!focus || !this.mapController) return;
+		if (!isJulianDayFocus(focus) || !this.mapController) return;
 
 		const placeState = this.plugin.getTemporalPlaceStateService();
 		if (!placeState) return;
@@ -2710,7 +2725,7 @@ export class MapView extends ItemView {
 		if (!this.mapContainerEl) return;
 
 		this.mapContainerEl.querySelector('.cr-map-temporal-context')?.remove();
-		if (!focus) return;
+		if (!isJulianDayFocus(focus)) return;
 
 		const service = this.plugin.getTemporalContextStateService();
 		if (!service) return;
