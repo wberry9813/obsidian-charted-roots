@@ -368,20 +368,31 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	`);
 
 	await session.waitFor(
-		`document.querySelector('.cr-profile__type-badge')?.textContent === 'Office'
-			&& document.querySelector('.cr-profile__header-name')?.textContent?.includes('丞相')
-			&& [...document.querySelectorAll('.cr-profile__section-title')]
-				.some(el => el.textContent === 'Structured assertions')`
+		`app.workspace.getLeavesOfType('charted-roots-entity-profile')
+			.some(leaf => {
+				const root = leaf.view?.containerEl;
+				return root?.querySelector('.cr-profile__type-badge')?.textContent === 'Office'
+					&& root?.querySelector('.cr-profile__header-name')?.textContent?.includes('丞相')
+					&& [...(root?.querySelectorAll('.cr-profile__section-title') ?? [])]
+						.some(el => el.textContent === 'Structured assertions');
+			})`
 	);
 
 	const officeProfileUi = await session.evalInApp(`
-		const title = [...document.querySelectorAll('.cr-profile__section-title')]
+		const leaf = app.workspace.getLeavesOfType('charted-roots-entity-profile')
+			.find(candidate => {
+				const root = candidate.view?.containerEl;
+				return root?.querySelector('.cr-profile__type-badge')?.textContent === 'Office'
+					&& root?.querySelector('.cr-profile__header-name')?.textContent?.includes('丞相');
+			});
+		const root = leaf?.view?.containerEl;
+		const title = [...(root?.querySelectorAll('.cr-profile__section-title') ?? [])]
 			.find(el => el.textContent === 'Structured assertions');
 		const section = title?.closest('.cr-profile__section');
 		return {
-			typeBadge: document.querySelector('.cr-profile__type-badge')?.textContent ?? null,
-			name: document.querySelector('.cr-profile__header-name')?.textContent ?? '',
-			meta: document.querySelector('.cr-profile__header-meta')?.textContent ?? '',
+			typeBadge: root?.querySelector('.cr-profile__type-badge')?.textContent ?? null,
+			name: root?.querySelector('.cr-profile__header-name')?.textContent ?? '',
+			meta: root?.querySelector('.cr-profile__header-meta')?.textContent ?? '',
 			assertionText: section?.textContent ?? '',
 			materializedRows: section?.querySelectorAll('.cr-profile__assertion-item').length ?? 0,
 			predicates: [...(section?.querySelectorAll('.cr-profile__assertion-predicate') ?? [])]
