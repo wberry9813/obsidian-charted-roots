@@ -6,3 +6,4 @@ export * from './timeline-query';
 export * from './timeline-grouping';
 export * from './temporal-assertion-state-service';
 export * from './temporal-focus-service';
+export * from './temporal-place-state-service';
