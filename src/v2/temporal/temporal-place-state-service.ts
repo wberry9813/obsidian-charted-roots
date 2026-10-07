@@ -21,6 +21,7 @@ export interface TemporalPlaceLookupNode {
 		y: number;
 		map?: string;
 	};
+	maps?: string[];
 }
 
 export interface TemporalPlaceLookup {
@@ -61,6 +62,7 @@ export interface TemporalPlaceStateEntry {
 	placeName: string;
 	placeFilePath: string;
 	universe?: string;
+	placeMaps?: string[];
 	coordinate?: TemporalPlaceCoordinate;
 	item: TemporalItem;
 }
@@ -182,6 +184,7 @@ export class TemporalPlaceStateService {
 				placeName: place.name,
 				placeFilePath: place.filePath,
 				universe: place.universe,
+				placeMaps: place.maps,
 				coordinate: coordinateFor(place),
 				item: entry.item
 			});
