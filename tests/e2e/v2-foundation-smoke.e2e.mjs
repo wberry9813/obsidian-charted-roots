@@ -794,7 +794,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		`app.metadataCache.getCache('Charted Roots/Legacy/Ui-Ready.md')?.frontmatter?.cr_schema === 2
 			&& !app.metadataCache.getCache('Charted Roots/Legacy/Ui-Ready.md')?.frontmatter?.membership_orgs
 			&& document.querySelector('.cr-v2-migration-preview__title')?.textContent
-				=== 'Schema v2 migration preview'`,
+				=== 'Schema v2 migration preview'
+			&& document.querySelector('.cr-v2-migration-preview')?.textContent?.includes('0 Ready')
+			&& !document.querySelector('.cr-v2-migration-preview__migrate')`,
 		{ timeout: 90000 }
 	);
 
