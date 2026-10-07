@@ -30,6 +30,7 @@ export class SchemaService {
 	private plugin: CanvasRootsPlugin;
 	private schemaCache: Map<string, SchemaNote> = new Map();
 	private lastCacheRefresh: Date | null = null;
+	private cacheWorkspaceId: string | null = null;
 
 	constructor(plugin: CanvasRootsPlugin) {
 		this.plugin = plugin;
@@ -39,6 +40,7 @@ export class SchemaService {
 	 * Get all schemas from the vault
 	 */
 	async getAllSchemas(forceRefresh = false): Promise<SchemaNote[]> {
+		this.ensureWorkspaceScope();
 		if (forceRefresh || this.schemaCache.size === 0) {
 			await this.refreshCache();
 		}
@@ -49,6 +51,7 @@ export class SchemaService {
 	 * Get a schema by its cr_id
 	 */
 	async getSchemaById(crId: string): Promise<SchemaNote | undefined> {
+		this.ensureWorkspaceScope();
 		if (this.schemaCache.size === 0) {
 			await this.refreshCache();
 		}
@@ -143,7 +146,9 @@ export class SchemaService {
 	 * Create a new schema note
 	 */
 	async createSchema(schema: Omit<SchemaNote, 'filePath'>): Promise<TFile> {
-		const folder = this.plugin.settings.schemasFolder || 'Schemas';
+		const folder = this.plugin.getWorkspaceService()?.getFolder('schemas')
+			?? this.plugin.settings.schemasFolder
+			?? 'Schemas';
 		const fileName = `${schema.name.replace(/[\\/:*?"<>|]/g, '-')}.md`;
 		const filePath = `${folder}/${fileName}`;
 
@@ -298,7 +303,8 @@ export class SchemaService {
 	async refreshCache(): Promise<void> {
 		this.schemaCache.clear();
 
-		const files = this.plugin.app.vault.getMarkdownFiles();
+		const files = this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.plugin.app.vault.getMarkdownFiles();
 		for (const file of files) {
 			const schema = await this.parseSchemaFile(file);
 			if (schema) {
@@ -307,7 +313,17 @@ export class SchemaService {
 		}
 
 		this.lastCacheRefresh = new Date();
+		this.cacheWorkspaceId = this.plugin.getWorkspaceService()?.getActiveId() ?? null;
 		logger.debug('cache', 'Schema cache refreshed', { count: this.schemaCache.size });
+	}
+
+	private ensureWorkspaceScope(): void {
+		const workspaceId = this.plugin.getWorkspaceService()?.getActiveId() ?? null;
+		if (this.cacheWorkspaceId === workspaceId) return;
+
+		this.schemaCache.clear();
+		this.lastCacheRefresh = null;
+		this.cacheWorkspaceId = workspaceId;
 	}
 
 	/**
