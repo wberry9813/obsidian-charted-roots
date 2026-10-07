@@ -1,4 +1,5 @@
 import type { App } from 'obsidian';
+import { registerDefaultReportGenerationContext } from '../../reports/services/report-context';
 import { WorkspacePathResolver } from './workspace-path-resolver';
 import { WorkspaceRegistry } from './workspace-registry';
 import { WorkspaceScope } from './workspace-scope';
@@ -41,6 +42,17 @@ export class WorkspaceService {
 			workspaces: catalog.workspaces
 		});
 		this.scope = new WorkspaceScope(this.app, this.registry);
+
+		// Keep legacy ReportGeneratorModal/ReportGenerationService constructors
+		// Workspace-aware without coupling their persisted settings to one root.
+		// Every provider resolves against `this` at call time, so active switches
+		// and catalog replacement are reflected immediately.
+		registerDefaultReportGenerationContext(() => ({
+			fileProvider: () => this.scope.getMarkdownFiles(),
+			scopeKeyProvider: () => this.getActiveId(),
+			workspaceRootProvider: () => this.getActive().rootFolder,
+			folderProvider: kind => this.getFolder(kind)
+		}));
 	}
 
 	getRegistry(): WorkspaceRegistry {
