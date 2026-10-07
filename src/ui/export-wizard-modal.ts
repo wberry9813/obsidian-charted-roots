@@ -23,6 +23,7 @@ import { scanForPrivateFields } from '../core/privacy-service';
 import { FamilyGraphService, type PersonNode } from '../core/family-graph';
 import { PlaceGraphService } from '../core/place-graph';
 import { EventService } from '../events/services/event-service';
+import { SourceService } from '../sources/services/source-service';
 import type { CanvasRootsSettings } from '../settings';
 import { PrivateFieldsWarningModal, type PrivateFieldsDecision } from './private-fields-warning-modal';
 
