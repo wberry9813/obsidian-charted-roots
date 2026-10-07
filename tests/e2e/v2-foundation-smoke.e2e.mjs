@@ -1419,6 +1419,133 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				.map(layer => layer.id)
 				.sort()
 		};
+
+		// Exercise the user-visible C4 import flow. The source fixture is GCJ-02,
+		// while the persisted GeoJSON must become canonical WGS84 inside the
+		// current History Workspace.
+		const importOpened = app.commands.executeCommandById(
+			'charted-roots:import-historical-control-layer'
+		);
+		if (!importOpened) {
+			throw new Error('Historical control-layer import command is unavailable.');
+		}
+		await new Promise(resolve => window.setTimeout(resolve, 30));
+		const importModal = document.querySelector('.cr-control-layer-import-modal');
+		const importName = importModal?.querySelector(
+			'.cr-control-layer-import__name'
+		);
+		const importCrs = importModal?.querySelector(
+			'.cr-control-layer-import__crs'
+		);
+		const importGeoJson = importModal?.querySelector(
+			'.cr-control-layer-import__geojson'
+		);
+		const importStart = importModal?.querySelector(
+			'.cr-control-layer-import__time-start'
+		);
+		const importEnd = importModal?.querySelector(
+			'.cr-control-layer-import__time-end'
+		);
+		const importSubmit = importModal?.querySelector(
+			'.cr-control-layer-import__submit'
+		);
+		if (
+			!(importName instanceof HTMLInputElement)
+			|| !(importCrs instanceof HTMLSelectElement)
+			|| !(importGeoJson instanceof HTMLTextAreaElement)
+			|| !(importStart instanceof HTMLInputElement)
+			|| !(importEnd instanceof HTMLInputElement)
+			|| !(importSubmit instanceof HTMLButtonElement)
+		) {
+			throw new Error('Historical control-layer import controls are incomplete.');
+		}
+
+		importName.value = 'M6 Imported Boundary E2E';
+		importName.dispatchEvent(new Event('input', { bubbles: true }));
+		importCrs.value = 'gcj02';
+		importCrs.dispatchEvent(new Event('change', { bubbles: true }));
+		importGeoJson.value = JSON.stringify({
+			type: 'FeatureCollection',
+			features: [{
+				type: 'Feature',
+				id: 'imported-gcj-point',
+				properties: { name: 'Imported GCJ point' },
+				geometry: {
+					type: 'Point',
+					coordinates: [113.6253334, 34.7466173]
+				}
+			}]
+		});
+		importGeoJson.dispatchEvent(new Event('input', { bubbles: true }));
+		importStart.value = 'BCE 500';
+		importStart.dispatchEvent(new Event('input', { bubbles: true }));
+		importEnd.value = 'BCE 400';
+		importEnd.dispatchEvent(new Event('input', { bubbles: true }));
+		importSubmit.click();
+
+		for (let i = 0; i < 120; i++) {
+			const imported = historyMapView.getHistoricalControlLayers()
+				.find(layer => layer.label === 'M6 Imported Boundary E2E');
+			if (imported) break;
+			await new Promise(resolve => window.setTimeout(resolve, 25));
+		}
+		const importedLayer = historyMapView.getHistoricalControlLayers()
+			.find(layer => layer.label === 'M6 Imported Boundary E2E');
+		if (!importedLayer) {
+			throw new Error('Imported control layer did not reach the open Map runtime.');
+		}
+
+		const importedManifest = app.vault.getMarkdownFiles().find(file => {
+			const fm = app.metadataCache.getFileCache(file)?.frontmatter;
+			return fm?.cr_type === 'control_layer'
+				&& fm?.name === 'M6 Imported Boundary E2E';
+		});
+		if (!importedManifest) {
+			throw new Error('Imported control-layer manifest was not created.');
+		}
+		const importedFrontmatter = app.metadataCache
+			.getFileCache(importedManifest)?.frontmatter ?? {};
+		const importedFolder = importedManifest.path
+			.split('/').slice(0, -1).join('/');
+		const importedGeoJsonPath = `${importedFolder}/${importedFrontmatter.geojson_file}`;
+		const importedGeoJsonFile = app.vault.getAbstractFileByPath(
+			importedGeoJsonPath
+		);
+		if (!importedGeoJsonFile || !('extension' in importedGeoJsonFile)) {
+			throw new Error('Imported canonical GeoJSON file was not created.');
+		}
+		const importedGeoJsonStored = JSON.parse(
+			await app.vault.read(importedGeoJsonFile)
+		);
+		const importedPoint = importedGeoJsonStored.features?.[0]?.geometry?.coordinates;
+		history.controlImport = {
+			manifestPath: importedManifest.path,
+			geojsonPath: importedGeoJsonPath,
+			coordinateCrs: importedFrontmatter.coordinate_crs,
+			sourceCoordinateCrs: importedFrontmatter.source_coordinate_crs,
+			point: importedPoint,
+			runtimeIds: historyMapView.getHistoricalControlLayers()
+				.map(layer => layer.id)
+				.sort(),
+			rendered: readTemporalMap()
+		};
+
+		await app.vault.delete(importedManifest);
+		await app.vault.delete(importedGeoJsonFile);
+		for (let i = 0; i < 120; i++) {
+			if (
+				!historyMapView.getHistoricalControlLayers()
+					.some(layer => layer.label === 'M6 Imported Boundary E2E')
+			) break;
+			await new Promise(resolve => window.setTimeout(resolve, 25));
+		}
+		history.controlImportAfterCleanup = {
+			ids: historyMapView.getHistoricalControlLayers()
+				.map(layer => layer.id)
+				.sort(),
+			rendered: readTemporalMap()
+		};
+
 		history.mapTemporal = readTemporalMap();
 
 		// Exercise M6 C2 provider hot-switching on the already-open Map. Reuse
@@ -1843,6 +1970,44 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.deepEqual(workspaceState.history.controlStorage, {
 		ids: ['workspace-history-control-layer']
 	});
+	assert.match(
+		workspaceState.history.controlImport.manifestPath,
+		/^Workspace-E2E\/History\/Layers\//
+	);
+	assert.match(
+		workspaceState.history.controlImport.geojsonPath,
+		/^Workspace-E2E\/History\/Layers\//
+	);
+	assert.equal(workspaceState.history.controlImport.coordinateCrs, 'wgs84');
+	assert.equal(
+		workspaceState.history.controlImport.sourceCoordinateCrs,
+		'gcj02'
+	);
+	assert.ok(
+		Math.abs(workspaceState.history.controlImport.point[0] - 113.6192856)
+			<= 1e-5
+	);
+	assert.ok(
+		Math.abs(workspaceState.history.controlImport.point[1] - 34.7478004)
+			<= 1e-5
+	);
+	assert.ok(
+		workspaceState.history.controlImport.runtimeIds.length
+			=== workspaceState.history.controlStorage.ids.length + 1
+	);
+	assert.ok(
+		workspaceState.history.controlImport.rendered.controlFeatureIds
+			.includes('imported-gcj-point')
+	);
+	assert.deepEqual(
+		workspaceState.history.controlImportAfterCleanup.ids,
+		['workspace-history-control-layer']
+	);
+	assert.equal(
+		workspaceState.history.controlImportAfterCleanup.rendered.controlFeatureIds
+			.includes('imported-gcj-point'),
+		false
+	);
 	assert.deepEqual(workspaceState.history.mapTemporal, {
 		focusKind: 'point',
 		markerCount: 1,
