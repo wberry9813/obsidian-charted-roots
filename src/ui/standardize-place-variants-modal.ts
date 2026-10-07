@@ -125,6 +125,7 @@ export interface PlaceVariantMatch {
 
 interface StandardizePlaceVariantsOptions {
 	onComplete?: (updated: number) => void;
+	fileProvider?: () => TFile[];
 }
 
 /**
@@ -144,6 +145,9 @@ export class StandardizePlaceVariantsModal extends Modal {
 	) {
 		super(app);
 		this.placeService = new PlaceGraphService(app);
+		if (options.fileProvider) {
+			this.placeService.setFileProvider(options.fileProvider);
+		}
 		this.matches = matches;
 		this.selectedMatches = new Set(matches); // All selected by default
 		this.canonicalOverrides = new Map();
