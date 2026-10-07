@@ -606,9 +606,11 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	createFamilyGraphService(): FamilyGraphService {
 		const graphService = new FamilyGraphService(this.app);
-		graphService.setFileProvider(() =>
-			this.workspaceService?.getScope().getMarkdownFiles()
-			?? this.app.vault.getMarkdownFiles()
+		graphService.setFileProvider(
+			() =>
+				this.workspaceService?.getScope().getMarkdownFiles()
+				?? this.app.vault.getMarkdownFiles(),
+			() => this.workspaceService?.getActiveId() ?? null
 		);
 		if (this.folderFilter) {
 			graphService.setFolderFilter(this.folderFilter);
