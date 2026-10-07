@@ -1167,7 +1167,25 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					.sort(),
 				contextSummary: root?.querySelector(
 					'.cr-map-temporal-context__summary'
-				)?.textContent ?? ''
+				)?.textContent ?? '',
+				controlActiveCount: Number(
+					mapContainer?.getAttribute('data-control-layer-active-count') ?? '0'
+				),
+				controlPossibleCount: Number(
+					mapContainer?.getAttribute('data-control-layer-possible-count') ?? '0'
+				),
+				controlFeatureIds: [...(root?.querySelectorAll(
+					'.cr-historical-control-feature[data-control-feature-id]'
+				) ?? [])]
+					.map(el => el.getAttribute('data-control-feature-id'))
+					.filter(Boolean)
+					.sort(),
+				controlStates: [...(root?.querySelectorAll(
+					'.cr-historical-control-feature[data-temporal-state]'
+				) ?? [])]
+					.map(el => el.getAttribute('data-temporal-state'))
+					.filter(Boolean)
+					.sort()
 			};
 		};
 
@@ -1385,6 +1403,57 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		);
 		await plugin.activateMapView();
 		await new Promise(resolve => window.setTimeout(resolve, 150));
+		const historyMapLeaf = app.workspace.getLeavesOfType('canvas-roots-map')[0];
+		const historyMapView = historyMapLeaf?.view;
+		if (!historyMapView?.setHistoricalControlLayers) {
+			throw new Error('Historical control-layer runtime API is unavailable.');
+		}
+		historyMapView.setHistoricalControlLayers([{
+			id: 'history-control',
+			label: 'History boundary',
+			coordinateCRS: 'wgs84',
+			source: '[[Workspace-E2E/History/Sources/History-Source]]',
+			featureCollection: {
+				type: 'FeatureCollection',
+				features: [
+					{
+						type: 'Feature',
+						id: 'history-control-active',
+						properties: {
+							name: 'Active historical boundary',
+							time_start: 'BCE 500',
+							time_end: 'BCE 400'
+						},
+						geometry: {
+							type: 'Polygon',
+							coordinates: [[
+								[108.7, 34.1],
+								[109.2, 34.1],
+								[109.2, 34.6],
+								[108.7, 34.1]
+							]]
+						}
+					},
+					{
+						type: 'Feature',
+						id: 'history-control-possible',
+						properties: {
+							name: 'Possible historical boundary',
+							time_not_before: 'BCE 500',
+							time_not_after: 'BCE 400'
+						},
+						geometry: {
+							type: 'LineString',
+							coordinates: [
+								[108.6, 34.0],
+								[109.3, 34.7]
+							]
+						}
+					}
+				]
+			}
+		}]);
+		await new Promise(resolve => window.setTimeout(resolve, 50));
 		history.mapTemporal = readTemporalMap();
 
 		// Exercise M6 C2 provider hot-switching on the already-open Map. Reuse
@@ -1424,6 +1493,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			lat: gcjDisplay.lat,
 			lng: gcjDisplay.lng
 		};
+		history.controlAfterBasemapSwitch = readTemporalMap();
 
 		plugin.settings.geographicBasemapId = originalBasemapId;
 		plugin.settings.customGeographicBasemaps = originalCustomBasemaps;
@@ -1444,6 +1514,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		plugin.getTemporalFocusService().clear();
 		await new Promise(resolve => window.setTimeout(resolve, 30));
 		history.mapTemporalCleared = readTemporalMap();
+		historyMapView.setHistoricalControlLayers([]);
 
 		plugin.getTemporalFocusService().setPoint(
 			historicalCalendar.solarToJulianDay({
@@ -1816,7 +1887,14 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			'workspace-history-process'
 		],
 		contextPossibleIds: ['workspace-history-bounded-period'],
-		contextSummary: '2 active · 1 possible'
+		contextSummary: '2 active · 1 possible',
+		controlActiveCount: 1,
+		controlPossibleCount: 1,
+		controlFeatureIds: [
+			'history-control-active',
+			'history-control-possible'
+		],
+		controlStates: ['active', 'possible']
 	});
 	assert.equal(workspaceState.history.basemapHotSwitch.id, 'e2e-gcj');
 	assert.equal(workspaceState.history.basemapHotSwitch.crs, 'gcj02');
@@ -1825,6 +1903,18 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	);
 	assert.ok(
 		Math.abs(workspaceState.history.basemapHotSwitch.lng - 113.6253334) <= 1e-5
+	);
+	assert.equal(
+		workspaceState.history.controlAfterBasemapSwitch.controlActiveCount,
+		1
+	);
+	assert.equal(
+		workspaceState.history.controlAfterBasemapSwitch.controlPossibleCount,
+		1
+	);
+	assert.deepEqual(
+		workspaceState.history.controlAfterBasemapSwitch.controlFeatureIds,
+		['history-control-active', 'history-control-possible']
 	);
 	assert.equal(workspaceState.history.basemapRestored.id, 'carto-voyager');
 	assert.equal(workspaceState.history.basemapRestored.crs, 'wgs84');
@@ -1844,7 +1934,11 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		states: [],
 		contextActiveIds: [],
 		contextPossibleIds: [],
-		contextSummary: ''
+		contextSummary: '',
+		controlActiveCount: 0,
+		controlPossibleCount: 0,
+		controlFeatureIds: [],
+		controlStates: []
 	});
 	assert.deepEqual(workspaceState.history.createdPaths.sort(), [
 		'Workspace-E2E/History/Events/History Created Event E2E.md',
@@ -1968,7 +2062,11 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		states: [],
 		contextActiveIds: [],
 		contextPossibleIds: [],
-		contextSummary: '0 active · 0 possible'
+		contextSummary: '0 active · 0 possible',
+		controlActiveCount: 0,
+		controlPossibleCount: 0,
+		controlFeatureIds: [],
+		controlStates: []
 	});
 	assert.deepEqual(workspaceState.shushan.mapFocused.contextActiveIds, [
 		'workspace-shushan-period',

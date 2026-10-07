@@ -104,6 +104,10 @@ import {
 	CanonicalCoordinateService,
 	GcoordCoordinateTransformProvider
 } from '../v2/maps/coordinates';
+import {
+	projectCanonicalControlFeatureToBasemap,
+	type HistoricalControlVisibleFeature
+} from '../v2/maps/control-layers';
 
 const logger = getLogger('MapController');
 
@@ -147,6 +151,7 @@ export class MapController {
 	private zoomEndDebounceHandle: number | null = null;
 	private heatLayer: L.Layer | null = null;
 	private childMapOverlayLayer: L.LayerGroup | null = null;
+	private historicalControlLayer: L.LayerGroup | null = null;
 
 	// Controls
 	private fullscreenControl: L.Control | null = null;
@@ -403,6 +408,87 @@ export class MapController {
 	}
 
 	/**
+	 * Render temporally-filtered historical control features.
+	 *
+	 * Input geometry is canonical WGS84. Only the Real-world basemap path
+	 * applies the active basemap datum adapter; geographic custom image maps
+	 * retain their existing WGS84-aligned coordinate semantics.
+	 */
+	renderHistoricalControlFeatures(
+		entries: readonly HistoricalControlVisibleFeature[]
+	): void {
+		if (!this.historicalControlLayer) return;
+		this.historicalControlLayer.clearLayers();
+		if (!this.map || this.currentCRS !== 'geographic') return;
+
+		for (const entry of entries) {
+			const projected = this.activeMapId === 'openstreetmap'
+				? projectCanonicalControlFeatureToBasemap(
+					entry.feature,
+					this.basemapCoordinateAdapter
+				)
+				: {
+					...entry.feature,
+					properties: { ...entry.feature.properties }
+				};
+
+			if (!projected.geometry) continue;
+			const possible = entry.state === 'possible';
+			const style: L.PathOptions = {
+				weight: possible ? 2 : 3,
+				opacity: possible ? 0.58 : 0.9,
+				fillOpacity: possible ? 0.06 : 0.14,
+				dashArray: possible ? '7 5' : undefined
+			};
+			const geoLayer = L.geoJSON(projected as never, {
+				style: () => style,
+				pointToLayer: (_feature, latlng) =>
+					L.circleMarker(latlng, {
+						...style,
+						radius: possible ? 5 : 6
+					})
+			});
+
+			const annotate = (leafletLayer: L.Layer): void => {
+				const element = (
+					leafletLayer as L.Layer & { getElement?: () => HTMLElement | null }
+				).getElement?.();
+				if (!element) return;
+				element.classList.add('cr-historical-control-feature');
+				element.setAttribute('data-control-layer-id', entry.layerId);
+				element.setAttribute(
+					'data-control-feature-id',
+					String(entry.feature.id ?? '')
+				);
+				element.setAttribute('data-temporal-state', entry.state);
+			};
+			geoLayer.eachLayer(layer => {
+				layer.on('add', () => annotate(layer));
+				annotate(layer);
+			});
+
+			const popup = document.createElement('div');
+			popup.className = 'cr-historical-control-popup';
+			const title = document.createElement('strong');
+			title.textContent = entry.feature.properties.name ?? entry.layerLabel;
+			popup.appendChild(title);
+			const detail = document.createElement('div');
+			detail.textContent = `${entry.state === 'active' ? 'Active' : 'Possible'} · ${entry.layerLabel}`;
+			popup.appendChild(detail);
+			const source = entry.feature.properties.source ?? entry.layer.source;
+			if (source) {
+				const sourceEl = document.createElement('div');
+				sourceEl.textContent = Array.isArray(source)
+					? source.join(', ')
+					: source;
+				popup.appendChild(sourceEl);
+			}
+			geoLayer.bindPopup(popup);
+			this.historicalControlLayer.addLayer(geoLayer);
+		}
+	}
+
+	/**
 	 * Initialize the Leaflet map
 	 */
 	async initialize(): Promise<void> {
@@ -449,6 +535,7 @@ export class MapController {
 
 		// Initialize child map overlay layer (#361 Phase 3)
 		this.childMapOverlayLayer = L.layerGroup().addTo(this.map);
+		this.historicalControlLayer = L.layerGroup().addTo(this.map);
 
 		// Add fullscreen control
 		this.initializeFullscreen();
@@ -2397,6 +2484,8 @@ export class MapController {
 
 		this.childMapOverlayLayer?.clearLayers();
 		this.childMapOverlayLayer = null;
+		this.historicalControlLayer?.clearLayers();
+		this.historicalControlLayer = null;
 
 		if (this.currentImageOverlay && this.map) {
 			this.map.removeLayer(this.currentImageOverlay);
@@ -2424,6 +2513,8 @@ export class MapController {
 		this.eventClusterGroup = null;
 		this.pathLayer = null;
 		this.journeyLayer = null;
+		this.historicalControlLayer?.clearLayers();
+		this.historicalControlLayer = null;
 		// Drop the label registry entirely — its source-polyline references
 		// belonged to the destroyed map and the zoom debounce handle is dead.
 		this.pathLabelEntries = [];
@@ -2499,6 +2590,7 @@ export class MapController {
 		this.pathLayer = L.layerGroup().addTo(this.map);
 		this.journeyLayer = L.layerGroup();  // Not added by default
 		this.childMapOverlayLayer = L.layerGroup().addTo(this.map);
+		this.historicalControlLayer = L.layerGroup().addTo(this.map);
 
 		// Reinitialize controls
 		this.initializeFullscreen();

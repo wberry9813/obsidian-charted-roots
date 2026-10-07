@@ -39,7 +39,13 @@ import {
 import type { TemporalFocus } from '../v2/temporal/temporal-focus-service';
 import {
 	applyFocusedHistoricalPlaceNames,
-	PlaceDesignationService
+	CanonicalCoordinateService,
+	canonicalizeHistoricalControlLayer,
+	GcoordCoordinateTransformProvider,
+	HistoricalControlLayerStateService,
+	PlaceDesignationService,
+	type CanonicalHistoricalControlLayer,
+	type HistoricalControlLayerDefinition
 } from '../v2/maps';
 
 const logger = getLogger('MapView');
@@ -78,6 +84,11 @@ export class MapView extends ItemView {
 	private temporalOverlayLayer: L.LayerGroup | null = null;
 	private temporalOverlayMap: L.Map | null = null;
 	private temporalFocusUnsubscribe: (() => void) | null = null;
+	private historicalControlLayers: CanonicalHistoricalControlLayer[] = [];
+	private historicalControlStateService: HistoricalControlLayerStateService | null = null;
+	private readonly controlLayerCoordinates = new CanonicalCoordinateService(
+		new GcoordCoordinateTransformProvider()
+	);
 
 	// UI elements
 	private toolbarEl: HTMLElement | null = null;
@@ -158,6 +169,37 @@ export class MapView extends ItemView {
 		super(leaf);
 		this.plugin = plugin;
 		this.dataService = new MapDataService(plugin);
+		const calendar = plugin.getHistoricalDateService().getCalendarProvider('tyme');
+		if (calendar) {
+			this.historicalControlStateService =
+				new HistoricalControlLayerStateService(
+					plugin.getHistoricalDateService(),
+					calendar
+				);
+		}
+	}
+
+	/**
+	 * Runtime/import boundary for historical geographic control layers.
+	 * Incoming geometry is normalized once to canonical WGS84; storage/import
+	 * UI can later call the same API without changing render semantics.
+	 */
+	setHistoricalControlLayers(
+		layers: readonly HistoricalControlLayerDefinition[]
+	): void {
+		this.historicalControlLayers = layers.map(layer =>
+			canonicalizeHistoricalControlLayer(
+				layer,
+				this.controlLayerCoordinates
+			)
+		);
+		this.renderHistoricalControlLayers(
+			this.plugin.getTemporalFocusService().get()
+		);
+	}
+
+	getHistoricalControlLayers(): readonly CanonicalHistoricalControlLayer[] {
+		return this.historicalControlLayers;
 	}
 
 	getViewType(): string {
@@ -226,6 +268,7 @@ export class MapView extends ItemView {
 		logger.debug('view-close', 'Closing MapView');
 		this.unbindTemporalFocus();
 		this.clearTemporalOverlay();
+		this.mapController?.renderHistoricalControlFeatures([]);
 		this.destroyMap();
 	}
 
@@ -2410,16 +2453,65 @@ export class MapView extends ItemView {
 			this.renderFocusedHistoricalPlaceNames(focus);
 			this.renderTemporalPlaceOverlay(focus);
 			this.renderTemporalContextOverlay(focus);
+			this.renderHistoricalControlLayers(focus);
 		});
 		const focus = focusService.get();
 		this.renderFocusedHistoricalPlaceNames(focus);
 		this.renderTemporalPlaceOverlay(focus);
 		this.renderTemporalContextOverlay(focus);
+		this.renderHistoricalControlLayers(focus);
 	}
 
 	private unbindTemporalFocus(): void {
 		this.temporalFocusUnsubscribe?.();
 		this.temporalFocusUnsubscribe = null;
+	}
+
+	private renderHistoricalControlLayers(
+		focus: TemporalFocus | null
+	): void {
+		if (!this.mapController || !this.historicalControlStateService) return;
+
+		if (this.mapController.getCurrentCRS() !== 'geographic') {
+			this.mapController.renderHistoricalControlFeatures([]);
+			if (this.mapContainerEl) {
+				this.mapContainerEl.dataset.controlLayerActiveCount = '0';
+				this.mapContainerEl.dataset.controlLayerPossibleCount = '0';
+			}
+			return;
+		}
+
+		const universe = this.filters.universe;
+		const snapshot = !focus
+			? this.historicalControlStateService.getWithoutFocus(
+				this.historicalControlLayers,
+				universe
+			)
+			: focus.kind === 'point'
+				? this.historicalControlStateService.getAt(
+					this.historicalControlLayers,
+					focus.position,
+					universe
+				)
+				: this.historicalControlStateService.getRange(
+					this.historicalControlLayers,
+					{
+						start: focus.start,
+						endExclusive: focus.endExclusive
+					},
+					universe
+				);
+
+		this.mapController.renderHistoricalControlFeatures([
+			...snapshot.active,
+			...snapshot.possible
+		]);
+		if (this.mapContainerEl) {
+			this.mapContainerEl.dataset.controlLayerActiveCount =
+				String(snapshot.active.length);
+			this.mapContainerEl.dataset.controlLayerPossibleCount =
+				String(snapshot.possible.length);
+		}
 	}
 
 	private ensureTemporalOverlayLayer(): L.LayerGroup | null {
@@ -2821,6 +2913,7 @@ export class MapView extends ItemView {
 
 			this.renderTemporalPlaceOverlay(temporalFocus);
 			this.renderTemporalContextOverlay(temporalFocus);
+			this.renderHistoricalControlLayers(temporalFocus);
 
 			logger.debug('refresh-complete', 'Map data refreshed', {
 				markers: data.markers.length,

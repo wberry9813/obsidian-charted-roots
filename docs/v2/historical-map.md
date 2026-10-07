@@ -132,8 +132,12 @@ WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
 - [x] layer/feature contracts preserve source, confidence and uncertainty metadata;
 - [x] Point / MultiPoint / LineString / MultiLineString / Polygon / MultiPolygon / GeometryCollection normalization;
 - [x] altitude/extra position dimensions survive datum conversion;
-- [ ] shared TemporalFocus active/possible filtering;
-- [ ] render canonical control layers through the active basemap datum adapter;
+- [x] shared TemporalFocus active/possible filtering using the same JDN semantics as Timeline;
+- [x] layer-level and feature-level temporal windows intersect without manufacturing dates;
+- [x] unresolved authored control-layer dates remain possible instead of definite;
+- [x] render canonical WGS84 control layers through the active basemap datum adapter;
+- [x] dedicated Leaflet control-layer group with distinct possible-state treatment;
+- [x] Real Obsidian smoke covers active/possible filtering, focus clearing and basemap hot-switch retention;
 - [ ] storage/import UI for GeoJSON layer sources.
 
 ### C5 — full Timeline <-> Map synchronization
