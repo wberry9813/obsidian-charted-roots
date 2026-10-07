@@ -1,6 +1,6 @@
 # Historical Map Foundation
 
-> Status: **M6 C0-C4 historical map foundation implemented; C5 bidirectional Timeline/Map synchronization next**
+> Status: **M6 C0-C4 implemented; C5 axis-aware Timeline/Map synchronization in progress**
 >
 > M6 follows the implemented M5 Temporal Views foundation.
 
@@ -150,24 +150,48 @@ WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
 ### C5 — full Timeline <-> Map synchronization
 
 - [x] retain M5 shared-focus -> Map state projection;
-- [ ] bridge legacy Map calendars into v2 chronology axes:
+- [x] extend runtime `TemporalFocus` with explicit axis metadata while keeping
+  the existing/omitted axis shape backward-compatible as Julian Day;
+- [x] bridge legacy Map calendars into explicit focus axes:
   - [x] unambiguous positive standard/CE years -> full-year JDN ranges;
-  - [x] fictional epoch-relative years are explicitly rejected instead of
-    being coerced into astronomical year/JDN;
   - [x] legacy year 0 / negative standard years default to rejection;
   - [x] users can explicitly opt into BCE display-year semantics
     (`-453 = 453 BCE`) or astronomical numbering (`0 = 1 BCE`) without
     rewriting source data;
-  - [ ] map configured fictional calendars to explicit v2 chronology-local
-    axes where a trustworthy mapping exists;
+  - [x] configured fictional calendars -> `chronology_year:<calendar-id>`
+    ranges using their existing canonical year axis;
+  - [x] fictional canonical years are never coerced into astronomical year/JDN;
+  - [x] current JDN-only Timeline / Relationships / Profile / historical Map
+    overlays safely ignore chronology-local focus instead of misreading it;
+  - [ ] add chronology-local rendering/query support to Timeline and other
+    consumers that should participate in fictional-world synchronization;
   - [x] define explicit runtime BCE interpretation policies for legacy
     negative standard years while keeping source data untouched;
   - [ ] optional migration assistant to rewrite ambiguous legacy negative
     standard years into explicit v2 BCE expressions;
 - [x] Map time controls publish shared TemporalFocus only through the explicit
-  bridge; unsupported actions clear stale shared focus rather than mixing axes;
-- [x] never coerce fictional epoch-relative canonical years into astronomical
-  year/JDN values.
+  bridge and attach the correct axis;
+- [ ] complete bidirectional chronology-local Timeline <-> Map interaction once
+  the Timeline renderer/model can render `chronology_year` axes.
+
+#### C5 axis contract
+
+The default shared temporal axis remains Julian Day. For backward
+compatibility, JDN focus objects omit `axis`; consumers treat an omitted axis
+as `{ kind: 'julian_day' }`.
+
+A configured fictional calendar can publish:
+
+- `axis.kind = 'chronology_year'`;
+- `axis.chronologyId = <fictional calendar id>`;
+- a half-open canonical-year range such as `[-82, -81)` for 82 BBY.
+
+This is navigation state only. It does **not** claim that a fictional canonical
+year has any Gregorian/JDN meaning.
+
+Until a consumer explicitly supports `chronology_year`, it must ignore that
+focus for JDN queries. The legacy Map may still filter its own fictional data
+because it already understands that calendar's canonical year axis.
 
 ## 4. Acceptance boundary
 
