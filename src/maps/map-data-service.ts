@@ -211,19 +211,17 @@ export class MapDataService {
 	}
 
 	/**
-	 * Refresh the place cache from vault
+	 * Refresh the place cache from the active Workspace (or whole vault in
+	 * legacy mode when Workspace Foundation is unavailable).
 	 * @param forceFileRead If true, read directly from files instead of metadata cache
 	 */
 	private async refreshPlaceCache(forceFileRead = false): Promise<void> {
 		this.placeCache.clear();
 		this.placeByNameCache.clear();
 
-		const files = this.plugin.app.vault.getMarkdownFiles();
+		const files = this.getScopedFiles();
 
 		for (const file of files) {
-			// Process files in places folder OR any file that is a place note
-			// This ensures fictional places outside the places folder are still included
-
 			let fm: Record<string, unknown> | undefined;
 
 			if (forceFileRead) {
@@ -314,16 +312,20 @@ export class MapDataService {
 	}
 
 	/**
-	 * Get person data from vault
+	 * Get person data from the active Workspace. In legacy mode, preserve the
+	 * historical global peopleFolder filter and its mismatch warning.
 	 */
 	private getPersonData(): PersonData[] {
 		const people: PersonData[] = [];
 
-		const peopleFolder = this.plugin.settings.peopleFolder;
-		const files = this.plugin.app.vault.getMarkdownFiles();
+		const workspaceService = this.plugin.getWorkspaceService?.();
+		const peopleFolder = workspaceService ? undefined : this.plugin.settings.peopleFolder;
+		const files = this.getScopedFiles();
 
 		for (const file of files) {
-			// Only process files in people folder if configured
+			// The legacy global folder remains a compatibility filter only when
+			// Workspace Foundation is unavailable. Workspace mode uses the root as
+			// the authoritative dataset boundary and note type for semantics.
 			if (peopleFolder && !file.path.startsWith(peopleFolder)) continue;
 
 			const cache = this.plugin.app.metadataCache.getFileCache(file);
@@ -360,7 +362,8 @@ export class MapDataService {
 
 		logger.debug('person-data', `Found ${people.length} people`);
 
-		// Warn if 0 people found but person notes exist outside the configured folder (#342)
+		// Legacy-only warning: Workspace mode intentionally ignores the old
+		// global peopleFolder because the Workspace root is authoritative.
 		if (people.length === 0 && peopleFolder && !this.peopleFolderWarningShown) {
 			let personNotesElsewhere = 0;
 			for (const file of files) {
@@ -1466,6 +1469,11 @@ export class MapDataService {
 		}
 
 		return true;
+	}
+
+	private getScopedFiles(): TFile[] {
+		return this.plugin.getWorkspaceService?.()?.getScope().getMarkdownFiles()
+			?? this.plugin.app.vault.getMarkdownFiles();
 	}
 
 	/**
