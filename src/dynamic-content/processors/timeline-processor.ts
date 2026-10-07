@@ -82,8 +82,13 @@ export class TimelineProcessor {
 			// Initial render
 			await this.renderer.render(el, context, config, component);
 
-			// Get the events folder for filtering event note changes
-			const eventsFolder = this.plugin.settings.eventsFolder || '';
+			// In Workspace mode the Workspace root is the authoritative dataset
+			// boundary and event notes may live outside the default Events folder.
+			// Legacy mode keeps the historical global eventsFolder behavior.
+			const workspaceService = this.plugin.getWorkspaceService?.();
+			const eventsFolder = workspaceService
+				? workspaceService.getFolder('events')
+				: (this.plugin.settings.eventsFolder || '');
 
 			// Resolve context note path for change detection
 			const contextParam = config.context as string | undefined;
@@ -117,8 +122,14 @@ export class TimelineProcessor {
 					return;
 				}
 
-				// Also re-render if an event note changed (it might reference this person)
-				if (eventsFolder && changedFile.path.startsWith(eventsFolder)) {
+				// Also re-render if an event note in the active Workspace changed.
+				// In Workspace mode use type + scope rather than the default folder
+				// alone, so manually-organized event notes still refresh correctly.
+				const isScopedEvent = workspaceService
+					? workspaceService.getScope().contains(changedFile)
+						&& this.plugin.app.metadataCache.getFileCache(changedFile)?.frontmatter?.cr_type === 'event'
+					: !!eventsFolder && changedFile.path.startsWith(eventsFolder);
+				if (isScopedEvent) {
 					const freshContext = this.service.buildContext(ctx);
 					if (!freshContext) return;
 					el.empty();
@@ -131,9 +142,17 @@ export class TimelineProcessor {
 				this.plugin.app.metadataCache.on('changed', metadataHandler)
 			);
 
-			// Also listen for file creation events (for newly created event notes)
+			// Also listen for file creation events (for newly created event notes).
+			// Metadata may not be populated yet on create, so in Workspace mode the
+			// default Events folder is the deterministic immediate signal; a custom
+			// event path will be picked up by the subsequent metadata changed event.
 			const createHandler = (file: TAbstractFile) => {
-				if (file instanceof TFile && eventsFolder && file.path.startsWith(eventsFolder)) {
+				const shouldRefresh = file instanceof TFile && (
+					workspaceService
+						? workspaceService.getScope().contains(file) && file.path.startsWith(eventsFolder)
+						: !!eventsFolder && file.path.startsWith(eventsFolder)
+				);
+				if (shouldRefresh) {
 					// Small delay to allow metadata cache to process the new file
 					window.setTimeout(() => {
 						const freshContext = this.service.buildContext(ctx);
