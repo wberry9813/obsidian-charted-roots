@@ -22,16 +22,45 @@ export interface ReportGenerationContext {
 	folderProvider?: (kind: ReportFolderKind) => string | undefined;
 }
 
+type ReportGenerationContextProvider = () => ReportGenerationContext;
+let defaultContextProvider: ReportGenerationContextProvider | undefined;
+
+/**
+ * Register the plugin-level dynamic Workspace context used by legacy report UI
+ * that still constructs ReportGenerationService with only app + settings.
+ * Provider functions remain dynamic, so switching the Active Workspace does
+ * not require rebuilding persisted settings.
+ */
+export function registerDefaultReportGenerationContext(
+	provider: ReportGenerationContextProvider
+): void {
+	defaultContextProvider = provider;
+}
+
+export function getDefaultReportGenerationContext(): ReportGenerationContext {
+	return defaultContextProvider?.() ?? {};
+}
+
 /**
  * Create an ephemeral settings view for old report/export code that still
  * reads folder paths or FolderFilter settings from CanvasRootsSettings. The
  * user's persisted settings object is never mutated.
+ *
+ * `context` is hydrated in-place with the registered default context so the
+ * owning ReportGenerationService can also use the same providers for output
+ * validation and folder discovery without changing its legacy constructor.
  */
 export function createReportScopedSettings(
 	settings: CanvasRootsSettings,
 	context: ReportGenerationContext
 ): CanvasRootsSettings {
-	const workspaceRoot = context.workspaceRootProvider?.()?.trim();
+	const effective: ReportGenerationContext = {
+		...getDefaultReportGenerationContext(),
+		...context
+	};
+	Object.assign(context, effective);
+
+	const workspaceRoot = effective.workspaceRootProvider?.()?.trim();
 
 	return {
 		...settings,
@@ -41,10 +70,10 @@ export function createReportScopedSettings(
 		folderFilterMode: workspaceRoot ? 'include' : settings.folderFilterMode,
 		includedFolders: workspaceRoot ? [workspaceRoot] : settings.includedFolders,
 		excludedFolders: workspaceRoot ? [] : settings.excludedFolders,
-		eventsFolder: context.folderProvider?.('events') ?? settings.eventsFolder,
-		sourcesFolder: context.folderProvider?.('sources') ?? settings.sourcesFolder,
-		citationsFolder: context.folderProvider?.('citations') ?? settings.citationsFolder,
-		canvasesFolder: context.folderProvider?.('canvases') ?? settings.canvasesFolder,
-		reportsFolder: context.folderProvider?.('reports') ?? settings.reportsFolder
+		eventsFolder: effective.folderProvider?.('events') ?? settings.eventsFolder,
+		sourcesFolder: effective.folderProvider?.('sources') ?? settings.sourcesFolder,
+		citationsFolder: effective.folderProvider?.('citations') ?? settings.citationsFolder,
+		canvasesFolder: effective.folderProvider?.('canvases') ?? settings.canvasesFolder,
+		reportsFolder: effective.folderProvider?.('reports') ?? settings.reportsFolder
 	};
 }
