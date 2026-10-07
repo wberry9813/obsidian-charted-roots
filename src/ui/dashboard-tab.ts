@@ -181,7 +181,7 @@ function renderQuickActionsSection(
 	// Helper to open create event modal
 	const openCreateEvent = () => {
 		closeModal();
-		const eventService = new EventService(app, plugin.settings);
+		const eventService = plugin.getEventService();
 		new CreateEventModal(app, eventService, plugin.settings, {
 			plugin,
 			onCreated: (file) => {
@@ -856,6 +856,10 @@ function renderVaultHealthContent(
 	let stats: FullVaultStats;
 	try {
 		const statsService = new VaultStatsService(app);
+		statsService.setFileProvider(() =>
+			plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? app.vault.getMarkdownFiles()
+		);
 		const folderFilter = plugin.getFolderFilter();
 		if (folderFilter) {
 			statsService.setFolderFilter(folderFilter);
