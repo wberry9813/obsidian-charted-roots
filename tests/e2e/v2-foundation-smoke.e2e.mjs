@@ -959,6 +959,10 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					.map(el => el.getAttribute('data-item-id'))
 					.filter(Boolean)
 					.sort(),
+				windowIds: [...(root?.querySelectorAll('.cr-v2-timeline__window') ?? [])]
+					.map(el => el.getAttribute('data-window-id'))
+					.filter(Boolean)
+					.sort(),
 				kinds: [...(root?.querySelectorAll('.cr-v2-timeline__span') ?? [])]
 					.map(el => el.getAttribute('data-item-kind'))
 					.filter(Boolean)
@@ -1061,6 +1065,34 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		await plugin.activateTemporalTimelineView();
 		await new Promise(resolve => window.setTimeout(resolve, 100));
 		history.timeline = readTimelineView();
+
+		const timelineLeaf = app.workspace.getLeavesOfType('charted-roots-temporal-timeline')[0];
+		const timelineRoot = timelineLeaf?.view?.containerEl;
+		const timelineSearch = timelineRoot?.querySelector('.cr-v2-timeline__search');
+		if (!(timelineSearch instanceof HTMLInputElement)) {
+			throw new Error('Temporal Timeline search input is unavailable.');
+		}
+		timelineSearch.value = 'Process';
+		timelineSearch.dispatchEvent(new Event('input', { bubbles: true }));
+		history.timelineSearch = readTimelineView();
+
+		const clearedSearch = timelineRoot?.querySelector('.cr-v2-timeline__search');
+		if (!(clearedSearch instanceof HTMLInputElement)) {
+			throw new Error('Temporal Timeline search input disappeared after filtering.');
+		}
+		clearedSearch.value = '';
+		clearedSearch.dispatchEvent(new Event('input', { bubbles: true }));
+
+		const timelineKind = timelineRoot?.querySelector('.cr-v2-timeline__kind-filter');
+		if (!(timelineKind instanceof HTMLSelectElement)) {
+			throw new Error('Temporal Timeline kind filter is unavailable.');
+		}
+		timelineKind.value = 'period';
+		timelineKind.dispatchEvent(new Event('change', { bubbles: true }));
+		history.timelinePeriodFilter = readTimelineView();
+
+		timelineKind.value = 'all';
+		timelineKind.dispatchEvent(new Event('change', { bubbles: true }));
 
 		await plugin.setActiveWorkspace('shushan');
 		await new Promise(resolve => window.setTimeout(resolve, 50));
@@ -1208,6 +1240,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'Workspace-E2E/History/Events/History-Service-Event.md',
 		'Workspace-E2E/History/Organizations/History-Org.md',
 		'Workspace-E2E/History/People/History-Person.md',
+		'Workspace-E2E/History/Periods/History-Bounded.md',
 		'Workspace-E2E/History/Periods/History-Period.md',
 		'Workspace-E2E/History/Places/History-Place.md',
 		'Workspace-E2E/History/Processes/History-Process.md',
@@ -1264,6 +1297,14 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			end: 'BCE 455'
 		},
 		{
+			id: 'workspace-history-bounded-period',
+			kind: 'period',
+			status: 'resolved',
+			source: 'v2',
+			start: null,
+			end: null
+		},
+		{
 			id: 'workspace-history-period',
 			kind: 'period',
 			status: 'resolved',
@@ -1289,6 +1330,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'workspace-history-period',
 		'workspace-history-process'
 	]);
+	assert.deepEqual(workspaceState.history.timeline.windowIds, [
+		'workspace-history-bounded-period'
+	]);
 	assert.deepEqual(workspaceState.history.timeline.kinds, [
 		'assertion',
 		'event',
@@ -1303,6 +1347,16 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.ok(
 		workspaceState.history.timeline.tickLabels.every(label => !/\b0\b/.test(label))
 	);
+	assert.deepEqual(workspaceState.history.timelineSearch.spanIds, [
+		'workspace-history-process'
+	]);
+	assert.deepEqual(workspaceState.history.timelineSearch.windowIds, []);
+	assert.deepEqual(workspaceState.history.timelinePeriodFilter.spanIds, [
+		'workspace-history-period'
+	]);
+	assert.deepEqual(workspaceState.history.timelinePeriodFilter.windowIds, [
+		'workspace-history-bounded-period'
+	]);
 	assert.deepEqual(workspaceState.history.createdPaths.sort(), [
 		'Workspace-E2E/History/Events/History Created Event E2E.md',
 		'Workspace-E2E/History/Organizations/History Created Organization E2E.md',
@@ -1389,6 +1443,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'workspace-shushan-period',
 		'workspace-shushan-process'
 	]);
+	assert.deepEqual(workspaceState.shushan.timeline.windowIds, []);
 	assert.deepEqual(workspaceState.shushan.timeline.kinds, [
 		'assertion',
 		'event',

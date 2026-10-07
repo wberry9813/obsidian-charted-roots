@@ -15,6 +15,10 @@ import type { CalendarProvider } from '../../time/calendar-provider';
 import {
 	buildTimelineModel,
 	generateHistoricalYearTicks,
+	matchesTimelineFilter,
+	timelineWindowBounds,
+	type TemporalItemKind,
+	type TimelineConstraintWindow,
 	type TimelineModel,
 	type TimelineSpan
 } from '../index';
@@ -29,6 +33,13 @@ const ROW_TOP = 72;
 const MIN_WIDTH = 720;
 const MIN_HEIGHT = 300;
 
+type TimelineKindFilter = 'all' | TemporalItemKind;
+
+interface TemporalTimelineViewState {
+	search?: string;
+	kind?: TimelineKindFilter;
+}
+
 function kindOpacity(kind: TimelineSpan['item']['kind']): number {
 	switch (kind) {
 		case 'event':
@@ -42,9 +53,20 @@ function kindOpacity(kind: TimelineSpan['item']['kind']): number {
 	}
 }
 
+function isTimelineKindFilter(value: unknown): value is TimelineKindFilter {
+	return value === 'all'
+		|| value === 'event'
+		|| value === 'process'
+		|| value === 'period'
+		|| value === 'assertion';
+}
+
 export class TemporalTimelineView extends ItemView {
 	private readonly plugin: CanvasRootsPlugin;
 	private refreshTimeout: number | null = null;
+	private currentSearch = '';
+	private currentKind: TimelineKindFilter = 'all';
+	private resetZoom: (() => void) | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: CanvasRootsPlugin) {
 		super(leaf);
@@ -84,9 +106,27 @@ export class TemporalTimelineView extends ItemView {
 			window.clearTimeout(this.refreshTimeout);
 			this.refreshTimeout = null;
 		}
+		this.resetZoom = null;
 	}
 
 	public refresh(): void {
+		this.renderView();
+	}
+
+	getState(): Record<string, unknown> {
+		return {
+			search: this.currentSearch,
+			kind: this.currentKind
+		};
+	}
+
+	async setState(state: Partial<TemporalTimelineViewState>): Promise<void> {
+		if (typeof state.search === 'string') {
+			this.currentSearch = state.search;
+		}
+		if (isTimelineKindFilter(state.kind)) {
+			this.currentKind = state.kind;
+		}
 		this.renderView();
 	}
 
@@ -126,6 +166,7 @@ export class TemporalTimelineView extends ItemView {
 			attr: { 'aria-label': 'Fit timeline' }
 		});
 		setIcon(fitButton, 'maximize-2');
+		fitButton.addEventListener('click', () => this.resetZoom?.());
 
 		const refreshButton = actions.createEl('button', {
 			cls: 'clickable-icon',
@@ -133,6 +174,61 @@ export class TemporalTimelineView extends ItemView {
 		});
 		setIcon(refreshButton, 'refresh-cw');
 		refreshButton.addEventListener('click', () => this.refresh());
+
+		const controls = container.createDiv({
+			cls: 'cr-v2-timeline__controls'
+		});
+		const searchInput = controls.createEl('input', {
+			cls: 'cr-v2-timeline__search',
+			type: 'search',
+			placeholder: 'Search temporal items…',
+			attr: { 'aria-label': 'Search temporal items' }
+		});
+		searchInput.value = this.currentSearch;
+
+		const kindSelect = controls.createEl('select', {
+			cls: 'cr-v2-timeline__kind-filter',
+			attr: { 'aria-label': 'Filter timeline item kind' }
+		});
+		for (const [value, label] of [
+			['all', 'All kinds'],
+			['event', 'Events'],
+			['process', 'Processes'],
+			['period', 'Periods'],
+			['assertion', 'Assertions']
+		] as const) {
+			const option = kindSelect.createEl('option', { text: label });
+			option.value = value;
+		}
+		kindSelect.value = this.currentKind;
+
+		const results = container.createDiv({
+			cls: 'cr-v2-timeline__results'
+		});
+
+		const renderResults = (): void => {
+			this.renderResults(results);
+			this.app.workspace.requestSaveLayout();
+		};
+
+		searchInput.addEventListener('input', () => {
+			this.currentSearch = searchInput.value;
+			renderResults();
+		});
+
+		kindSelect.addEventListener('change', () => {
+			this.currentKind = isTimelineKindFilter(kindSelect.value)
+				? kindSelect.value
+				: 'all';
+			renderResults();
+		});
+
+		this.renderResults(results);
+	}
+
+	private renderResults(container: HTMLElement): void {
+		container.empty();
+		this.resetZoom = null;
 
 		const dates = this.plugin.getHistoricalDateService();
 		const calendar = dates.getCalendarProvider('tyme');
@@ -144,34 +240,54 @@ export class TemporalTimelineView extends ItemView {
 			return;
 		}
 
-		const items = this.plugin.getTemporalProjectionService().getAll();
+		const allItems = this.plugin.getTemporalProjectionService().getAll();
+		const filter = {
+			...(this.currentSearch.trim()
+				? { text: this.currentSearch }
+				: {}),
+			...(this.currentKind !== 'all'
+				? { kinds: [this.currentKind] }
+				: {})
+		};
+		const items = allItems.filter(item =>
+			matchesTimelineFilter(item, filter)
+		);
 		const model = buildTimelineModel(items, calendar);
 
 		container.createDiv({
-			text: `${model.spans.length} plotted · ${model.windows.length} bounded · ${model.review.length} review`,
+			text: `${model.spans.length} plotted · ${model.windows.length} possible · ${model.review.length} review`,
 			cls: 'cr-v2-timeline__summary'
 		});
 
-		if (!model.domain || model.spans.length === 0) {
+		if (items.length === 0) {
+			container.createDiv({
+				text: allItems.length > 0
+					? 'No temporal items match the current filters.'
+					: 'No temporal items are available in the active Workspace.',
+				cls: 'cr-v2-timeline__empty'
+			});
+			return;
+		}
+
+		if (!model.domain || (model.spans.length === 0 && model.windows.length === 0)) {
 			container.createDiv({
 				text: model.review.length > 0
-					? 'No resolved temporal spans are available to plot yet.'
-					: 'No temporal items are available in the active Workspace.',
+					? 'No resolved temporal coordinates are available to plot yet.'
+					: 'No temporal coordinates are available for the current filters.',
 				cls: 'cr-v2-timeline__empty'
 			});
 			this.renderReview(container, model);
 			return;
 		}
 
-		this.renderChart(container, model, calendar, fitButton);
+		this.renderChart(container, model, calendar);
 		this.renderReview(container, model);
 	}
 
 	private renderChart(
 		container: HTMLElement,
 		model: TimelineModel,
-		calendar: CalendarProvider,
-		fitButton: HTMLButtonElement
+		calendar: CalendarProvider
 	): void {
 		if (!model.domain) return;
 
@@ -180,9 +296,10 @@ export class TemporalTimelineView extends ItemView {
 			viewport.clientWidth || container.clientWidth || MIN_WIDTH
 		);
 		const width = Math.max(MIN_WIDTH, measured);
+		const rowCount = model.spans.length + model.windows.length;
 		const height = Math.max(
 			MIN_HEIGHT,
-			ROW_TOP + model.spans.length * ROW_HEIGHT + 34
+			ROW_TOP + rowCount * ROW_HEIGHT + 34
 		);
 
 		const svgNode = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -206,16 +323,32 @@ export class TemporalTimelineView extends ItemView {
 			.attr('class', 'cr-v2-timeline__labels');
 		const spansGroup = svg.append('g')
 			.attr('class', 'cr-v2-timeline__spans');
+		const windowsGroup = svg.append('g')
+			.attr('class', 'cr-v2-timeline__windows');
 
 		labelsGroup
-			.selectAll<SVGTextElement, TimelineSpan>('text')
+			.selectAll<SVGTextElement, TimelineSpan>('text.cr-v2-timeline__span-label')
 			.data(model.spans, span => span.item.id)
 			.join('text')
-			.attr('class', 'cr-v2-timeline__item-label')
+			.attr('class', 'cr-v2-timeline__item-label cr-v2-timeline__span-label')
 			.attr('x', LEFT_MARGIN - 12)
 			.attr('y', (_span, index) => ROW_TOP + index * ROW_HEIGHT + 17)
 			.attr('text-anchor', 'end')
 			.text(span => span.item.title);
+
+		labelsGroup
+			.selectAll<SVGTextElement, TimelineConstraintWindow>('text.cr-v2-timeline__window-label')
+			.data(model.windows, window => window.item.id)
+			.join('text')
+			.attr('class', 'cr-v2-timeline__item-label cr-v2-timeline__window-label')
+			.attr('x', LEFT_MARGIN - 12)
+			.attr(
+				'y',
+				(_window, index) =>
+					ROW_TOP + (model.spans.length + index) * ROW_HEIGHT + 17
+			)
+			.attr('text-anchor', 'end')
+			.text(window => `${window.item.title} · possible`);
 
 		const rects = spansGroup
 			.selectAll<SVGRectElement, TimelineSpan>('rect')
@@ -241,6 +374,50 @@ export class TemporalTimelineView extends ItemView {
 				return end
 					? `${span.item.title} · ${start} → ${end}`
 					: `${span.item.title} · ${start}`;
+			});
+
+		const windowRects = windowsGroup
+			.selectAll<SVGRectElement, TimelineConstraintWindow>('rect')
+			.data(model.windows, window => window.item.id)
+			.join('rect')
+			.attr('class', 'cr-v2-timeline__window')
+			.attr('data-window-id', window => window.item.id)
+			.attr('data-item-kind', window => window.item.kind)
+			.attr(
+				'data-open-start',
+				window => timelineWindowBounds(window).lower === undefined ? 'true' : 'false'
+			)
+			.attr(
+				'data-open-end',
+				window => timelineWindowBounds(window).upper === undefined ? 'true' : 'false'
+			)
+			.attr(
+				'y',
+				(_window, index) =>
+					ROW_TOP + (model.spans.length + index) * ROW_HEIGHT + 5
+			)
+			.attr('height', 18)
+			.on('click', (_event, window) => {
+				void this.app.workspace.getLeaf(false).openFile(window.item.file);
+			});
+
+		windowRects.append('title')
+			.text(window => {
+				const bounds = [
+					window.item.start?.expression
+						? `start ${window.item.start.expression}`
+						: null,
+					window.item.end?.expression
+						? `end ${window.item.end.expression}`
+						: null,
+					window.item.notBefore?.expression
+						? `not before ${window.item.notBefore.expression}`
+						: null,
+					window.item.notAfter?.expression
+						? `not after ${window.item.notAfter.expression}`
+						: null
+				].filter(Boolean).join(' · ');
+				return `${window.item.title} · possible window${bounds ? ` · ${bounds}` : ''}`;
 			});
 
 		const maxTicks = Math.max(
@@ -307,6 +484,18 @@ export class TemporalTimelineView extends ItemView {
 					3,
 					xScale(span.endExclusive) - xScale(span.start)
 				));
+
+			windowRects
+				.attr('x', window => {
+					const { lower } = timelineWindowBounds(window);
+					return xScale(lower ?? model.domain!.start);
+				})
+				.attr('width', window => {
+					const { lower, upper } = timelineWindowBounds(window);
+					const start = lower ?? model.domain!.start;
+					const end = upper ?? model.domain!.endExclusive;
+					return Math.max(3, xScale(end) - xScale(start));
+				});
 		};
 
 		renderScale(baseScale);
@@ -321,9 +510,9 @@ export class TemporalTimelineView extends ItemView {
 			);
 
 		svg.call(zoomBehavior);
-		fitButton.addEventListener('click', () => {
+		this.resetZoom = () => {
 			svg.call(zoomBehavior.transform, zoomIdentity);
-		});
+		};
 	}
 
 	private renderReview(

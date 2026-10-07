@@ -95,7 +95,7 @@ export function timelineSpanOverlaps(
 		&& range.start < span.endExclusive;
 }
 
-function effectiveWindowBounds(
+export function timelineWindowBounds(
 	window: TimelineConstraintWindow
 ): { lower?: number; upper?: number } {
 	const lowers = [window.start, window.notBefore]
@@ -118,7 +118,7 @@ export function timelineWindowAllows(
 	position: number
 ): boolean {
 	if (!Number.isFinite(position)) return false;
-	const { lower, upper } = effectiveWindowBounds(window);
+	const { lower, upper } = timelineWindowBounds(window);
 	if (lower !== undefined && position < lower) return false;
 	if (upper !== undefined && position >= upper) return false;
 	return lower !== undefined || upper !== undefined;
@@ -136,7 +136,7 @@ export function timelineWindowCanOverlap(
 		return false;
 	}
 
-	const { lower, upper } = effectiveWindowBounds(window);
+	const { lower, upper } = timelineWindowBounds(window);
 	if (lower === undefined && upper === undefined) return false;
 
 	const possibleStart = lower ?? Number.NEGATIVE_INFINITY;
