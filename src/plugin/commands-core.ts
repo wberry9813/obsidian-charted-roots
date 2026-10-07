@@ -563,7 +563,7 @@ export function registerCommandsAndEvents(plugin: CanvasRootsPlugin): void {
 		id: 'calculate-relationship',
 		name: 'Calculate relationship between people',
 		callback: () => {
-			new RelationshipCalculatorModal(plugin.app, plugin.settings).open();
+			new RelationshipCalculatorModal(plugin.app, plugin.settings, plugin).open();
 		}
 	});
 
@@ -582,7 +582,7 @@ export function registerCommandsAndEvents(plugin: CanvasRootsPlugin): void {
 				const { PersonPickerModal } = await import('../ui/person-picker');
 				const picker = new PersonPickerModal(plugin.app, (person) => {
 					new FindRelatedResearchModal(plugin.app, person.name, person.file.basename).open();
-				});
+				}, { plugin });
 				picker.open();
 			}
 		}

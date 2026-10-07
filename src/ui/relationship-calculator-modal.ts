@@ -4,6 +4,7 @@ import { RelationshipCalculator, RelationshipResult, RelationshipStep } from '..
 import { createLucideIcon } from './lucide-icons';
 import type { PersonNode } from '../core/family-graph';
 import type { CanvasRootsSettings } from '../settings';
+import type CanvasRootsPlugin from '../../main';
 
 /**
  * Modal for calculating relationships between two people
@@ -11,6 +12,7 @@ import type { CanvasRootsSettings } from '../settings';
 export class RelationshipCalculatorModal extends Modal {
 	private calculator: RelationshipCalculator;
 	private settings?: CanvasRootsSettings;
+	private plugin?: CanvasRootsPlugin;
 	private personA: PersonInfo | null = null;
 	private personB: PersonInfo | null = null;
 	private result: RelationshipResult | null = null;
@@ -23,9 +25,14 @@ export class RelationshipCalculatorModal extends Modal {
 	private calculateButton: HTMLButtonElement;
 	private resultsContainer: HTMLElement;
 
-	constructor(app: App, settings?: CanvasRootsSettings) {
+	constructor(app: App, settings?: CanvasRootsSettings, plugin?: CanvasRootsPlugin) {
 		super(app);
-		this.calculator = new RelationshipCalculator(app);
+		this.plugin = plugin;
+		this.calculator = new RelationshipCalculator(
+			app,
+			plugin?.getFolderFilter() ?? undefined,
+			plugin?.createFamilyGraphService()
+		);
 		this.settings = settings;
 	}
 
@@ -160,7 +167,7 @@ export class RelationshipCalculatorModal extends Modal {
 			this.result = null;
 			this.additionalResults = [];
 			this.foundAncestorCrIds = [];
-		});
+		}, { plugin: this.plugin });
 		picker.open();
 	}
 
