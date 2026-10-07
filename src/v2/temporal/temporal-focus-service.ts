@@ -71,6 +71,18 @@ export class TemporalFocusService {
 		}
 	}
 
+	/**
+	 * Re-emit the current focus without changing it. Workspace switches use
+	 * this so subscribers recompute the same historical instant against the
+	 * newly active dataset.
+	 */
+	refresh(): void {
+		const current = this.get();
+		for (const listener of this.listeners) {
+			listener(current ? { ...current } : null);
+		}
+	}
+
 	subscribe(listener: TemporalFocusListener): () => void {
 		this.listeners.add(listener);
 		return () => {

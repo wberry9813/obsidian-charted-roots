@@ -65,6 +65,22 @@ describe('TemporalFocusService', () => {
 		expect(listener).toHaveBeenLastCalledWith(null);
 	});
 
+	it('re-emits the current focus for Workspace refreshes', () => {
+		const service = new TemporalFocusService();
+		const listener = vi.fn();
+		service.setPoint(42, 'timeline');
+		service.subscribe(listener);
+
+		service.refresh();
+
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(listener).toHaveBeenCalledWith({
+			kind: 'point',
+			position: 42,
+			source: 'timeline'
+		});
+	});
+
 	it('rejects non-finite point coordinates', () => {
 		const service = new TemporalFocusService();
 

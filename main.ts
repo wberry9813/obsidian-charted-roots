@@ -33,7 +33,7 @@ import { EvidenceService, ProofSummaryService, SourceService } from './src/sourc
 import { EventService } from './src/events/services/event-service';
 import { OrganizationService } from './src/organizations/services/organization-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, HistoricalDateService, SemanticAssertionService, TemporalAssertionStateService, TemporalFocusService, TemporalProjectionService, V2Linter, V2MigrationAnalyzer, V2MigrationExecutor, WorkspaceCatalogService, WorkspaceService, bootstrapWorkspaceFoundation, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type LegacyWorkspaceDerivation, type MigrationExecutionOptions, type MigrationExecutionResult, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry, type WorkspaceCatalog } from './src/v2';
+import { AssertionService, HistoricalDateService, SemanticAssertionService, TemporalAssertionStateService, TemporalFocusService, TemporalPlaceStateService, TemporalProjectionService, V2Linter, V2MigrationAnalyzer, V2MigrationExecutor, WorkspaceCatalogService, WorkspaceService, bootstrapWorkspaceFoundation, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type LegacyWorkspaceDerivation, type MigrationExecutionOptions, type MigrationExecutionResult, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry, type WorkspaceCatalog } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -126,6 +126,7 @@ export default class CanvasRootsPlugin extends Plugin {
 	private temporalProjectionService: TemporalProjectionService | null = null;
 	private temporalAssertionStateService: TemporalAssertionStateService | null = null;
 	private temporalFocusService: TemporalFocusService | null = null;
+	private temporalPlaceStateService: TemporalPlaceStateService | null = null;
 	private workspaceCatalogService: WorkspaceCatalogService | null = null;
 	private workspaceService: WorkspaceService | null = null;
 	private workspaceSetupReview: LegacyWorkspaceDerivation | null = null;
@@ -397,6 +398,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.proofSummaryService?.invalidateCache();
 		this.webClipperService?.resetUnreadCount();
 		this.refreshTemporalTimelineViews();
+		this.temporalFocusService?.refresh();
 		await this.saveSettings();
 	}
 
@@ -431,6 +433,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.proofSummaryService?.invalidateCache();
 		this.webClipperService?.resetUnreadCount();
 		this.refreshTemporalTimelineViews();
+		this.temporalFocusService?.refresh();
 		await this.saveSettings();
 	}
 
@@ -692,6 +695,23 @@ export default class CanvasRootsPlugin extends Plugin {
 			this.temporalFocusService = new TemporalFocusService();
 		}
 		return this.temporalFocusService;
+	}
+
+	/**
+	 * Ontology-safe place projection for the shared temporal focus. The
+	 * PlaceGraph carries a dynamic Workspace provider and scope key.
+	 */
+	getTemporalPlaceStateService(): TemporalPlaceStateService | null {
+		if (!this.temporalPlaceStateService) {
+			const assertionState = this.getTemporalAssertionStateService();
+			if (!assertionState) return null;
+			this.temporalPlaceStateService = new TemporalPlaceStateService(
+				assertionState,
+				this.getV2OntologyRegistry(),
+				this.createPlaceGraphService()
+			);
+		}
+		return this.temporalPlaceStateService;
 	}
 
 	/**
