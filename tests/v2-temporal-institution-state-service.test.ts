@@ -103,7 +103,7 @@ function registry(): OntologyRegistry {
 			objectTypes: ['organization'],
 			temporal: false
 		}
-	] as const) {
+	]) {
 		value.registerPredicate({
 			kind: 'predicate',
 			labels: { en: definition.id },

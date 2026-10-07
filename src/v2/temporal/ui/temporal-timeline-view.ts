@@ -80,6 +80,7 @@ function isTimelineGroupBy(value: unknown): value is TimelineGroupBy {
 		|| value === 'person'
 		|| value === 'place'
 		|| value === 'organization'
+		|| value === 'office'
 		|| value === 'universe';
 }
 
@@ -310,6 +311,7 @@ export class TemporalTimelineView extends ItemView {
 			['person', 'Group by person'],
 			['place', 'Group by place'],
 			['organization', 'Group by organization'],
+			['office', 'Group by office'],
 			['universe', 'Group by universe']
 		] as const) {
 			const option = groupSelect.createEl('option', { text: label });

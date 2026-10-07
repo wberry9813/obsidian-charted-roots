@@ -1,6 +1,6 @@
 # Temporal Views Foundation
 
-> Status: **T0-T2 implemented; D3 Timeline MVP under real-Obsidian validation**
+> Status: **T0-T3 implemented; T4 temporal graph/map integration in progress**
 >
 > This document supersedes the Event-only assumptions in the older
 > `docs/planning/interactive-timeline-view.md` wherever the two conflict.
@@ -133,7 +133,7 @@ runtime is available.
 - [x] invalid/inverted start/end interval checks;
 - [x] query helpers: items active at time, overlapping range, before/after range;
 - [x] subject/object/predicate/type/universe filters for temporal queries;
-- [x] stable grouping keys for person/place/organization/universe.
+- [x] stable grouping keys for person/place/organization/office/universe.
 
 ### T2 — renderer adapter
 
@@ -165,7 +165,7 @@ additional mapping layer that is unnecessary with D3.
 - [x] filtering controls;
 - [x] search;
 - [x] click-to-open-note behavior;
-- [x] optional person/place/organization/universe swimlanes;
+- [x] optional person/place/organization/office/universe swimlanes;
 - [x] unresolved/ambiguous/metadata-conflict review surface;
 - [x] Active Workspace switching with live refresh;
 - [x] visual treatment for open/constraint windows.
@@ -176,7 +176,7 @@ additional mapping layer that is unnecessary with D3.
 - [x] shared runtime TemporalFocusService for cross-view JDN point/range focus;
 - [x] Timeline axis point selection writes shared focus;
 - [x] Relationships surface shows v2 active/possible Assertions at focus without mixing them into the legacy relationship table;
-- organization/office/affiliation state over time;
+- [x] ontology-safe read-only organization/office/affiliation state over time;
 - [x] shared Timeline focus -> Map active/possible place-state overlay;
 - [ ] Map interactions/time controls -> shared Timeline focus;
 - Period/Process contextual overlays.
