@@ -10,6 +10,7 @@
 import type { App, TFile } from 'obsidian';
 import type CanvasRootsPlugin from '../../../main';
 import type { SemanticAssertion } from '../../v2/semantic-assertion-service';
+import type { PlaceDesignationEntry } from '../../v2/maps/place-designation-service';
 import { resolvePathToFile } from '../../utils/wikilink-resolver';
 import type { SectionState, SectionToggleFn } from '../profile-types';
 import { renderProfileSection } from './section-base';
@@ -20,12 +21,38 @@ export interface AssertionsSectionOptions {
 	app: App;
 	plugin: CanvasRootsPlugin;
 	entityFile: TFile;
+	onAddHistoricalName?: () => void;
+	historicalNameFocus?: {
+		active: PlaceDesignationEntry[];
+		possible: PlaceDesignationEntry[];
+	};
 }
 
 export function getMaterializedProfileAssertions(
 	assertions: SemanticAssertion[]
 ): SemanticAssertion[] {
 	return assertions.filter(assertion => assertion.origin === 'assertion_note');
+}
+
+export function summarizeHistoricalNameFocus(
+	focus: AssertionsSectionOptions['historicalNameFocus']
+): { state: 'active' | 'possible'; names: string[] } | null {
+	if (!focus) return null;
+	const active = [...new Set(
+		focus.active
+			.filter(entry => entry.designationType === 'historical_name')
+			.map(entry => entry.name)
+	)];
+	if (active.length > 0) return { state: 'active', names: active };
+
+	const possible = [...new Set(
+		focus.possible
+			.filter(entry => entry.designationType === 'historical_name')
+			.map(entry => entry.name)
+	)];
+	return possible.length > 0
+		? { state: 'possible', names: possible }
+		: null;
 }
 
 export function formatAssertionTime(assertion: SemanticAssertion): string {
@@ -93,7 +120,14 @@ export function renderAssertionsSection(
 	options: AssertionsSectionOptions
 ): void {
 	const materialized = getMaterializedProfileAssertions(assertions);
-	if (materialized.length === 0) return;
+	const focusSummary = summarizeHistoricalNameFocus(
+		options.historicalNameFocus
+	);
+	if (
+		materialized.length === 0
+		&& !options.onAddHistoricalName
+		&& !focusSummary
+	) return;
 
 	const content = renderProfileSection(parent, {
 		sectionId: 'structured-assertions',
@@ -104,6 +138,34 @@ export function renderAssertionsSection(
 		icon: 'waypoints'
 	});
 	if (!content) return;
+
+	if (options.onAddHistoricalName) {
+		const actions = content.createDiv({
+			cls: 'cr-profile__assertion-actions'
+		});
+		const add = actions.createEl('button', {
+			text: 'Add historical name',
+			cls: 'cr-profile__add-historical-name'
+		});
+		add.addEventListener('click', options.onAddHistoricalName);
+	}
+
+	if (focusSummary) {
+		const focus = content.createDiv({
+			cls: 'cr-profile__historical-name-focus'
+		});
+		focus.dataset.temporalState = focusSummary.state;
+		focus.createSpan({
+			cls: 'cr-profile__historical-name-focus-label',
+			text: focusSummary.state === 'active'
+				? 'Historical name at focus: '
+				: 'Possible historical name at focus: '
+		});
+		focus.createSpan({
+			cls: 'cr-profile__historical-name-focus-value',
+			text: focusSummary.names.join(' / ')
+		});
+	}
 
 	const registry = options.plugin.getV2OntologyRegistry();
 	const locale = displayLocale();

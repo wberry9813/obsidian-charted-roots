@@ -147,4 +147,59 @@ describe('M6 historical Place designation contract', () => {
 		expect(range.active.map(entry => entry.id)).toEqual(['name-active']);
 		expect(range.possible.map(entry => entry.id)).toEqual(['name-possible']);
 	});
+	it('queries multiple Place cr_ids from one temporal snapshot', () => {
+		let calls = 0;
+		const makeEntry = (
+			placeCrId: string,
+			name: string
+		): TemporalAssertionStateEntry => ({
+			state: 'active',
+			id: `designation-${placeCrId}`,
+			subject: `[[${placeCrId}]]`,
+			predicate: 'has_designation',
+			value: name,
+			item: {
+				id: `designation-${placeCrId}`,
+				kind: 'assertion',
+				file: {} as never,
+				filePath: `Assertions/${placeCrId}.md`,
+				title: name,
+				predicate: 'has_designation',
+				subject: `[[${placeCrId}]]`,
+				value: name,
+				qualifiers: { designation_type: 'historical_name' },
+				groups: [{
+					kind: 'place',
+					key: `place:crid:${placeCrId}`,
+					label: name,
+					reference: `[[${placeCrId}]]`,
+					crId: placeCrId
+				}],
+				status: 'resolved',
+				source: 'v2'
+			}
+		});
+		const temporal = {
+			getAt: () => {
+				calls++;
+				return {
+					position: 1,
+					active: [
+						makeEntry('place-a', '长安'),
+						makeEntry('place-b', '洛阳')
+					],
+					possible: []
+				};
+			}
+		} as never;
+		const service = new PlaceDesignationService(temporal);
+		const result = service.getAtMany(['place-a', 'place-b'], 1);
+
+		expect(calls).toBe(1);
+		expect(result.get('place-a')?.active.map(entry => entry.name))
+			.toEqual(['长安']);
+		expect(result.get('place-b')?.active.map(entry => entry.name))
+			.toEqual(['洛阳']);
+	});
+
 });
