@@ -13,7 +13,7 @@ export const DEFAULT_WORKSPACE_FOLDERS: Record<WorkspaceFolderKey, string> = {
 	sources: 'Sources',
 	citations: 'Citations',
 	research: 'Research',
-	maps: 'Maps',
+	maps: 'Places/Maps',
 	universes: 'Universes',
 	schemas: 'Schemas',
 	canvases: 'Canvases',
