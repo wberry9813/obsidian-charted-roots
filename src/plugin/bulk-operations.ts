@@ -295,7 +295,7 @@ export function promptAssignReferenceNumbers(plugin: CanvasRootsPlugin, system: 
 	const picker = new PersonPickerModal(plugin.app, (selectedPerson) => {
 		void (async () => {
 			try {
-				const service = new ReferenceNumberingService(plugin.app);
+				const service = new ReferenceNumberingService(plugin.app, undefined, plugin.createFamilyGraphService());
 				let stats;
 
 				new Notice(`Assigning ${system} numbers from ${selectedPerson.name}...`);
@@ -321,7 +321,7 @@ export function promptAssignReferenceNumbers(plugin: CanvasRootsPlugin, system: 
 				new Notice(`Failed to assign numbers: ${getErrorMessage(error)}`);
 			}
 		})();
-	});
+	}, { plugin });
 	picker.open();
 }
 
@@ -344,7 +344,7 @@ export function promptClearReferenceNumbers(plugin: CanvasRootsPlugin): void {
 				.setIcon('trash-2')
 				.onClick(async () => {
 					try {
-						const service = new ReferenceNumberingService(plugin.app);
+						const service = new ReferenceNumberingService(plugin.app, undefined, plugin.createFamilyGraphService());
 						new Notice(`Clearing ${choice.label}...`);
 						const count = await service.clearNumbers(choice.system);
 						new Notice(`Cleared ${count} ${choice.label}`);
@@ -373,7 +373,7 @@ export function promptAssignLineage(plugin: CanvasRootsPlugin): void {
 			if (!lineageName) return;
 
 			try {
-				const service = new LineageTrackingService(plugin.app);
+				const service = new LineageTrackingService(plugin.app, undefined, plugin.createFamilyGraphService());
 				new Notice(`Assigning "${lineageName}" lineage from ${selectedPerson.name}...`);
 
 				const stats = await service.assignLineage({
@@ -388,7 +388,7 @@ export function promptAssignLineage(plugin: CanvasRootsPlugin): void {
 				new Notice(`Failed to assign lineage: ${getErrorMessage(error)}`);
 			}
 		})();
-	});
+	}, { plugin });
 	picker.open();
 }
 
@@ -397,7 +397,7 @@ export function promptAssignLineage(plugin: CanvasRootsPlugin): void {
  */
 export function promptRemoveLineage(plugin: CanvasRootsPlugin): void {
 	try {
-		const service = new LineageTrackingService(plugin.app);
+		const service = new LineageTrackingService(plugin.app, undefined, plugin.createFamilyGraphService());
 		const lineages = service.getAllLineages();
 
 		if (lineages.length === 0) {

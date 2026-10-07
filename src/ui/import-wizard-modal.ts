@@ -1521,7 +1521,8 @@ export class ImportWizardModal extends Modal {
 			},
 			{
 				title: 'Select root person',
-				subtitle: 'Choose the person to use as the root for numbering'
+				subtitle: 'Choose the person to use as the root for numbering',
+				plugin: this.plugin
 			}
 		);
 		picker.open();
@@ -1539,7 +1540,11 @@ export class ImportWizardModal extends Modal {
 		this.renderCurrentStep();
 
 		try {
-			const numberingService = new ReferenceNumberingService(this.app);
+			const numberingService = new ReferenceNumberingService(
+				this.app,
+				undefined,
+				this.plugin.createFamilyGraphService()
+			);
 			let stats: NumberingStats;
 
 			// Map our NumberingSystem to RefNumberingSystem (they're the same values except 'none')
