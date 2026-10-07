@@ -1507,7 +1507,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			.getFileCache(importedManifest)?.frontmatter ?? {};
 		const importedFolder = importedManifest.path
 			.split('/').slice(0, -1).join('/');
-		const importedGeoJsonPath = `${importedFolder}/${importedFrontmatter.geojson_file}`;
+		const importedGeoJsonPath = importedFolder + '/' + importedFrontmatter.geojson_file;
 		const importedGeoJsonFile = app.vault.getAbstractFileByPath(
 			importedGeoJsonPath
 		);
