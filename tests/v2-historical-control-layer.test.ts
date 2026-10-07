@@ -329,6 +329,7 @@ describe('M6 historical control-layer basemap projection', () => {
 				id: 'test-gcj',
 				label: 'Test GCJ',
 				coordinateCRS: 'gcj02',
+				tileScheme: 'xyz-web-mercator',
 				tileUrl: 'https://example.invalid/{z}/{x}/{y}.png',
 				attribution: '',
 				maxZoom: 19
