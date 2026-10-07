@@ -807,7 +807,15 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.mediaService = new MediaService(this.app, this.settings);
 
 		// Initialize Web Clipper service (watcher starts after layout-ready)
-		this.webClipperService = new WebClipperService(this.app, this.settings);
+		this.webClipperService = new WebClipperService(
+			this.app,
+			this.settings,
+			{
+				stagingFolderProvider: () =>
+					this.workspaceService?.getFolder('staging')
+					?? this.settings.stagingFolder
+			}
+		);
 
 		// Initialize date service (standard + fictional parsing with universe context)
 		this.dateService = createDateService({
