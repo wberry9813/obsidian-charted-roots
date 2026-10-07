@@ -24,15 +24,23 @@ export interface ReportGenerationContext {
 
 /**
  * Create an ephemeral settings view for old report/export code that still
- * reads folder paths from CanvasRootsSettings. The user's persisted settings
- * object is never mutated.
+ * reads folder paths or FolderFilter settings from CanvasRootsSettings. The
+ * user's persisted settings object is never mutated.
  */
 export function createReportScopedSettings(
 	settings: CanvasRootsSettings,
 	context: ReportGenerationContext
 ): CanvasRootsSettings {
+	const workspaceRoot = context.workspaceRootProvider?.()?.trim();
+
 	return {
 		...settings,
+		// Most legacy genealogy report generators create their own FamilyGraph.
+		// Force those graphs through FolderFilter when a Workspace is active so
+		// they cannot silently fall back to whole-vault person discovery.
+		folderFilterMode: workspaceRoot ? 'include' : settings.folderFilterMode,
+		includedFolders: workspaceRoot ? [workspaceRoot] : settings.includedFolders,
+		excludedFolders: workspaceRoot ? [] : settings.excludedFolders,
 		eventsFolder: context.folderProvider?.('events') ?? settings.eventsFolder,
 		sourcesFolder: context.folderProvider?.('sources') ?? settings.sourcesFolder,
 		citationsFolder: context.folderProvider?.('citations') ?? settings.citationsFolder,
