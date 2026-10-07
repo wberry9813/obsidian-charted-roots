@@ -20,7 +20,6 @@ import { MediaManagerModal } from '../core/ui/media-manager-modal';
 import { ImportExportHubModal } from './import-export-hub-modal';
 import { FamilyCreationWizardModal } from './family-creation-wizard';
 import { CommandMenuModal } from './command-menu-modal';
-import { EventService } from '../events/services/event-service';
 import { StagingService } from '../core/staging-service';
 import type { RecentFileEntry } from '../settings';
 
