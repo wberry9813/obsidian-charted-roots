@@ -7,8 +7,8 @@ import {
 	createV2OntologyRegistry
 } from '../src/v2';
 
-function makeFile(path: string) {
-	return { path } as never;
+function makeFile(path: string): { path: string } {
+	return { path };
 }
 
 describe('Workspace identity boundary', () => {
