@@ -2322,8 +2322,11 @@ export class MapView extends ItemView {
 		const focusService = this.plugin.getTemporalFocusService();
 		this.temporalFocusUnsubscribe = focusService.subscribe(focus => {
 			this.renderTemporalPlaceOverlay(focus);
+			this.renderTemporalContextOverlay(focus);
 		});
-		this.renderTemporalPlaceOverlay(focusService.get());
+		const focus = focusService.get();
+		this.renderTemporalPlaceOverlay(focus);
+		this.renderTemporalContextOverlay(focus);
 	}
 
 	private unbindTemporalFocus(): void {
@@ -2371,6 +2374,7 @@ export class MapView extends ItemView {
 			this.mapContainerEl.dataset.temporalMarkerCount = '0';
 			this.mapContainerEl.dataset.temporalActiveCount = '0';
 			this.mapContainerEl.dataset.temporalPossibleCount = '0';
+			this.mapContainerEl.querySelector('.cr-map-temporal-context')?.remove();
 		}
 	}
 
@@ -2418,6 +2422,80 @@ export class MapView extends ItemView {
 			this.mapContainerEl.dataset.temporalPossibleCount = String(
 				markers.filter(marker => marker.state === 'possible').length
 			);
+		}
+	}
+
+	private renderTemporalContextOverlay(
+		focus: TemporalFocus | null
+	): void {
+		if (!this.mapContainerEl) return;
+
+		this.mapContainerEl.querySelector('.cr-map-temporal-context')?.remove();
+		if (!focus) return;
+
+		const service = this.plugin.getTemporalContextStateService();
+		if (!service) return;
+
+		const snapshot = focus.kind === 'point'
+			? service.getAt(focus.position)
+			: service.getRange({
+				start: focus.start,
+				endExclusive: focus.endExclusive
+			});
+
+		const panel = this.mapContainerEl.createDiv({
+			cls: 'cr-map-temporal-context'
+		});
+		panel.setAttribute('data-active-count', String(snapshot.active.length));
+		panel.setAttribute('data-possible-count', String(snapshot.possible.length));
+
+		const heading = panel.createDiv({
+			cls: 'cr-map-temporal-context__heading'
+		});
+		heading.createSpan({
+			text: 'Context',
+			cls: 'cr-map-temporal-context__title'
+		});
+		heading.createSpan({
+			text: `${snapshot.active.length} active · ${snapshot.possible.length} possible`,
+			cls: 'cr-map-temporal-context__summary'
+		});
+
+		if (snapshot.active.length === 0 && snapshot.possible.length === 0) {
+			panel.createDiv({
+				text: 'No Period or Process context at this focus.',
+				cls: 'cr-map-temporal-context__empty'
+			});
+			return;
+		}
+
+		const list = panel.createDiv({
+			cls: 'cr-map-temporal-context__list'
+		});
+		for (const entry of [...snapshot.active, ...snapshot.possible]) {
+			const button = list.createEl('button', {
+				cls: 'cr-map-temporal-context__item'
+			});
+			button.setAttribute('data-context-id', entry.id);
+			button.setAttribute('data-context-kind', entry.kind);
+			button.setAttribute('data-temporal-state', entry.state);
+			button.createSpan({
+				text: entry.kind === 'period' ? 'Period' : 'Process',
+				cls: 'cr-map-temporal-context__kind'
+			});
+			button.createSpan({
+				text: entry.title,
+				cls: 'cr-map-temporal-context__label'
+			});
+			if (entry.state === 'possible') {
+				button.createSpan({
+					text: 'possible',
+					cls: 'cr-map-temporal-context__state'
+				});
+			}
+			button.addEventListener('click', () => {
+				void this.app.workspace.getLeaf(false).openFile(entry.item.file);
+			});
 		}
 	}
 
@@ -2536,9 +2614,9 @@ export class MapView extends ItemView {
 
 				// Refresh data with new universe filter
 				void this.refreshData();
-				this.renderTemporalPlaceOverlay(
-					this.plugin.getTemporalFocusService().get()
-				);
+				const temporalFocus = this.plugin.getTemporalFocusService().get();
+				this.renderTemporalPlaceOverlay(temporalFocus);
+				this.renderTemporalContextOverlay(temporalFocus);
 			});
 
 			// Register edit mode change callback
@@ -2623,9 +2701,9 @@ export class MapView extends ItemView {
 			// Update collection dropdown
 			this.updateCollectionDropdown(data.collections);
 
-			this.renderTemporalPlaceOverlay(
-				this.plugin.getTemporalFocusService().get()
-			);
+			const temporalFocus = this.plugin.getTemporalFocusService().get();
+			this.renderTemporalPlaceOverlay(temporalFocus);
+			this.renderTemporalContextOverlay(temporalFocus);
 
 			logger.debug('refresh-complete', 'Map data refreshed', {
 				markers: data.markers.length,
