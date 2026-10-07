@@ -130,4 +130,65 @@ describe('MapDataService Workspace scope', () => {
 		expect(data.markers.map(marker => marker.personId)).toEqual(['a']);
 		expect(data.placeMarkers.map(marker => marker.placeId)).toEqual(['place']);
 	});
+	it('carries stable Place cr_id on migration-path endpoints', async () => {
+		const files = [
+			{ path: 'People/A.md', basename: 'A' },
+			{ path: 'Places/Birth.md', basename: 'Birth' },
+			{ path: 'Places/Death.md', basename: 'Death' }
+		];
+		const frontmatter = new Map<string, Record<string, unknown>>([
+			['People/A.md', {
+				cr_type: 'person',
+				cr_id: 'person-a',
+				name: 'A',
+				born: '1900',
+				died: '1950',
+				birth_place: '[[Birth]]',
+				birth_place_id: 'place-birth',
+				death_place: '[[Death]]',
+				death_place_id: 'place-death'
+			}],
+			['Places/Birth.md', {
+				cr_type: 'place',
+				cr_id: 'place-birth',
+				name: 'Birth',
+				latitude: 10,
+				longitude: 20
+			}],
+			['Places/Death.md', {
+				cr_type: 'place',
+				cr_id: 'place-death',
+				name: 'Death',
+				latitude: 30,
+				longitude: 40
+			}]
+		]);
+		const plugin = {
+			settings: {
+				peopleFolder: 'People',
+				noteTypeDetection: undefined
+			},
+			app: {
+				vault: { getMarkdownFiles: () => files },
+				metadataCache: {
+					getFileCache: (file: { path: string }) => ({
+						frontmatter: frontmatter.get(file.path)
+					})
+				}
+			},
+			getWorkspaceService: () => null
+		} as never;
+
+		const data = await new MapDataService(plugin).getMapData({});
+		expect(data.paths).toHaveLength(1);
+		expect(data.paths[0].origin).toMatchObject({
+			name: 'Birth',
+			placeId: 'place-birth'
+		});
+		expect(data.paths[0].destination).toMatchObject({
+			name: 'Death',
+			placeId: 'place-death'
+		});
+	});
+
 });

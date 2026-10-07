@@ -1,6 +1,6 @@
 # Historical Map Foundation
 
-> Status: **M6 C0-C2 coordinate and basemap foundation implemented; C3 historical place identity next**
+> Status: **M6 C0-C3 coordinate, basemap and historical Place identity implemented; C4 control layers next**
 >
 > M6 follows the implemented M5 Temporal Views foundation.
 
@@ -122,7 +122,7 @@ WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
 - [x] migration preview surfaces legacy `historical_names` as explicit review items without guessing dates or deleting legacy data;
 - [x] focused Map marker/popup/Journey display uses one unambiguous active historical name without mutating canonical MapData;
 - [x] clearing shared TemporalFocus restores the canonical Place name;
-- [ ] migration paths need stable endpoint place IDs before their labels can safely follow historical designations.
+- [x] migration paths carry stable endpoint Place IDs and their display-only labels follow historical designations safely.
 
 ### C4 — historical control layers
 

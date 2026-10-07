@@ -2040,7 +2040,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const place = app.vault.getAbstractFileByPath(
 			'Workspace-E2E/History/Places/History-Place.md'
 		);
-		if (!(place instanceof obsidian.TFile)) {
+		if (!place || typeof place.path !== 'string') {
 			throw new Error('History Place fixture is unavailable.');
 		}
 		await plugin.activateProfileView(place);
@@ -2099,7 +2099,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			const place = app.vault.getAbstractFileByPath(
 				'Workspace-E2E/History/Places/History-Place.md'
 			);
-			if (!(place instanceof obsidian.TFile)) return false;
+			if (!place || typeof place.path !== 'string') return false;
 			return plugin.getAssertionService().getForFile(place).some(record =>
 				record.assertion.predicate === 'has_designation'
 				&& record.assertion.value === 'E2E Ancient Name'

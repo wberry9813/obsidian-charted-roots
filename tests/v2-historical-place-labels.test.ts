@@ -77,8 +77,18 @@ function data(): MapData {
 		paths: [{
 			personId: 'person-a',
 			personName: 'Person A',
-			origin: { lat: 34, lng: 108, name: '西安' },
-			destination: { lat: 35, lng: 109, name: '洛阳' }
+			origin: {
+				lat: 34,
+				lng: 108,
+				name: '西安',
+				placeId: 'place-xian'
+			},
+			destination: {
+				lat: 35,
+				lng: 109,
+				name: '洛阳',
+				placeId: 'place-luoyang'
+			}
 		}],
 		aggregatedPaths: [],
 		journeyPaths: [journey],
@@ -112,8 +122,9 @@ describe('focused historical Place labels', () => {
 		expect(source.placeMarkers[0].placeName).toBe('西安');
 		expect(source.journeyPaths[0].waypoints[0].name).toBe('西安');
 
-		// MigrationPath lacks stable place IDs, so do not guess by string name.
-		expect(result.paths[0].origin.name).toBe('西安');
+		expect(result.paths[0].origin.name).toBe('长安');
+		expect(result.paths[0].destination.name).toBe('洛阳');
+		expect(source.paths[0].origin.name).toBe('西安');
 	});
 
 	it('returns the original MapData when no unambiguous active rename applies', () => {

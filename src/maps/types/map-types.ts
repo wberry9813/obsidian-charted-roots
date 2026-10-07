@@ -215,6 +215,8 @@ export interface MigrationPath {
 		pixelX?: number;
 		pixelY?: number;
 		name: string;
+		/** Stable Place cr_id when the endpoint resolves to a Place note. */
+		placeId?: string;
 	};
 	/** Destination location (typically death) */
 	destination: {
@@ -223,6 +225,8 @@ export interface MigrationPath {
 		pixelX?: number;
 		pixelY?: number;
 		name: string;
+		/** Stable Place cr_id when the endpoint resolves to a Place note. */
+		placeId?: string;
 	};
 	/** Birth year for filtering */
 	birthYear?: number;

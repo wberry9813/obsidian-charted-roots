@@ -25,8 +25,8 @@ export function selectFocusedHistoricalPlaceName(
  * Produce a display-only MapData projection for one shared temporal focus.
  *
  * The input object is never mutated. Only surfaces that carry a stable
- * placeId are renamed; legacy migration-path endpoints without place IDs are
- * deliberately left unchanged to avoid same-name collisions.
+ * placeId are renamed, including migration-path endpoints once their Place
+ * identity has been resolved by MapDataService.
  */
 export function applyFocusedHistoricalPlaceNames(
 	data: MapData,
@@ -51,6 +51,29 @@ export function applyFocusedHistoricalPlaceNames(
 			: marker;
 	});
 
+	const renamePath = <T extends MapData['paths'][number]>(path: T): T => {
+		const originName = nameFor(path.origin.placeId);
+		const destinationName = nameFor(path.destination.placeId);
+		if (
+			(!originName || originName === path.origin.name)
+			&& (!destinationName || destinationName === path.destination.name)
+		) {
+			return path;
+		}
+		return {
+			...path,
+			origin: originName
+				? { ...path.origin, name: originName }
+				: path.origin,
+			destination: destinationName
+				? { ...path.destination, name: destinationName }
+				: path.destination
+		} as T;
+	};
+
+	const paths = data.paths.map(renamePath);
+	const aggregatedPaths = data.aggregatedPaths.map(renamePath);
+
 	const journeyPaths = data.journeyPaths.map(journey => {
 		let changed = false;
 		const waypoints = journey.waypoints.map(waypoint => {
@@ -65,6 +88,10 @@ export function applyFocusedHistoricalPlaceNames(
 	if (
 		markers.every((marker, index) => marker === data.markers[index])
 		&& placeMarkers.every((marker, index) => marker === data.placeMarkers[index])
+		&& paths.every((path, index) => path === data.paths[index])
+		&& aggregatedPaths.every(
+			(path, index) => path === data.aggregatedPaths[index]
+		)
 		&& journeyPaths.every((journey, index) => journey === data.journeyPaths[index])
 	) {
 		return data;
@@ -74,6 +101,8 @@ export function applyFocusedHistoricalPlaceNames(
 		...data,
 		markers,
 		placeMarkers,
+		paths,
+		aggregatedPaths,
 		journeyPaths
 	};
 }
