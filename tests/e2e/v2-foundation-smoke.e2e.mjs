@@ -2073,7 +2073,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const setValue = (label, value) => {
 			const input = field(label);
 			if (!(input instanceof HTMLInputElement) && !(input instanceof HTMLTextAreaElement)) {
-				throw new Error(`Historical name field unavailable: ${label}`);
+				throw new Error('Historical name field unavailable: ' + label);
 			}
 			input.value = value;
 			input.dispatchEvent(new Event('input', { bubbles: true }));
