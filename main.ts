@@ -784,7 +784,11 @@ export default class CanvasRootsPlugin extends Plugin {
 		LoggerFactory.setLogLevel(this.settings.logLevel);
 
 		// Initialize folder filter service
-		this.folderFilter = new FolderFilterService(this.settings);
+		this.folderFilter = new FolderFilterService(this.settings, {
+			stagingFolderProvider: () =>
+				this.workspaceService?.getFolder('staging')
+				?? this.settings.stagingFolder
+		});
 
 		// Initialize template filter service (connects to folder filter)
 		this.templateFilter = new TemplateFilterService(this.app, this.settings);
