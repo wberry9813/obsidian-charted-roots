@@ -10,6 +10,7 @@ const WGS_BASEMAP: GeographicBasemapDefinition = {
 	id: 'test-wgs',
 	label: 'WGS test',
 	coordinateCRS: 'wgs84',
+	tileScheme: 'xyz-web-mercator',
 	tileUrl: 'https://example.invalid/{z}/{x}/{y}.png',
 	attribution: '',
 	maxZoom: 19

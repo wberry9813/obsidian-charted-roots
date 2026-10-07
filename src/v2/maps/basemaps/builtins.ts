@@ -10,6 +10,7 @@ export const CARTO_VOYAGER_BASEMAP: GeographicBasemapDefinition = {
 	id: 'carto-voyager',
 	label: 'Real world',
 	coordinateCRS: 'wgs84',
+	tileScheme: 'xyz-web-mercator',
 	tileUrl:
 		'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
 	attribution:

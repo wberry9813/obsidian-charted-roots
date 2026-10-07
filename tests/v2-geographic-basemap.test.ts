@@ -10,6 +10,7 @@ describe('M6 geographic basemap definitions', () => {
 	it('declares the current Real world basemap as explicit WGS84', () => {
 		expect(CARTO_VOYAGER_BASEMAP.id).toBe('carto-voyager');
 		expect(CARTO_VOYAGER_BASEMAP.coordinateCRS).toBe('wgs84');
+		expect(CARTO_VOYAGER_BASEMAP.tileScheme).toBe('xyz-web-mercator');
 		expect(CARTO_VOYAGER_BASEMAP.tileUrl).toContain('cartocdn.com');
 		expect(CARTO_VOYAGER_BASEMAP.maxZoom).toBe(19);
 		expect(CARTO_VOYAGER_BASEMAP.miniMapMaxZoom).toBe(13);

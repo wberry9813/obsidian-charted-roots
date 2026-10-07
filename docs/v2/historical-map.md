@@ -1,6 +1,6 @@
 # Historical Map Foundation
 
-> Status: **M6-C0 coordinate foundation in progress**
+> Status: **M6 C0-C2 coordinate and basemap foundation in progress**
 >
 > M6 follows the implemented M5 Temporal Views foundation.
 
@@ -68,7 +68,7 @@ Supported first-stage geographic CRS:
 - [x] route Journey camera and v2 temporal place overlay through the same Controller conversion API;
 - [x] route geographic map click and Place drag write-back through the inverse adapter;
 - [x] persist map center state as canonical WGS84 instead of basemap-shifted coordinates;
-- [ ] prove current WGS84 rendering remains unchanged in the latest real-Obsidian smoke after integration;
+- [x] current WGS84 rendering/integration remains green in real Obsidian smoke (#513, `9aba2162`);
 - [x] keep GeoJSON export canonical WGS84;
 - [x] route SVG current-view marker/path projection through the basemap adapter;
 - [ ] add GeoJSON import/render adapter coverage;
