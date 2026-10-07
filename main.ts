@@ -40,7 +40,7 @@ import { MediaService } from './src/core/media-service';
 import { MigrationNoticeView, VIEW_TYPE_MIGRATION_NOTICE } from './src/ui/views/migration-notice-view';
 import { ProfileView, VIEW_TYPE_ENTITY_PROFILE } from './src/profile-view/profile-view';
 import { WebClipperService } from './src/core/web-clipper-service';
-import { UniverseService, createUniverseService } from './src/universes/services/universe-service';
+import { UniverseService } from './src/universes/services/universe-service';
 import { PluginRenameMigrationService, showMigrationNotice } from './src/migration/plugin-rename-migration-service';
 
 import { registerContextMenus } from './src/plugin/context-menus';
@@ -766,7 +766,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		// layer stays decoupled from the universes layer (#650). The UniverseService
 		// is memoized so repeated date parsing doesn't re-scan universe notes; its
 		// own cache picks up universe edits via the metadata-cache.
-		let universeCalendarService: ReturnType<typeof createUniverseService> | null = null;
+		let universeCalendarService: UniverseService | null = null;
 		this.dateService.setUniverseCalendarResolver((universeRef) => {
 			if (!universeRef) return null;
 			if (!universeCalendarService) universeCalendarService = this.getUniverseService();
