@@ -1,0 +1,111 @@
+/* v2 Temporal Timeline */
+
+.cr-v2-timeline {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	height: 100%;
+	padding: var(--size-4-4);
+	overflow: hidden;
+}
+
+.cr-v2-timeline__header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--size-4-3);
+}
+
+.cr-v2-timeline__title {
+	margin: 0;
+}
+
+.cr-v2-timeline__workspace,
+.cr-v2-timeline__summary,
+.cr-v2-timeline__review-reasons {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.cr-v2-timeline__actions {
+	display: flex;
+	gap: var(--size-2-1);
+}
+
+.cr-v2-timeline__viewport {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+}
+
+.cr-v2-timeline__svg {
+	display: block;
+	min-width: 100%;
+}
+
+.cr-v2-timeline__axis-line,
+.cr-v2-timeline__tick-mark,
+.cr-v2-timeline__grid-line {
+	stroke: var(--background-modifier-border);
+	shape-rendering: crispEdges;
+}
+
+.cr-v2-timeline__grid-line {
+	stroke-opacity: 0.45;
+}
+
+.cr-v2-timeline__tick-label,
+.cr-v2-timeline__item-label {
+	fill: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.cr-v2-timeline__item-label {
+	fill: var(--text-normal);
+}
+
+.cr-v2-timeline__span {
+	fill: var(--interactive-accent);
+	stroke: var(--interactive-accent);
+	stroke-width: 1;
+	cursor: pointer;
+}
+
+.cr-v2-timeline__span:hover {
+	stroke-width: 2;
+}
+
+.cr-v2-timeline__span--period {
+	fill: none;
+	stroke-width: 2;
+}
+
+.cr-v2-timeline__span--assertion {
+	stroke-dasharray: 4 2;
+}
+
+.cr-v2-timeline__empty {
+	padding: var(--size-4-6);
+	color: var(--text-muted);
+	text-align: center;
+}
+
+.cr-v2-timeline__review {
+	flex: 0 0 auto;
+	max-height: 30%;
+	overflow: auto;
+	border-top: 1px solid var(--background-modifier-border);
+	padding-top: var(--size-4-2);
+}
+
+.cr-v2-timeline__review-list {
+	margin-bottom: 0;
+}
+
+.cr-v2-timeline__review-title {
+	color: var(--text-normal);
+	font-weight: var(--font-medium);
+}

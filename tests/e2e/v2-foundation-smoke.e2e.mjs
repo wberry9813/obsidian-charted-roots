@@ -949,6 +949,25 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const evidenceService = plugin.getEvidenceService();
 		const proofService = plugin.getProofSummaryService();
 		const temporalProjectionService = plugin.getTemporalProjectionService();
+		const readTimelineView = () => {
+			const leaf = app.workspace.getLeavesOfType('charted-roots-temporal-timeline')[0];
+			const root = leaf?.view?.containerEl;
+			return {
+				workspace: root?.querySelector('.cr-v2-timeline__workspace')?.textContent ?? '',
+				scale: root?.querySelector('.cr-v2-timeline__svg')?.getAttribute('data-scale') ?? null,
+				spanIds: [...(root?.querySelectorAll('.cr-v2-timeline__span') ?? [])]
+					.map(el => el.getAttribute('data-item-id'))
+					.filter(Boolean)
+					.sort(),
+				kinds: [...(root?.querySelectorAll('.cr-v2-timeline__span') ?? [])]
+					.map(el => el.getAttribute('data-item-kind'))
+					.filter(Boolean)
+					.sort(),
+				tickLabels: [...(root?.querySelectorAll('.cr-v2-timeline__tick-label') ?? [])]
+					.map(el => el.textContent ?? '')
+					.filter(Boolean)
+			};
+		};
 
 		const historyCreated = [
 			await eventService.createEvent({
@@ -1039,7 +1058,13 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			if (current) await app.vault.delete(current);
 		}
 
+		await plugin.activateTemporalTimelineView();
+		await new Promise(resolve => window.setTimeout(resolve, 100));
+		history.timeline = readTimelineView();
+
 		await plugin.setActiveWorkspace('shushan');
+		await new Promise(resolve => window.setTimeout(resolve, 50));
+		const shushanTimeline = readTimelineView();
 
 		const shushanCreated = [
 			await eventService.createEvent({
@@ -1120,6 +1145,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					end: item.end?.expression ?? null
 				}))
 				.sort((a, b) => a.id.localeCompare(b.id)),
+			timeline: shushanTimeline,
 			createdPaths: shushanCreated.map(file => file.path)
 		};
 
@@ -1254,6 +1280,29 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			end: 'BCE 450'
 		}
 	]);
+	assert.equal(workspaceState.history.timeline.workspace, 'History');
+	assert.equal(workspaceState.history.timeline.scale, 'julian-day');
+	assert.deepEqual(workspaceState.history.timeline.spanIds, [
+		'history-event',
+		'history-service-event',
+		'workspace-history-assertion',
+		'workspace-history-period',
+		'workspace-history-process'
+	]);
+	assert.deepEqual(workspaceState.history.timeline.kinds, [
+		'assertion',
+		'event',
+		'event',
+		'period',
+		'process'
+	]);
+	assert.ok(workspaceState.history.timeline.tickLabels.length > 0);
+	assert.ok(
+		workspaceState.history.timeline.tickLabels.every(label => / BCE$/.test(label))
+	);
+	assert.ok(
+		workspaceState.history.timeline.tickLabels.every(label => !/\b0\b/.test(label))
+	);
 	assert.deepEqual(workspaceState.history.createdPaths.sort(), [
 		'Workspace-E2E/History/Events/History Created Event E2E.md',
 		'Workspace-E2E/History/Organizations/History Created Organization E2E.md',
@@ -1332,6 +1381,27 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			end: '140 CE'
 		}
 	]);
+	assert.equal(workspaceState.shushan.timeline.workspace, '蜀山');
+	assert.equal(workspaceState.shushan.timeline.scale, 'julian-day');
+	assert.deepEqual(workspaceState.shushan.timeline.spanIds, [
+		'fiction-event',
+		'workspace-shushan-assertion',
+		'workspace-shushan-period',
+		'workspace-shushan-process'
+	]);
+	assert.deepEqual(workspaceState.shushan.timeline.kinds, [
+		'assertion',
+		'event',
+		'period',
+		'process'
+	]);
+	assert.ok(workspaceState.shushan.timeline.tickLabels.length > 0);
+	assert.ok(
+		workspaceState.shushan.timeline.tickLabels.every(label => / CE$/.test(label))
+	);
+	assert.ok(
+		workspaceState.shushan.timeline.tickLabels.every(label => !/\b0\b/.test(label))
+	);
 	assert.deepEqual(workspaceState.shushan.createdPaths.sort(), [
 		'Workspace-E2E/Shushan/Events/Shushan Created Event E2E.md',
 		'Workspace-E2E/Shushan/Organizations/Shushan Created Organization E2E.md',

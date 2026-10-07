@@ -15,6 +15,7 @@ import { FamilyChartView, VIEW_TYPE_FAMILY_CHART } from './src/ui/views/family-c
 import { MapView, VIEW_TYPE_MAP } from './src/maps/map-view';
 import { StatisticsView, VIEW_TYPE_STATISTICS } from './src/statistics';
 import { CalendarView, VIEW_TYPE_CALENDAR } from './src/calendar/calendar-view';
+import { TemporalTimelineView, VIEW_TYPE_TEMPORAL_TIMELINE } from './src/v2/temporal/ui/temporal-timeline-view';
 import { RelationshipsView, VIEW_TYPE_RELATIONSHIPS } from './src/relationships/ui/relationships-view';
 import { PeopleView, VIEW_TYPE_PEOPLE } from './src/ui/views/people-view';
 import { EventsView, VIEW_TYPE_EVENTS } from './src/dates/ui/events-view';
@@ -49,6 +50,7 @@ import {
 	activateMapView as _activateMapView,
 	activateStatisticsView as _activateStatisticsView,
 	activateCalendarView as _activateCalendarView,
+	activateTemporalTimelineView as _activateTemporalTimelineView,
 	activateRelationshipsView as _activateRelationshipsView,
 	activatePeopleView as _activatePeopleView,
 	activateEventsView as _activateEventsView,
@@ -372,6 +374,14 @@ export default class CanvasRootsPlugin extends Plugin {
 		};
 	}
 
+	private refreshTemporalTimelineViews(): void {
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_TEMPORAL_TIMELINE)) {
+			if (leaf.view instanceof TemporalTimelineView) {
+				leaf.view.refresh();
+			}
+		}
+	}
+
 	async setActiveWorkspace(id: string): Promise<void> {
 		if (!this.workspaceService) {
 			throw new Error('Workspace setup is required before selecting an active Workspace.');
@@ -384,6 +394,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.personIndex?.invalidateCache();
 		this.proofSummaryService?.invalidateCache();
 		this.webClipperService?.resetUnreadCount();
+		this.refreshTemporalTimelineViews();
 		await this.saveSettings();
 	}
 
@@ -417,6 +428,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.personIndex?.invalidateCache();
 		this.proofSummaryService?.invalidateCache();
 		this.webClipperService?.resetUnreadCount();
+		this.refreshTemporalTimelineViews();
 		await this.saveSettings();
 	}
 
@@ -981,6 +993,12 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.registerCRView(
 			VIEW_TYPE_CALENDAR,
 			(leaf) => new CalendarView(leaf, this)
+		);
+
+		// Register v2 historical temporal timeline view
+		this.registerCRView(
+			VIEW_TYPE_TEMPORAL_TIMELINE,
+			(leaf) => new TemporalTimelineView(leaf, this)
 		);
 
 		// Register relationships view
@@ -1722,6 +1740,7 @@ export default class CanvasRootsPlugin extends Plugin {
 	}
 	async activateStatisticsView(): Promise<void> { return _activateStatisticsView(this); }
 	async activateCalendarView(): Promise<void> { return _activateCalendarView(this); }
+	async activateTemporalTimelineView(): Promise<void> { return _activateTemporalTimelineView(this); }
 	async activateRelationshipsView(): Promise<void> { return _activateRelationshipsView(this); }
 	async activatePeopleView(): Promise<void> { return _activatePeopleView(this); }
 	async activateEventsView(): Promise<void> { return _activateEventsView(this); }

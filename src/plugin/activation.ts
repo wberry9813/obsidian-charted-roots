@@ -11,6 +11,7 @@ import { FamilyChartView, VIEW_TYPE_FAMILY_CHART } from '../ui/views/family-char
 import { VIEW_TYPE_MAP } from '../maps/map-view';
 import { VIEW_TYPE_STATISTICS } from '../statistics';
 import { VIEW_TYPE_CALENDAR } from '../calendar/calendar-view';
+import { VIEW_TYPE_TEMPORAL_TIMELINE } from '../v2/temporal/ui/temporal-timeline-view';
 import { VIEW_TYPE_RELATIONSHIPS } from '../relationships/ui/relationships-view';
 import { VIEW_TYPE_PEOPLE } from '../ui/views/people-view';
 import { VIEW_TYPE_EVENTS } from '../dates/ui/events-view';
@@ -188,6 +189,25 @@ export async function activateCalendarView(plugin: CanvasRootsPlugin): Promise<v
 	const leaf = workspace.getLeaf('tab');
 	await leaf.setViewState({
 		type: VIEW_TYPE_CALENDAR,
+		active: true
+	});
+	void workspace.revealLeaf(leaf);
+}
+
+export async function activateTemporalTimelineView(
+	plugin: CanvasRootsPlugin
+): Promise<void> {
+	const { workspace } = plugin.app;
+
+	const leaves = workspace.getLeavesOfType(VIEW_TYPE_TEMPORAL_TIMELINE);
+	if (leaves.length > 0) {
+		void workspace.revealLeaf(leaves[0]);
+		return;
+	}
+
+	const leaf = workspace.getLeaf('tab');
+	await leaf.setViewState({
+		type: VIEW_TYPE_TEMPORAL_TIMELINE,
 		active: true
 	});
 	void workspace.revealLeaf(leaf);

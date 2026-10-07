@@ -138,6 +138,15 @@ export function registerCommandsAndEvents(plugin: CanvasRootsPlugin): void {
 		}
 	});
 
+	// Add command: Open v2 temporal timeline
+	plugin.addCommand({
+		id: 'open-temporal-timeline-view',
+		name: 'Open temporal timeline',
+		callback: () => {
+			void plugin.activateTemporalTimelineView();
+		}
+	});
+
 	// Add command: Open Places view
 	plugin.addCommand({
 		id: 'open-places-view',
