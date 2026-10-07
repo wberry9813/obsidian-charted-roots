@@ -256,7 +256,9 @@ export class ReportGeneratorModal extends Modal {
 		this.odtGenerator = new OdtGenerator();
 
 		// Initialize output folder from settings
-		this.outputFolder = plugin.settings.reportsFolder || '';
+		this.outputFolder = plugin.getWorkspaceService()?.getFolder('reports')
+			?? plugin.settings.reportsFolder
+			?? '';
 
 		// Apply pre-selected options
 		if (options.reportType) {
