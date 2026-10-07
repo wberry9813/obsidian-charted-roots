@@ -1158,51 +1158,76 @@ export class CanvasRootsSettingTab extends PluginSettingTab {
 		foldersSummary.createSpan({ cls: 'cr-section-desc', text: 'Where Charted Roots stores and finds notes' });
 		const foldersContent = foldersDetails.createDiv({ cls: 'cr-section-content' });
 
-		// Folder explanation
+		const workspaceService = this.plugin.getWorkspaceService();
 		const folderExplanation = foldersContent.createDiv({ cls: 'setting-item-description cr-info-box' });
-		folderExplanation.appendText('These folders determine where new notes are created. Charted Roots identifies notes by their properties (cr_type), not their location—your notes can live anywhere in your vault.');
 
-		// --- Entity folders subsection ---
-		new Setting(foldersContent).setName("Entity folders").setHeading();
+		if (workspaceService) {
+			const active = workspaceService.getActive();
+			folderExplanation.appendText(
+				'Entity and output folders are managed per Workspace. Legacy global folder settings remain stored only as a compatibility fallback.'
+			);
 
-		this.createFolderSetting(foldersContent, 'People folder', 'Default folder for person notes', 'Charted Roots/People',
-			() => this.plugin.settings.peopleFolder, (v) => { this.plugin.settings.peopleFolder = v; });
+			new Setting(foldersContent)
+				.setName(`Active Workspace: ${active.name}`)
+				.setDesc(`Root: ${active.rootFolder} · Mode: ${active.mode}`)
+				.addButton(button => button
+					.setButtonText('Manage Workspaces')
+					.onClick(async () => {
+						const { WorkspaceManagerModal } = await import('./ui/workspace-manager-modal');
+						new WorkspaceManagerModal(this.plugin).open();
+					}));
 
-		this.createFolderSetting(foldersContent, 'Places folder', 'Default folder for place notes', 'Charted Roots/Places',
-			() => this.plugin.settings.placesFolder, (v) => { this.plugin.settings.placesFolder = v; });
+			const resolved = foldersContent.createDiv({ cls: 'cr-workspace-folder-summary' });
+			for (const [label, key] of [
+				['People', 'people'],
+				['Places', 'places'],
+				['Events', 'events'],
+				['Sources', 'sources'],
+				['Assertions', 'assertions'],
+				['Canvases', 'canvases'],
+				['Reports', 'reports']
+			] as const) {
+				const row = resolved.createDiv({ cls: 'setting-item-description' });
+				row.createEl('strong', { text: `${label}: ` });
+				row.createEl('code', { text: workspaceService.getFolder(key) });
+			}
 
-		this.createFolderSetting(foldersContent, 'Events folder', 'Default folder for event notes', 'Charted Roots/Events',
-			() => this.plugin.settings.eventsFolder, (v) => { this.plugin.settings.eventsFolder = v; });
+			const hint = foldersContent.createDiv({ cls: 'cr-info-box cr-info-box--muted' });
+			hint.appendText('Use Workspace Manager → Folder overrides (advanced) to customize relative subfolders.');
+		} else {
+			folderExplanation.appendText(
+				'No Workspace is configured yet. These legacy folders are used as compatibility defaults and can be used to bootstrap a Workspace.'
+			);
 
-		this.createFolderSetting(foldersContent, 'Sources folder', 'Default folder for source notes', 'Charted Roots/Sources',
-			() => this.plugin.settings.sourcesFolder, (v) => { this.plugin.settings.sourcesFolder = v; });
+			new Setting(foldersContent).setName('Legacy entity folders').setHeading();
 
-		this.createFolderSetting(foldersContent, 'Citations folder', 'Default folder for citation notes', 'Charted Roots/Citations',
-			() => this.plugin.settings.citationsFolder, (v) => { this.plugin.settings.citationsFolder = v; });
+			this.createFolderSetting(foldersContent, 'People folder', 'Default folder for person notes', 'Charted Roots/People',
+				() => this.plugin.settings.peopleFolder, (v) => { this.plugin.settings.peopleFolder = v; });
+			this.createFolderSetting(foldersContent, 'Places folder', 'Default folder for place notes', 'Charted Roots/Places',
+				() => this.plugin.settings.placesFolder, (v) => { this.plugin.settings.placesFolder = v; });
+			this.createFolderSetting(foldersContent, 'Events folder', 'Default folder for event notes', 'Charted Roots/Events',
+				() => this.plugin.settings.eventsFolder, (v) => { this.plugin.settings.eventsFolder = v; });
+			this.createFolderSetting(foldersContent, 'Sources folder', 'Default folder for source notes', 'Charted Roots/Sources',
+				() => this.plugin.settings.sourcesFolder, (v) => { this.plugin.settings.sourcesFolder = v; });
+			this.createFolderSetting(foldersContent, 'Citations folder', 'Default folder for citation notes', 'Charted Roots/Citations',
+				() => this.plugin.settings.citationsFolder, (v) => { this.plugin.settings.citationsFolder = v; });
+			this.createFolderSetting(foldersContent, 'Organizations folder', 'Default folder for organization notes', 'Charted Roots/Organizations',
+				() => this.plugin.settings.organizationsFolder, (v) => { this.plugin.settings.organizationsFolder = v; });
+			this.createFolderSetting(foldersContent, 'Universes folder', 'Default folder for universe notes (fictional worlds)', 'Charted Roots/Universes',
+				() => this.plugin.settings.universesFolder, (v) => { this.plugin.settings.universesFolder = v; });
 
-		this.createFolderSetting(foldersContent, 'Organizations folder', 'Default folder for organization notes', 'Charted Roots/Organizations',
-			() => this.plugin.settings.organizationsFolder, (v) => { this.plugin.settings.organizationsFolder = v; });
-
-		this.createFolderSetting(foldersContent, 'Universes folder', 'Default folder for universe notes (fictional worlds)', 'Charted Roots/Universes',
-			() => this.plugin.settings.universesFolder, (v) => { this.plugin.settings.universesFolder = v; });
-
-		// --- Output folders subsection ---
-		new Setting(foldersContent).setName("Output folders").setHeading();
-
-		this.createFolderSetting(foldersContent, 'Canvases folder', 'Default folder for generated canvas files', 'Charted Roots/Canvases',
-			() => this.plugin.settings.canvasesFolder, (v) => { this.plugin.settings.canvasesFolder = v; });
-
-		this.createFolderSetting(foldersContent, 'Maps folder', 'Default folder for map notes', 'Charted Roots/Places/Maps',
-			() => this.plugin.settings.mapsFolder, (v) => { this.plugin.settings.mapsFolder = v; });
-
-		this.createFolderSetting(foldersContent, 'Timelines folder', 'Default folder for timeline notes', 'Charted Roots/Timelines',
-			() => this.plugin.settings.timelinesFolder, (v) => { this.plugin.settings.timelinesFolder = v; });
-
-		this.createFolderSetting(foldersContent, 'Reports folder', 'Default folder for generated reports', 'Charted Roots/Reports',
-			() => this.plugin.settings.reportsFolder, (v) => { this.plugin.settings.reportsFolder = v; });
-
-		this.createFolderSetting(foldersContent, 'Bases folder', 'Default folder for Obsidian Bases files', 'Charted Roots/Bases',
-			() => this.plugin.settings.basesFolder, (v) => { this.plugin.settings.basesFolder = v; });
+			new Setting(foldersContent).setName('Legacy output folders').setHeading();
+			this.createFolderSetting(foldersContent, 'Canvases folder', 'Default folder for generated canvas files', 'Charted Roots/Canvases',
+				() => this.plugin.settings.canvasesFolder, (v) => { this.plugin.settings.canvasesFolder = v; });
+			this.createFolderSetting(foldersContent, 'Maps folder', 'Default folder for map notes', 'Charted Roots/Places/Maps',
+				() => this.plugin.settings.mapsFolder, (v) => { this.plugin.settings.mapsFolder = v; });
+			this.createFolderSetting(foldersContent, 'Timelines folder', 'Default folder for timeline notes', 'Charted Roots/Timelines',
+				() => this.plugin.settings.timelinesFolder, (v) => { this.plugin.settings.timelinesFolder = v; });
+			this.createFolderSetting(foldersContent, 'Reports folder', 'Default folder for generated reports', 'Charted Roots/Reports',
+				() => this.plugin.settings.reportsFolder, (v) => { this.plugin.settings.reportsFolder = v; });
+			this.createFolderSetting(foldersContent, 'Bases folder', 'Default folder for Obsidian Bases files', 'Charted Roots/Bases',
+				() => this.plugin.settings.basesFolder, (v) => { this.plugin.settings.basesFolder = v; });
+		}
 
 		// --- Media folder filtering subsection ---
 		new Setting(foldersContent).setName("Media folder filtering").setHeading();
@@ -1235,15 +1260,16 @@ export class CanvasRootsSettingTab extends PluginSettingTab {
 		});
 
 		// --- System folders subsection ---
-		new Setting(foldersContent).setName("System folders").setHeading();
+		new Setting(foldersContent).setName('System folders').setHeading();
 
-		this.createFolderSetting(foldersContent, 'Schemas folder', 'Default folder for validation schemas', 'Charted Roots/Schemas',
-			() => this.plugin.settings.schemasFolder, (v) => { this.plugin.settings.schemasFolder = v; });
+		if (!workspaceService) {
+			this.createFolderSetting(foldersContent, 'Schemas folder', 'Default folder for validation schemas', 'Charted Roots/Schemas',
+				() => this.plugin.settings.schemasFolder, (v) => { this.plugin.settings.schemasFolder = v; });
+			this.createFolderSetting(foldersContent, 'Staging folder', 'Folder for import staging (isolated from main vault)', 'Charted Roots/Staging',
+				() => this.plugin.settings.stagingFolder, (v) => { this.plugin.settings.stagingFolder = v; });
+		}
 
-		this.createFolderSetting(foldersContent, 'Staging folder', 'Folder for import staging (isolated from main vault)', 'Charted Roots/Staging',
-			() => this.plugin.settings.stagingFolder, (v) => { this.plugin.settings.stagingFolder = v; });
-
-		this.createFolderSetting(foldersContent, 'Log export folder', 'Vault folder for exported log files', '.charted-roots/logs',
+		this.createFolderSetting(foldersContent, 'Log export folder', 'Vault-global folder for exported plugin log files', '.charted-roots/logs',
 			() => this.plugin.settings.logExportPath, (v) => { this.plugin.settings.logExportPath = v; });
 	}
 
