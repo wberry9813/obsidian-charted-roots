@@ -32,10 +32,11 @@ export class MergeWizardModal extends Modal {
 		private settings: CanvasRootsSettings,
 		private stagingFile: TFile,
 		private mainFile: TFile,
-		onMergeComplete?: () => void
+		onMergeComplete?: () => void,
+		fileProvider?: () => TFile[]
 	) {
 		super(app);
-		this.mergeService = new MergeService(app, settings);
+		this.mergeService = new MergeService(app, settings, fileProvider);
 		this.differences = this.mergeService.getFieldDifferences(stagingFile, mainFile);
 		this.choices = new Map();
 		this.onMergeComplete = onMergeComplete;
