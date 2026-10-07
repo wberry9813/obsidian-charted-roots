@@ -1168,7 +1168,9 @@ export class UniverseWizardModal extends Modal {
 	 */
 	private async createMap(universeId: string): Promise<void> {
 		const mapId = this.mapData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-		const folder = this.plugin.settings.mapsFolder || '';
+		const folder = this.plugin.getWorkspaceService()?.getFolder('maps')
+			?? this.plugin.settings.mapsFolder
+			?? '';
 
 		// Build frontmatter
 		const frontmatterLines = [
@@ -1227,7 +1229,9 @@ export class UniverseWizardModal extends Modal {
 	 */
 	private async createSchema(universeId: string): Promise<void> {
 		const schemaId = `schema-${this.schemaData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-		const folder = this.plugin.settings.schemasFolder || '';
+		const folder = this.plugin.getWorkspaceService()?.getFolder('schemas')
+			?? this.plugin.settings.schemasFolder
+			?? '';
 
 		const validProps = this.schemaData.requiredProperties.filter(p => p.trim());
 
