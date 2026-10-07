@@ -193,6 +193,7 @@ describe('v2 legacy migration analyzer', () => {
 
 	it('surfaces legacy Place historical names for review without auto-migration', () => {
 		const result = analyzeLegacyFrontmatter('Places/Chang-An.md', {
+			cr_schema: 2,
 			cr_type: 'place',
 			cr_id: 'place-changan',
 			historical_names: ['长安', '京兆'],
