@@ -404,8 +404,10 @@ export class ProfileDataLoader {
 		const app = this.plugin.app;
 		const groups: ReferencedFactGroup[] = [];
 
-		for (const file of app.vault.getFiles()) {
-			if (file.extension !== 'md') continue;
+		const files = this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? app.vault.getMarkdownFiles();
+
+		for (const file of files) {
 
 			const cache = app.metadataCache.getFileCache(file);
 			const fm = cache?.frontmatter;
