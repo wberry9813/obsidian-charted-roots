@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TemporalFocusService } from '../src/v2';
+import {
+	getTemporalFocusAxis,
+	isChronologyYearFocus,
+	isJulianDayFocus,
+	TemporalFocusService
+} from '../src/v2';
 
 describe('TemporalFocusService', () => {
 	it('stores point focus as a defensive copy', () => {
@@ -79,6 +84,62 @@ describe('TemporalFocusService', () => {
 			position: 42,
 			source: 'timeline'
 		});
+	});
+
+	it('stores chronology-local focus without changing the default JDN shape', () => {
+		const service = new TemporalFocusService();
+		service.setAxisRange(
+			-82,
+			-81,
+			{
+				kind: 'chronology_year',
+				chronologyId: 'star_wars',
+				label: 'Galactic Standard Calendar',
+				universe: 'Star Wars'
+			},
+			'map-time-slider'
+		);
+
+		const focus = service.get();
+		expect(focus).toEqual({
+			kind: 'range',
+			start: -82,
+			endExclusive: -81,
+			axis: {
+				kind: 'chronology_year',
+				chronologyId: 'star_wars',
+				label: 'Galactic Standard Calendar',
+				universe: 'Star Wars'
+			},
+			source: 'map-time-slider'
+		});
+		expect(isChronologyYearFocus(focus)).toBe(true);
+		expect(isJulianDayFocus(focus)).toBe(false);
+
+		if (focus?.axis?.kind === 'chronology_year') {
+			focus.axis.chronologyId = 'mutated';
+		}
+		expect(
+			getTemporalFocusAxis(service.get()!)
+		).toMatchObject({ chronologyId: 'star_wars' });
+	});
+
+	it('treats legacy/default focus as Julian Day without adding axis metadata', () => {
+		const service = new TemporalFocusService();
+		service.setRange(10, 20, 'timeline');
+		const focus = service.get();
+
+		expect(isJulianDayFocus(focus)).toBe(true);
+		expect(getTemporalFocusAxis(focus!)).toEqual({ kind: 'julian_day' });
+		expect(focus).not.toHaveProperty('axis');
+	});
+
+	it('rejects empty chronology ids', () => {
+		const service = new TemporalFocusService();
+		expect(() => service.setAxisPoint(
+			1,
+			{ kind: 'chronology_year', chronologyId: '   ' }
+		)).toThrow(/chronology id/i);
 	});
 
 	it('rejects non-finite point coordinates', () => {
