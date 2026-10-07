@@ -382,6 +382,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.sourceService?.invalidateCache();
 		this.personIndex?.invalidateCache();
 		this.proofSummaryService?.invalidateCache();
+		this.webClipperService?.resetUnreadCount();
 		await this.saveSettings();
 	}
 
@@ -414,6 +415,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.sourceService?.invalidateCache();
 		this.personIndex?.invalidateCache();
 		this.proofSummaryService?.invalidateCache();
+		this.webClipperService?.resetUnreadCount();
 		await this.saveSettings();
 	}
 
