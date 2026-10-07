@@ -6,7 +6,7 @@
  * date proximity analysis, and confidence scoring.
  */
 
-import { App } from 'obsidian';
+import { App, type TFile } from 'obsidian';
 import { FamilyGraphService, PersonNode } from './family-graph';
 import { FolderFilterService } from './folder-filter';
 import { getLogger } from './logging';
@@ -80,9 +80,16 @@ export class DuplicateDetectionService {
 	private app: App;
 	private graphService: FamilyGraphService;
 
-	constructor(app: App, folderFilter?: FolderFilterService) {
+	constructor(
+		app: App,
+		folderFilter?: FolderFilterService,
+		fileProvider?: () => TFile[]
+	) {
 		this.app = app;
 		this.graphService = new FamilyGraphService(app);
+		if (fileProvider) {
+			this.graphService.setFileProvider(fileProvider);
+		}
 		if (folderFilter) {
 			this.graphService.setFolderFilter(folderFilter);
 		}
