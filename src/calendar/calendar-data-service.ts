@@ -17,12 +17,22 @@ import { getLogger } from '../core/logging';
 
 const logger = getLogger('CalendarDataService');
 
+export interface CalendarDataServiceOptions {
+	fileProvider?: () => import('obsidian').TFile[];
+	scopeKeyProvider?: () => string | null;
+}
+
 export class CalendarDataService {
 	private app: App;
 	private settings: CanvasRootsSettings;
 	private eventService: EventService | null;
 
-	constructor(app: App, settings: CanvasRootsSettings, eventService?: EventService | null) {
+	constructor(
+		app: App,
+		settings: CanvasRootsSettings,
+		eventService?: EventService | null,
+		private readonly options: CalendarDataServiceOptions = {}
+	) {
 		this.app = app;
 		this.settings = settings;
 		this.eventService = eventService ?? null;
@@ -293,6 +303,12 @@ export class CalendarDataService {
 		const folderFilter = new FolderFilterService(this.settings);
 		const familyGraph = new FamilyGraphService(this.app);
 		familyGraph.setFolderFilter(folderFilter);
+		if (this.options.fileProvider) {
+			familyGraph.setFileProvider(
+				this.options.fileProvider,
+				this.options.scopeKeyProvider
+			);
+		}
 		familyGraph.setPropertyAliases(this.settings.propertyAliases);
 		familyGraph.setValueAliases(this.settings.valueAliases);
 		return familyGraph;
