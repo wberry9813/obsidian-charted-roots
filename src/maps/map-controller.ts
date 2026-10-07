@@ -2513,8 +2513,6 @@ export class MapController {
 		this.eventClusterGroup = null;
 		this.pathLayer = null;
 		this.journeyLayer = null;
-		this.historicalControlLayer?.clearLayers();
-		this.historicalControlLayer = null;
 		// Drop the label registry entirely — its source-polyline references
 		// belonged to the destroyed map and the zoom debounce handle is dead.
 		this.pathLabelEntries = [];
@@ -3385,6 +3383,11 @@ export class MapController {
 		} catch (error) {
 			logger.warn('destroy', 'Journey layer clearLayers failed (suppressed)', { error });
 		}
+		try {
+			this.historicalControlLayer?.clearLayers();
+		} catch (error) {
+			logger.warn('destroy', 'Historical control layer clearLayers failed (suppressed)', { error });
+		}
 
 		// Clean up distortable overlay if active
 		if (this.currentDistortableOverlay && this.map) {
@@ -3423,6 +3426,7 @@ export class MapController {
 		this.placesClusterGroup = null;
 		this.pathLayer = null;
 		this.journeyLayer = null;
+		this.historicalControlLayer = null;
 	}
 }
 
