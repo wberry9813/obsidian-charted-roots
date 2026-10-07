@@ -385,7 +385,11 @@ export class DuplicateDetectionModal extends Modal {
 				// After merge, remove the item from the list
 				itemEl.remove();
 				this.matches = this.matches.filter(m => m !== match);
-			}
+			},
+			this.plugin
+				? () => this.plugin!.getWorkspaceService()?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles()
+				: undefined
 		);
 		mergeModal.open();
 	}
