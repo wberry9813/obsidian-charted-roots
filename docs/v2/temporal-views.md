@@ -1,6 +1,6 @@
 # Temporal Views Foundation
 
-> Status: **M5 implementation baseline**
+> Status: **T0-T2 implemented; D3 Timeline MVP under real-Obsidian validation**
 >
 > This document supersedes the Event-only assumptions in the older
 > `docs/planning/interactive-timeline-view.md` wherever the two conflict.
@@ -129,35 +129,46 @@ runtime is available.
 
 ### T1 — temporal validation and queries
 
-- precision conflict diagnostics;
-- invalid/inverted start/end interval checks;
-- query helpers: items active at time, overlapping range, before/after range;
-- subject/object/entity filters for Assertion-derived temporal state;
-- stable grouping keys for person/place/organization/universe.
+- [x] precision conflict diagnostics;
+- [x] invalid/inverted start/end interval checks;
+- [x] query helpers: items active at time, overlapping range, before/after range;
+- [x] subject/object/predicate/type/universe filters for temporal queries;
+- [ ] stable grouping keys for person/place/organization/universe.
 
 ### T2 — renderer adapter
 
-Evaluate the interactive timeline renderer against v2 requirements before
-adding a dependency.
+The renderer-neutral axis is a Julian Day half-open interval
+`[start, endExclusive)`. Historical year ticks are generated at real calendar
+year boundaries and formatted through historical BCE/CE numbering.
 
-The adapter must support interval-native coordinates and a separate
-ambiguous/unresolved/undated surface. It must not require conversion of
-year-only historical data into fake Gregorian dates.
+The current renderer choice is **D3**:
 
-The old proposal to use `vis-timeline` remains a candidate, not a commitment.
+- D3 is already a project dependency;
+- `scaleLinear` consumes the Julian Day axis directly;
+- BCE/CE labels remain our own historical ticks rather than JavaScript
+  `Date` formatting;
+- year-only expressions remain full intervals instead of representative
+  January 1 points;
+- pan/zoom can rescale the same numeric axis without changing temporal
+  semantics.
+
+The older `vis-timeline` proposal remains useful design research, but is not
+the selected v2 renderer because its Date-oriented axis would require an
+additional mapping layer that is unnecessary with D3.
 
 ### T3 — interactive Timeline view
 
-- dockable full-size view;
-- Event / Process / Period / Assertion visual distinction;
-- points and intervals;
-- zoom/pan;
-- filtering;
-- search;
-- selection/open-note behavior;
-- optional swimlanes;
-- unresolved/ambiguous review surface;
-- Active Workspace switching.
+- [x] dockable full-size main-tab view;
+- [x] Event / Process / Period / Assertion visual distinction;
+- [x] exact/coarse date and start/end interval rendering;
+- [x] D3 zoom/pan on the Julian Day axis;
+- [ ] filtering controls;
+- [ ] search;
+- [x] click-to-open-note behavior;
+- [ ] optional swimlanes;
+- [x] unresolved/ambiguous/metadata-conflict review surface;
+- [x] Active Workspace switching with live refresh;
+- [ ] visual treatment for open/constraint windows.
 
 ### T4 — temporal graph/map integration
 
@@ -182,10 +193,10 @@ Do not reuse assumptions that:
 - year/month precision can be represented by the first day;
 - legacy `before` / `after` semantics are authoritative.
 
-## 9. Acceptance gate before renderer work
+## 9. Renderer acceptance gate
 
-Before committing to an interactive timeline library, automated tests must
-prove:
+The pre-renderer gate is now covered by automated tests and real-Obsidian
+fixtures. The contract remains:
 
 1. Event, Process, Period and timed Assertion share one projection contract;
 2. legacy Event and v2 Event dates coexist without duplicate boundaries;
@@ -196,4 +207,6 @@ prove:
 7. ambiguous/unresolved expressions remain non-coordinate states;
 8. interval and bound queries behave correctly.
 
-Only then should M5 bind this data layer to a rendering engine.
+These conditions are now satisfied by the D3/JDN implementation path.
+Renderer/UI work must continue to consume `TimelineModel` rather than bypassing
+it.
