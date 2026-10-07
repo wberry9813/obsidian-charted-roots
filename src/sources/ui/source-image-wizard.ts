@@ -130,7 +130,9 @@ export class SourceImageWizardModal extends Modal {
 	constructor(app: App, plugin: CanvasRootsPlugin) {
 		super(app);
 		this.plugin = plugin;
-		this.sourceNotesFolder = plugin.settings.sourcesFolder || 'Charted Roots/Sources';
+		this.sourceNotesFolder = plugin.getWorkspaceService()?.getFolder('sources')
+			?? plugin.settings.sourcesFolder
+			?? 'Charted Roots/Sources';
 	}
 
 	onOpen(): void {
