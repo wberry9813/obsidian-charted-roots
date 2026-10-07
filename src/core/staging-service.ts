@@ -55,31 +55,38 @@ export interface PromoteOptions {
  * Service for managing staging folder operations.
  * Provides functionality to view, promote, and clean up staging data.
  */
+export interface StagingServiceOptions {
+	stagingFolderProvider?: () => string;
+	targetFolderProvider?: (noteType: NoteType | null) => string | undefined;
+}
+
 export class StagingService {
 	constructor(
 		private app: App,
-		private settings: CanvasRootsSettings
+		private settings: CanvasRootsSettings,
+		private readonly options: StagingServiceOptions = {}
 	) {}
 
 	/**
 	 * Check if staging is configured and enabled
 	 */
 	isConfigured(): boolean {
-		return !!this.settings.stagingFolder && this.settings.enableStagingIsolation;
+		return !!this.getStagingFolder() && this.settings.enableStagingIsolation;
 	}
 
 	/**
 	 * Get the configured staging folder path
 	 */
 	getStagingFolder(): string {
-		return this.settings.stagingFolder;
+		return this.options.stagingFolderProvider?.()
+			?? this.settings.stagingFolder;
 	}
 
 	/**
 	 * Get all markdown files in the staging folder
 	 */
 	getStagingFiles(): TFile[] {
-		const stagingPath = this.settings.stagingFolder;
+		const stagingPath = this.getStagingFolder();
 		if (!stagingPath) return [];
 
 		return this.app.vault.getMarkdownFiles()
@@ -100,7 +107,7 @@ export class StagingService {
 	 * Get information about staging subfolders (import batches)
 	 */
 	getStagingSubfolders(): StagingSubfolderInfo[] {
-		const stagingPath = this.settings.stagingFolder;
+		const stagingPath = this.getStagingFolder();
 		if (!stagingPath) return [];
 
 		const stagingFolder = this.app.vault.getAbstractFileByPath(stagingPath);
@@ -260,6 +267,9 @@ export class StagingService {
 	 * Get target folder for a note type
 	 */
 	private getTargetFolder(noteType: NoteType | null): string {
+		const scoped = this.options.targetFolderProvider?.(noteType);
+		if (scoped) return scoped;
+
 		if (!noteType) {
 			return this.settings.peopleFolder;
 		}
@@ -276,7 +286,7 @@ export class StagingService {
 			case 'map':
 				return this.settings.mapsFolder;
 			default:
-				// Default to people folder for unknown types
+				// Preserve legacy behavior for callers without Workspace context.
 				return this.settings.peopleFolder;
 		}
 	}
@@ -447,7 +457,7 @@ export class StagingService {
 	 * Check if a file path is in the staging folder
 	 */
 	private isInStagingFolder(filePath: string): boolean {
-		const stagingPath = this.settings.stagingFolder;
+		const stagingPath = this.getStagingFolder();
 		if (!stagingPath) return false;
 
 		const normalizedFile = filePath.toLowerCase();
