@@ -276,6 +276,48 @@ describe('migration snapshot safety', () => {
 	});
 });
 
+
+describe('V2MigrationAnalyzer Workspace scope', () => {
+	it('analyzes only files supplied by the active Workspace file provider', () => {
+		const historyFile = { path: 'Workspace-E2E/History/People/Legacy-History.md' };
+		const fictionFile = { path: 'Workspace-E2E/Shushan/People/Legacy-Fiction.md' };
+		const frontmatterByPath = new Map([
+			[historyFile.path, {
+				cr_type: 'person',
+				cr_id: 'legacy-history',
+				membership_orgs: ['[[History Org]]']
+			}],
+			[fictionFile.path, {
+				cr_type: 'person',
+				cr_id: 'legacy-fiction',
+				membership_orgs: ['[[Fiction Org]]']
+			}]
+		]);
+
+		const app = {
+			vault: {
+				getMarkdownFiles: () => [historyFile, fictionFile]
+			},
+			metadataCache: {
+				getFileCache: (file: { path: string }) => ({
+					frontmatter: frontmatterByPath.get(file.path)
+				})
+			}
+		} as never;
+
+		const analyzer = new V2MigrationAnalyzer(app, {
+			fileProvider: () => [historyFile] as never
+		});
+		const report = analyzer.analyze();
+
+		expect(report.filesScanned).toBe(1);
+		expect(report.filesWithLegacyData).toBe(1);
+		expect(report.files.map(file => file.filePath)).toEqual([
+			'Workspace-E2E/History/People/Legacy-History.md'
+		]);
+	});
+});
+
 describe('V2MigrationAnalyzer live relationship definitions', () => {
 	it('uses a live relationship type provider on every analyze call', () => {
 		const frontmatter = {

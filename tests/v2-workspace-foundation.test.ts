@@ -238,6 +238,36 @@ describe('WorkspaceScope', () => {
 		)?.id).toBe('shushan');
 	});
 
+	it('changes ownership immediately when a file moves between Workspace roots', () => {
+		const movedFile = {
+			path: 'History/Chinese-History/People/Moved-Person.md'
+		};
+		const app = {
+			vault: {
+				getMarkdownFiles: () => [movedFile]
+			}
+		} as never;
+		const registry = new WorkspaceRegistry(config());
+		const scope = new WorkspaceScope(app, registry);
+
+		expect(scope.getMarkdownFiles().map(file => file.path)).toEqual([
+			'History/Chinese-History/People/Moved-Person.md'
+		]);
+		expect(scope.getWorkspaceForPath(movedFile.path)?.id).toBe('history-cn');
+
+		// Workspace ownership is path-derived. Moving the same note requires no
+		// frontmatter rewrite or migration marker.
+		movedFile.path = 'Novels/Shushan/People/Moved-Person.md';
+
+		expect(scope.getMarkdownFiles()).toEqual([]);
+		expect(scope.getWorkspaceForPath(movedFile.path)?.id).toBe('shushan');
+
+		registry.setActive('shushan');
+		expect(scope.getMarkdownFiles().map(file => file.path)).toEqual([
+			'Novels/Shushan/People/Moved-Person.md'
+		]);
+	});
+
 	it('can explicitly query a non-active workspace without changing active state', () => {
 		const { app } = mockApp();
 		const registry = new WorkspaceRegistry(config());
