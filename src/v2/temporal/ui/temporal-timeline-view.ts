@@ -13,12 +13,14 @@ import {
 import type CanvasRootsPlugin from '../../../../main';
 import type { CalendarProvider } from '../../time/calendar-provider';
 import {
+	buildTimelineLanes,
 	buildTimelineModel,
 	generateHistoricalYearTicks,
 	matchesTimelineFilter,
 	timelineWindowBounds,
 	type TemporalItemKind,
 	type TimelineConstraintWindow,
+	type TimelineGroupBy,
 	type TimelineModel,
 	type TimelineSpan
 } from '../index';
@@ -38,6 +40,16 @@ type TimelineKindFilter = 'all' | TemporalItemKind;
 interface TemporalTimelineViewState {
 	search?: string;
 	kind?: TimelineKindFilter;
+	groupBy?: TimelineGroupBy;
+}
+
+interface TimelineVisualRow {
+	key: string;
+	label: string;
+	laneKey?: string;
+	laneHeader: boolean;
+	span?: TimelineSpan;
+	window?: TimelineConstraintWindow;
 }
 
 function kindOpacity(kind: TimelineSpan['item']['kind']): number {
@@ -61,11 +73,71 @@ function isTimelineKindFilter(value: unknown): value is TimelineKindFilter {
 		|| value === 'assertion';
 }
 
+function isTimelineGroupBy(value: unknown): value is TimelineGroupBy {
+	return value === 'none'
+		|| value === 'person'
+		|| value === 'place'
+		|| value === 'organization'
+		|| value === 'universe';
+}
+
+function buildVisualRows(
+	model: TimelineModel,
+	groupBy: TimelineGroupBy
+): TimelineVisualRow[] {
+	if (groupBy === 'none') {
+		return [
+			...model.spans.map(span => ({
+				key: `span:${span.item.id}`,
+				label: span.item.title,
+				laneHeader: false,
+				span
+			})),
+			...model.windows.map(window => ({
+				key: `window:${window.item.id}`,
+				label: `${window.item.title} · possible`,
+				laneHeader: false,
+				window
+			}))
+		];
+	}
+
+	const rows: TimelineVisualRow[] = [];
+	for (const lane of buildTimelineLanes(model, groupBy)) {
+		rows.push({
+			key: `lane:${lane.key}`,
+			label: lane.label,
+			laneKey: lane.key,
+			laneHeader: true
+		});
+		for (const span of lane.spans) {
+			rows.push({
+				key: `${lane.key}:span:${span.item.id}`,
+				label: span.item.title,
+				laneKey: lane.key,
+				laneHeader: false,
+				span
+			});
+		}
+		for (const window of lane.windows) {
+			rows.push({
+				key: `${lane.key}:window:${window.item.id}`,
+				label: `${window.item.title} · possible`,
+				laneKey: lane.key,
+				laneHeader: false,
+				window
+			});
+		}
+	}
+	return rows;
+}
+
 export class TemporalTimelineView extends ItemView {
 	private readonly plugin: CanvasRootsPlugin;
 	private refreshTimeout: number | null = null;
 	private currentSearch = '';
 	private currentKind: TimelineKindFilter = 'all';
+	private currentGroupBy: TimelineGroupBy = 'none';
 	private resetZoom: (() => void) | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: CanvasRootsPlugin) {
@@ -116,7 +188,8 @@ export class TemporalTimelineView extends ItemView {
 	getState(): Record<string, unknown> {
 		return {
 			search: this.currentSearch,
-			kind: this.currentKind
+			kind: this.currentKind,
+			groupBy: this.currentGroupBy
 		};
 	}
 
@@ -126,6 +199,9 @@ export class TemporalTimelineView extends ItemView {
 		}
 		if (isTimelineKindFilter(state.kind)) {
 			this.currentKind = state.kind;
+		}
+		if (isTimelineGroupBy(state.groupBy)) {
+			this.currentGroupBy = state.groupBy;
 		}
 		this.renderView();
 	}
@@ -202,6 +278,22 @@ export class TemporalTimelineView extends ItemView {
 		}
 		kindSelect.value = this.currentKind;
 
+		const groupSelect = controls.createEl('select', {
+			cls: 'cr-v2-timeline__group-filter',
+			attr: { 'aria-label': 'Group timeline by entity' }
+		});
+		for (const [value, label] of [
+			['none', 'No grouping'],
+			['person', 'Group by person'],
+			['place', 'Group by place'],
+			['organization', 'Group by organization'],
+			['universe', 'Group by universe']
+		] as const) {
+			const option = groupSelect.createEl('option', { text: label });
+			option.value = value;
+		}
+		groupSelect.value = this.currentGroupBy;
+
 		const results = container.createDiv({
 			cls: 'cr-v2-timeline__results'
 		});
@@ -220,6 +312,13 @@ export class TemporalTimelineView extends ItemView {
 			this.currentKind = isTimelineKindFilter(kindSelect.value)
 				? kindSelect.value
 				: 'all';
+			renderResults();
+		});
+
+		groupSelect.addEventListener('change', () => {
+			this.currentGroupBy = isTimelineGroupBy(groupSelect.value)
+				? groupSelect.value
+				: 'none';
 			renderResults();
 		});
 
@@ -280,14 +379,15 @@ export class TemporalTimelineView extends ItemView {
 			return;
 		}
 
-		this.renderChart(container, model, calendar);
+		this.renderChart(container, model, calendar, this.currentGroupBy);
 		this.renderReview(container, model);
 	}
 
 	private renderChart(
 		container: HTMLElement,
 		model: TimelineModel,
-		calendar: CalendarProvider
+		calendar: CalendarProvider,
+		groupBy: TimelineGroupBy
 	): void {
 		if (!model.domain) return;
 
@@ -296,10 +396,18 @@ export class TemporalTimelineView extends ItemView {
 			viewport.clientWidth || container.clientWidth || MIN_WIDTH
 		);
 		const width = Math.max(MIN_WIDTH, measured);
-		const rowCount = model.spans.length + model.windows.length;
+		const rows = buildVisualRows(model, groupBy);
+		const rowIndex = new Map(rows.map((row, index) => [row.key, index]));
+		const spanRows = rows.filter(
+			(row): row is TimelineVisualRow & { span: TimelineSpan } => Boolean(row.span)
+		);
+		const windowRows = rows.filter(
+			(row): row is TimelineVisualRow & { window: TimelineConstraintWindow } =>
+				Boolean(row.window)
+		);
 		const height = Math.max(
 			MIN_HEIGHT,
-			ROW_TOP + rowCount * ROW_HEIGHT + 34
+			ROW_TOP + rows.length * ROW_HEIGHT + 34
 		);
 
 		const svgNode = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -327,82 +435,84 @@ export class TemporalTimelineView extends ItemView {
 			.attr('class', 'cr-v2-timeline__windows');
 
 		labelsGroup
-			.selectAll<SVGTextElement, TimelineSpan>('text.cr-v2-timeline__span-label')
-			.data(model.spans, span => span.item.id)
+			.selectAll<SVGTextElement, TimelineVisualRow>('text')
+			.data(rows, row => row.key)
 			.join('text')
-			.attr('class', 'cr-v2-timeline__item-label cr-v2-timeline__span-label')
-			.attr('x', LEFT_MARGIN - 12)
-			.attr('y', (_span, index) => ROW_TOP + index * ROW_HEIGHT + 17)
-			.attr('text-anchor', 'end')
-			.text(span => span.item.title);
-
-		labelsGroup
-			.selectAll<SVGTextElement, TimelineConstraintWindow>('text.cr-v2-timeline__window-label')
-			.data(model.windows, window => window.item.id)
-			.join('text')
-			.attr('class', 'cr-v2-timeline__item-label cr-v2-timeline__window-label')
-			.attr('x', LEFT_MARGIN - 12)
+			.attr(
+				'class',
+				row => row.laneHeader
+					? 'cr-v2-timeline__lane-label'
+					: row.window
+						? 'cr-v2-timeline__item-label cr-v2-timeline__window-label'
+						: 'cr-v2-timeline__item-label cr-v2-timeline__span-label'
+			)
+			.attr('data-lane-key', row => row.laneHeader ? row.laneKey ?? '' : null)
+			.attr('x', row => row.laneHeader ? 12 : LEFT_MARGIN - 12)
 			.attr(
 				'y',
-				(_window, index) =>
-					ROW_TOP + (model.spans.length + index) * ROW_HEIGHT + 17
+				row => ROW_TOP + (rowIndex.get(row.key) ?? 0) * ROW_HEIGHT + 17
 			)
-			.attr('text-anchor', 'end')
-			.text(window => `${window.item.title} · possible`);
+			.attr('text-anchor', row => row.laneHeader ? 'start' : 'end')
+			.text(row => row.label);
 
 		const rects = spansGroup
-			.selectAll<SVGRectElement, TimelineSpan>('rect')
-			.data(model.spans, span => span.item.id)
+			.selectAll<SVGRectElement, TimelineVisualRow & { span: TimelineSpan }>('rect')
+			.data(spanRows, row => row.key)
 			.join('rect')
 			.attr(
 				'class',
-				span => `cr-v2-timeline__span cr-v2-timeline__span--${span.item.kind}`
+				row => `cr-v2-timeline__span cr-v2-timeline__span--${row.span.item.kind}`
 			)
-			.attr('data-item-id', span => span.item.id)
-			.attr('data-item-kind', span => span.item.kind)
-			.attr('y', (_span, index) => ROW_TOP + index * ROW_HEIGHT + 5)
+			.attr('data-item-id', row => row.span.item.id)
+			.attr('data-item-kind', row => row.span.item.kind)
+			.attr('data-lane-key', row => row.laneKey ?? '')
+			.attr(
+				'y',
+				row => ROW_TOP + (rowIndex.get(row.key) ?? 0) * ROW_HEIGHT + 5
+			)
 			.attr('height', 18)
-			.attr('fill-opacity', span => kindOpacity(span.item.kind))
-			.on('click', (_event, span) => {
-				void this.app.workspace.getLeaf(false).openFile(span.item.file);
+			.attr('fill-opacity', row => kindOpacity(row.span.item.kind))
+			.on('click', (_event, row) => {
+				void this.app.workspace.getLeaf(false).openFile(row.span.item.file);
 			});
 
 		rects.append('title')
-			.text(span => {
-				const start = span.item.start?.expression ?? '';
-				const end = span.item.end?.expression;
+			.text(row => {
+				const start = row.span.item.start?.expression ?? '';
+				const end = row.span.item.end?.expression;
 				return end
-					? `${span.item.title} · ${start} → ${end}`
-					: `${span.item.title} · ${start}`;
+					? `${row.span.item.title} · ${start} → ${end}`
+					: `${row.span.item.title} · ${start}`;
 			});
 
 		const windowRects = windowsGroup
-			.selectAll<SVGRectElement, TimelineConstraintWindow>('rect')
-			.data(model.windows, window => window.item.id)
+			.selectAll<SVGRectElement, TimelineVisualRow & { window: TimelineConstraintWindow }>('rect')
+			.data(windowRows, row => row.key)
 			.join('rect')
 			.attr('class', 'cr-v2-timeline__window')
-			.attr('data-window-id', window => window.item.id)
-			.attr('data-item-kind', window => window.item.kind)
+			.attr('data-window-id', row => row.window.item.id)
+			.attr('data-item-kind', row => row.window.item.kind)
+			.attr('data-lane-key', row => row.laneKey ?? '')
 			.attr(
 				'data-open-start',
-				window => timelineWindowBounds(window).lower === undefined ? 'true' : 'false'
+				row => timelineWindowBounds(row.window).lower === undefined ? 'true' : 'false'
 			)
 			.attr(
 				'data-open-end',
-				window => timelineWindowBounds(window).upper === undefined ? 'true' : 'false'
+				row => timelineWindowBounds(row.window).upper === undefined ? 'true' : 'false'
 			)
 			.attr(
 				'y',
-				(_window, index) =>
-					ROW_TOP + (model.spans.length + index) * ROW_HEIGHT + 5
+				row => ROW_TOP + (rowIndex.get(row.key) ?? 0) * ROW_HEIGHT + 5
 			)
 			.attr('height', 18)
-			.on('click', (_event, window) => {
-				void this.app.workspace.getLeaf(false).openFile(window.item.file);
+			.on('click', (_event, row) => {
+				void this.app.workspace.getLeaf(false).openFile(row.window.item.file);
 			});
 
 		windowRects.append('title')
-			.text(window => {
+			.text(row => {
+				const window = row.window;
 				const bounds = [
 					window.item.start?.expression
 						? `start ${window.item.start.expression}`
@@ -479,19 +589,19 @@ export class TemporalTimelineView extends ItemView {
 				.attr('y2', height - 16);
 
 			rects
-				.attr('x', span => xScale(span.start))
-				.attr('width', span => Math.max(
+				.attr('x', row => xScale(row.span.start))
+				.attr('width', row => Math.max(
 					3,
-					xScale(span.endExclusive) - xScale(span.start)
+					xScale(row.span.endExclusive) - xScale(row.span.start)
 				));
 
 			windowRects
-				.attr('x', window => {
-					const { lower } = timelineWindowBounds(window);
+				.attr('x', row => {
+					const { lower } = timelineWindowBounds(row.window);
 					return xScale(lower ?? model.domain!.start);
 				})
-				.attr('width', window => {
-					const { lower, upper } = timelineWindowBounds(window);
+				.attr('width', row => {
+					const { lower, upper } = timelineWindowBounds(row.window);
 					const start = lower ?? model.domain!.start;
 					const end = upper ?? model.domain!.endExclusive;
 					return Math.max(3, xScale(end) - xScale(start));

@@ -42,7 +42,8 @@
 	min-width: 8rem;
 }
 
-.cr-v2-timeline__kind-filter {
+.cr-v2-timeline__kind-filter,
+.cr-v2-timeline__group-filter {
 	flex: 0 0 auto;
 	min-width: 8rem;
 }
@@ -88,6 +89,12 @@
 
 .cr-v2-timeline__item-label {
 	fill: var(--text-normal);
+}
+
+.cr-v2-timeline__lane-label {
+	fill: var(--text-accent);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
 }
 
 .cr-v2-timeline__window-label {

@@ -133,7 +133,7 @@ runtime is available.
 - [x] invalid/inverted start/end interval checks;
 - [x] query helpers: items active at time, overlapping range, before/after range;
 - [x] subject/object/predicate/type/universe filters for temporal queries;
-- [ ] stable grouping keys for person/place/organization/universe.
+- [x] stable grouping keys for person/place/organization/universe.
 
 ### T2 — renderer adapter
 
@@ -162,13 +162,13 @@ additional mapping layer that is unnecessary with D3.
 - [x] Event / Process / Period / Assertion visual distinction;
 - [x] exact/coarse date and start/end interval rendering;
 - [x] D3 zoom/pan on the Julian Day axis;
-- [ ] filtering controls;
-- [ ] search;
+- [x] filtering controls;
+- [x] search;
 - [x] click-to-open-note behavior;
-- [ ] optional swimlanes;
+- [x] optional person/place/organization/universe swimlanes;
 - [x] unresolved/ambiguous/metadata-conflict review surface;
 - [x] Active Workspace switching with live refresh;
-- [ ] visual treatment for open/constraint windows.
+- [x] visual treatment for open/constraint windows.
 
 ### T4 — temporal graph/map integration
 

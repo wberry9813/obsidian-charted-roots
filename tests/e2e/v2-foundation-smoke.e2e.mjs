@@ -969,7 +969,12 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					.sort(),
 				tickLabels: [...(root?.querySelectorAll('.cr-v2-timeline__tick-label') ?? [])]
 					.map(el => el.textContent ?? '')
-					.filter(Boolean)
+					.filter(Boolean),
+				laneLabels: [...(root?.querySelectorAll('.cr-v2-timeline__lane-label') ?? [])]
+					.map(el => el.textContent ?? '')
+					.filter(Boolean),
+				groupBy: root?.querySelector('.cr-v2-timeline__group-filter')?.value ?? null,
+				persistedGroupBy: leaf?.view?.getState?.().groupBy ?? null
 			};
 		};
 
@@ -1093,6 +1098,14 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 
 		timelineKind.value = 'all';
 		timelineKind.dispatchEvent(new Event('change', { bubbles: true }));
+
+		const timelineGroup = timelineRoot?.querySelector('.cr-v2-timeline__group-filter');
+		if (!(timelineGroup instanceof HTMLSelectElement)) {
+			throw new Error('Temporal Timeline group selector is unavailable.');
+		}
+		timelineGroup.value = 'person';
+		timelineGroup.dispatchEvent(new Event('change', { bubbles: true }));
+		history.timelinePersonGroup = readTimelineView();
 
 		await plugin.setActiveWorkspace('shushan');
 		await new Promise(resolve => window.setTimeout(resolve, 50));
@@ -1357,6 +1370,12 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.deepEqual(workspaceState.history.timelinePeriodFilter.windowIds, [
 		'workspace-history-bounded-period'
 	]);
+	assert.equal(workspaceState.history.timelinePersonGroup.groupBy, 'person');
+	assert.equal(workspaceState.history.timelinePersonGroup.persistedGroupBy, 'person');
+	assert.deepEqual(workspaceState.history.timelinePersonGroup.laneLabels, [
+		'History Person',
+		'Ungrouped'
+	]);
 	assert.deepEqual(workspaceState.history.createdPaths.sort(), [
 		'Workspace-E2E/History/Events/History Created Event E2E.md',
 		'Workspace-E2E/History/Organizations/History Created Organization E2E.md',
@@ -1457,6 +1476,12 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.ok(
 		workspaceState.shushan.timeline.tickLabels.every(label => !/\b0\b/.test(label))
 	);
+	assert.equal(workspaceState.shushan.timeline.groupBy, 'person');
+	assert.equal(workspaceState.shushan.timeline.persistedGroupBy, 'person');
+	assert.deepEqual(workspaceState.shushan.timeline.laneLabels, [
+		'Fiction Person',
+		'Ungrouped'
+	]);
 	assert.deepEqual(workspaceState.shushan.createdPaths.sort(), [
 		'Workspace-E2E/Shushan/Events/Shushan Created Event E2E.md',
 		'Workspace-E2E/Shushan/Organizations/Shushan Created Organization E2E.md',
