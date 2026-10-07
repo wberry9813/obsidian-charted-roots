@@ -12,12 +12,11 @@
  * Step 6: Complete — Download/save options
  */
 
-import { App, ButtonComponent, Modal, Notice, setIcon, TFolder, FuzzySuggestModal } from 'obsidian';
+import { App, ButtonComponent, Modal, Notice, normalizePath, setIcon, TFolder, FuzzySuggestModal } from 'obsidian';
 import type CanvasRootsPlugin from '../../main';
 import { GedcomExporter, type GedcomExportOptions, type GedcomExportResult } from '../gedcom/gedcom-exporter';
 import { GedcomXExporter, type GedcomXExportOptions, type GedcomXExportResult } from '../gedcomx/gedcomx-exporter';
 import { GrampsExporter, type GrampsExportOptions, type GrampsExportResult } from '../gramps/gramps-exporter';
-import { FolderFilterService } from '../core/folder-filter';
 import { pluralize } from '../utils/format-utils';
 import type { PrivacySettings, PrivateFieldSummary } from '../core/privacy-service';
 import { scanForPrivateFields } from '../core/privacy-service';
@@ -204,17 +203,28 @@ export class ExportWizardModal extends Modal {
 	 * Get default form data
 	 */
 	private getDefaultFormData(): ExportWizardFormData {
+		const workspace = this.plugin.getWorkspaceService();
 		return {
 			// Step 1
 			format: 'gedcom',
 
 			// Step 2
 			folderSource: 'preferences',
-			peoplePath: this.plugin?.settings?.peopleFolder || 'People',
-			placesPath: this.plugin?.settings?.placesFolder || 'Places',
-			eventsPath: this.plugin?.settings?.eventsFolder || 'Events',
-			sourcesPath: this.plugin?.settings?.sourcesFolder || 'Sources',
-			citationsPath: this.plugin?.settings?.citationsFolder || 'Charted Roots/Citations',
+			peoplePath: workspace?.getFolder('people')
+				?? this.plugin.settings.peopleFolder
+				?? 'People',
+			placesPath: workspace?.getFolder('places')
+				?? this.plugin.settings.placesFolder
+				?? 'Places',
+			eventsPath: workspace?.getFolder('events')
+				?? this.plugin.settings.eventsFolder
+				?? 'Events',
+			sourcesPath: workspace?.getFolder('sources')
+				?? this.plugin.settings.sourcesFolder
+				?? 'Sources',
+			citationsPath: workspace?.getFolder('citations')
+				?? this.plugin.settings.citationsFolder
+				?? 'Charted Roots/Citations',
 
 			// Step 3
 			includeSources: true,
@@ -645,39 +655,76 @@ export class ExportWizardModal extends Modal {
 		return false; // Not loading, render footer
 	}
 
+	private buildExportSettings(): CanvasRootsSettings {
+		return {
+			...this.plugin.settings,
+			peopleFolder: this.formData.peoplePath,
+			placesFolder: this.formData.placesPath,
+			eventsFolder: this.formData.eventsPath,
+			sourcesFolder: this.formData.sourcesPath,
+			citationsFolder: this.formData.citationsPath
+		};
+	}
+
+	private getFilesInFolder(folderPath: string) {
+		const folder = normalizePath(folderPath.trim()).replace(/\/$/, '');
+		if (!folder) return [];
+		return this.app.vault.getMarkdownFiles().filter(file =>
+			file.path === folder || file.path.startsWith(`${folder}/`)
+		);
+	}
+
+	private buildScopedExportServices(settings: CanvasRootsSettings): {
+		graphService: FamilyGraphService;
+		placeService: PlaceGraphService;
+		eventService: EventService;
+		sourceService: SourceService;
+	} {
+		const graphService = new FamilyGraphService(this.app);
+		graphService.setSettings(settings);
+		graphService.setFileProvider(
+			() => this.getFilesInFolder(this.formData.peoplePath),
+			() => `export:people:${this.formData.peoplePath}`
+		);
+
+		const placeService = new PlaceGraphService(this.app);
+		placeService.setSettings(settings);
+		if (settings.valueAliases) {
+			placeService.setValueAliases(settings.valueAliases);
+		}
+		placeService.setFileProvider(
+			() => this.getFilesInFolder(this.formData.placesPath),
+			() => `export:places:${this.formData.placesPath}`
+		);
+
+		const eventService = new EventService(this.app, settings, {
+			fileProvider: () => this.getFilesInFolder(this.formData.eventsPath)
+		});
+
+		const sourceService = new SourceService(this.app, settings, {
+			fileProvider: () => this.getFilesInFolder(this.formData.sourcesPath)
+		});
+
+		return { graphService, placeService, eventService, sourceService };
+	}
+
 	/**
 	 * Scan the vault to get preview counts
 	 */
 	private scanVaultForPreview(): void {
 		try {
-			// Create folder filter based on plugin settings (with overrides)
-			const settings = {
-				...this.plugin.settings,
-				peopleFolder: this.formData.peoplePath,
-				eventsFolder: this.formData.eventsPath,
-				sourcesFolder: this.formData.sourcesPath,
-				placesFolder: this.formData.placesPath
-			};
-			const folderFilter = new FolderFilterService(settings);
+			const settings = this.buildExportSettings();
+			const {
+				graphService,
+				placeService,
+				eventService,
+				sourceService
+			} = this.buildScopedExportServices(settings);
 
-			// Use FamilyGraphService to count people
-			const graphService = new FamilyGraphService(this.app);
-			graphService.setFolderFilter(folderFilter);
-			graphService.setSettings(settings as CanvasRootsSettings);
 			graphService.ensureCacheLoaded();
 			const allPeople = graphService.getAllPeople();
-
-			// Use PlaceGraphService to count places
-			const placeService = new PlaceGraphService(this.app);
-			placeService.setFolderFilter(folderFilter);
 			const allPlaces = placeService.getAllPlaces();
-
-			// Use SourceService to count sources
-			const sourceService = this.plugin.getSourceService();
 			const allSources = sourceService.getAllSources();
-
-			// Use EventService to count events
-			const eventService = new EventService(this.app, settings as CanvasRootsSettings);
 			const allEvents = eventService.getAllEvents();
 
 			// Count living persons based on threshold
@@ -780,15 +827,13 @@ export class ExportWizardModal extends Modal {
 		};
 
 		try {
-			// Create folder filter using plugin settings with overrides
-			const settings = {
-				...this.plugin.settings,
-				peopleFolder: this.formData.peoplePath,
-				eventsFolder: this.formData.eventsPath,
-				sourcesFolder: this.formData.sourcesPath,
-				placesFolder: this.formData.placesPath
-			};
-			const folderFilter = new FolderFilterService(settings);
+			const settings = this.buildExportSettings();
+			const {
+				graphService,
+				placeService,
+				eventService,
+				sourceService
+			} = this.buildScopedExportServices(settings);
 
 			// Build privacy settings
 			const privacySettings: PrivacySettings = {
@@ -814,12 +859,13 @@ export class ExportWizardModal extends Modal {
 				statusEl.textContent = 'Reading person notes...';
 
 				// Create exporter with folder filter
-				const exporter = new GedcomExporter(this.app, folderFilter);
+				const exporter = new GedcomExporter(this.app);
 
 				// Set up services
-				exporter.setEventService(this.plugin.settings);
-				exporter.setSourceService(this.plugin.getSourceService());
-				exporter.setPlaceGraphService(this.plugin.settings);
+				exporter.setFamilyGraphService(graphService);
+				exporter.setEventService(eventService);
+				exporter.setSourceService(sourceService);
+				exporter.setPlaceGraphService(placeService);
 
 				progressFill.setCssProps({ width: '40%' });
 				statusEl.textContent = 'Generating GEDCOM data...';
@@ -874,10 +920,11 @@ export class ExportWizardModal extends Modal {
 				addLogEntry('Starting GEDCOM X export...');
 				progressFill.setCssProps({ width: '20%' });
 
-				const exporter = new GedcomXExporter(this.app, folderFilter);
-				exporter.setEventService(this.plugin.settings);
-				exporter.setSourceService(this.plugin.getSourceService());
-				exporter.setPlaceGraphService(this.plugin.settings);
+				const exporter = new GedcomXExporter(this.app);
+				exporter.setFamilyGraphService(graphService);
+				exporter.setEventService(eventService);
+				exporter.setSourceService(sourceService);
+				exporter.setPlaceGraphService(placeService);
 
 				progressFill.setCssProps({ width: '40%' });
 				statusEl.textContent = 'Generating GEDCOM X JSON...';
@@ -920,10 +967,11 @@ export class ExportWizardModal extends Modal {
 				addLogEntry('Starting Gramps XML export...');
 				progressFill.setCssProps({ width: '20%' });
 
-				const exporter = new GrampsExporter(this.app, folderFilter);
-				exporter.setEventService(this.plugin.settings);
-				exporter.setSourceService(this.plugin.getSourceService());
-				exporter.setPlaceGraphService(this.plugin.settings);
+				const exporter = new GrampsExporter(this.app);
+				exporter.setFamilyGraphService(graphService);
+				exporter.setEventService(eventService);
+				exporter.setSourceService(sourceService);
+				exporter.setPlaceGraphService(placeService);
 
 				progressFill.setCssProps({ width: '40%' });
 				statusEl.textContent = 'Generating Gramps XML...';
