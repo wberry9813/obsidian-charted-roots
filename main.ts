@@ -236,7 +236,18 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	getSourceService(): SourceService {
 		if (!this.sourceService) {
-			this.sourceService = new SourceService(this.app, this.settings);
+			this.sourceService = new SourceService(
+				this.app,
+				this.settings,
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles(),
+					defaultFolderProvider: () =>
+						this.workspaceService?.getFolder('sources')
+						?? this.settings.sourcesFolder
+				}
+			);
 			this.sourceService.setupVaultListeners(this);
 		}
 		return this.sourceService;
@@ -314,6 +325,8 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.workspaceService.setActive(id);
 		this.settings.activeWorkspaceId = this.workspaceService.getActiveId();
 		this.assertionService?.invalidateCache();
+		this.eventService?.invalidateCache();
+		this.sourceService?.invalidateCache();
 		await this.saveSettings();
 	}
 
@@ -342,6 +355,8 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.workspaceSetupReview = null;
 		this.workspaceSetupError = null;
 		this.assertionService?.invalidateCache();
+		this.eventService?.invalidateCache();
+		this.sourceService?.invalidateCache();
 		await this.saveSettings();
 	}
 
@@ -693,7 +708,18 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.personIndex.setFolderFilter(this.folderFilter);
 
 		// Initialize event service
-		this.eventService = new EventService(this.app, this.settings);
+		this.eventService = new EventService(
+			this.app,
+			this.settings,
+			{
+				fileProvider: () =>
+					this.workspaceService?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles(),
+				defaultFolderProvider: () =>
+					this.workspaceService?.getFolder('events')
+					?? this.settings.eventsFolder
+			}
+		);
 
 		// Initialize recent files service
 		this.recentFilesService = new RecentFilesService(this);
