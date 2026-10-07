@@ -369,7 +369,9 @@ export class ReportWizardModal extends Modal {
 			odtCoverNotes: '',
 
 			// Vault options
-			outputFolder: this.plugin.settings.reportsFolder || '',
+			outputFolder: this.plugin.getWorkspaceService()?.getFolder('reports')
+				?? this.plugin.settings.reportsFolder
+				?? '',
 
 			// Timeline-specific options
 			timelineFormat: 'markdown_table',
@@ -727,7 +729,7 @@ export class ReportWizardModal extends Modal {
 		// Find all notes with cr_type: research_report
 		const researchReports: { path: string; name: string }[] = [];
 
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of (this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles() ?? this.app.vault.getMarkdownFiles())) {
 			const cache = this.app.metadataCache.getFileCache(file);
 			const frontmatter = cache?.frontmatter;
 			if (frontmatter?.cr_type === 'research_report') {
@@ -916,7 +918,7 @@ export class ReportWizardModal extends Modal {
 	 * Load all people from the vault
 	 */
 	private loadPeople(): void {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = (this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles() ?? this.app.vault.getMarkdownFiles());
 		const people: PersonInfo[] = [];
 
 		for (const file of files) {
@@ -1196,7 +1198,7 @@ export class ReportWizardModal extends Modal {
 		const collections = new Set<string>();
 		const noteTypeSettings = this.plugin.settings.noteTypeDetection;
 
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of (this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles() ?? this.app.vault.getMarkdownFiles())) {
 			const cache = this.app.metadataCache.getFileCache(file);
 			if (cache?.frontmatter && isPersonNote(cache.frontmatter, cache, noteTypeSettings)) {
 				const collection = cache.frontmatter.collection as string | undefined;
