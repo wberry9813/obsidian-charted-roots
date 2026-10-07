@@ -18,6 +18,7 @@ export interface ReportGenerationScope {
 	markdownFileProvider?: () => TFile[];
 	allFileProvider?: () => TFile[];
 	scopeKeyProvider?: () => string | null;
+	workspaceRootProvider?: () => string;
 	reportsFolderProvider?: () => string;
 }
 
