@@ -117,7 +117,7 @@ WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
 - [x] Temporal projection preserves scalar Assertion qualifiers at the renderer boundary;
 - [x] `PlaceDesignationService` queries active/possible names by stable Place `cr_id`;
 - [ ] create/edit UI for time-bounded Place designations;
-- [ ] legacy `historical_names` -> designation migration preview;
+- [x] migration preview surfaces legacy `historical_names` as explicit review items without guessing dates or deleting legacy data;
 - [ ] focused Map/Profile display of the historically active name.
 
 ### C4 — historical control layers

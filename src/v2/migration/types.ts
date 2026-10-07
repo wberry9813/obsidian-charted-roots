@@ -18,6 +18,7 @@ export type MigrationFindingCode =
 	| 'dynamic_identity_review'
 	| 'collection_review'
 	| 'group_name_review'
+	| 'historical_name_review'
 	| 'organization_parent'
 	| 'organization_members_mirror'
 	| 'legacy_schema_candidate';

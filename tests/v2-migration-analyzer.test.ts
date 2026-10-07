@@ -191,6 +191,64 @@ describe('v2 legacy migration analyzer', () => {
 			]);
 	});
 
+	it('surfaces legacy Place historical names for review without auto-migration', () => {
+		const result = analyzeLegacyFrontmatter('Places/Chang-An.md', {
+			cr_type: 'place',
+			cr_id: 'place-changan',
+			historical_names: ['长安', '京兆'],
+			historical_name_periods: ['汉唐', '唐末以后']
+		});
+
+		const finding = result.findings.find(
+			item => item.code === 'historical_name_review'
+		);
+		expect(finding).toMatchObject({
+			severity: 'review',
+			autoMigrate: false,
+			count: 2,
+			fields: ['historical_names', 'historical_name_periods']
+		});
+		expect(finding?.details?.records).toEqual([
+			{ name: '长安', period: '汉唐' },
+			{ name: '京兆', period: '唐末以后' }
+		]);
+
+		const preview = buildMigrationPreview({
+			filesScanned: 1,
+			filesWithLegacyData: 1,
+			safeConversions: 0,
+			reviewItems: 1,
+			blockers: 0,
+			files: [result]
+		});
+		expect(preview.files[0]).toMatchObject({
+			status: 'review',
+			actions: [{
+				kind: 'review',
+				code: 'historical_name_review',
+				count: 2
+			}]
+		});
+	});
+
+	it('also freezes legacy nested historical-name records for review', () => {
+		const result = analyzeLegacyFrontmatter('Places/Old.md', {
+			cr_type: 'place',
+			historical_names: [
+				{ name: 'Old Name', period: 'Medieval' },
+				{ name: 'Older Name' }
+			]
+		});
+
+		expect(
+			result.findings.find(item => item.code === 'historical_name_review')
+				?.details?.records
+		).toEqual([
+			{ name: 'Old Name', period: 'Medieval' },
+			{ name: 'Older Name', period: undefined }
+		]);
+	});
+
 	it('does not mistake a v2 Assertion qualifier for legacy membership', () => {
 		const result = analyzeLegacyFrontmatter('Assertions/Office.md', {
 			cr_schema: 2,
