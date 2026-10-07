@@ -50,9 +50,12 @@ Supported first-stage geographic CRS:
 
 - [x] central Place writer canonicalizes transient source CRS to WGS84;
 - [x] transient `coordinateCRS` metadata is never persisted to Place notes;
-- [ ] expose source CRS selection at user/import input boundaries;
-- [ ] convert GCJ-02 / BD-09 user input to WGS84 before Place writes;
-- [ ] preserve existing DMS input support before CRS normalization;
+- [x] Create/Edit Place exposes WGS84 / GCJ-02 / BD-09 input/display CRS;
+- [x] switching the modal CRS transforms displayed values without moving the place;
+- [x] Nominatim/Place Lookup geographic results reset the input CRS to WGS84;
+- [x] GCJ-02 / BD-09 user input is normalized to WGS84 by the Place writer;
+- [x] existing DMS parsing remains before CRS normalization;
+- [ ] expose source CRS metadata to bulk/import pipelines where source CRS is known;
 - [ ] migration/linter checks for any future non-canonical persisted CRS.
 
 ### C2 — basemap adapters

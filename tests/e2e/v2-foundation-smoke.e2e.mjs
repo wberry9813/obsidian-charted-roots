@@ -413,6 +413,115 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 
 	await session.screenshot(path.join(ARTIFACTS, 'v2-office-profile.png'));
 
+	// Exercise the real Create Place modal CRS boundary. Switching the display
+	// CRS must preserve the represented location, while saved frontmatter must
+	// remain canonical WGS84 and carry no transient source-CRS marker.
+	await session.evalInApp(`
+		const ok = app.commands.executeCommandById('charted-roots:create-place-note');
+		if (!ok) throw new Error('Create Place command was not registered.');
+		return true;
+	`);
+	await session.waitFor(
+		`document.querySelector('.crc-create-place-modal .crc-coordinate-crs')
+			&& document.querySelector('.crc-create-place-modal [aria-label="Latitude"]')
+			&& document.querySelector('.crc-create-place-modal [aria-label="Longitude"]')`
+	);
+
+	const coordinateCrsSwitch = await session.evalInApp(`
+		const modal = document.querySelector('.crc-create-place-modal');
+		if (!modal) throw new Error('Create Place modal is unavailable.');
+
+		const nameSetting = [...modal.querySelectorAll('.setting-item')]
+			.find(el => el.querySelector('.setting-item-name')?.textContent === 'Name');
+		const nameInput = nameSetting?.querySelector('input');
+		const lat = modal.querySelector('[aria-label="Latitude"]');
+		const long = modal.querySelector('[aria-label="Longitude"]');
+		const crs = modal.querySelector('.crc-coordinate-crs');
+		if (
+			!(nameInput instanceof HTMLInputElement)
+			|| !(lat instanceof HTMLInputElement)
+			|| !(long instanceof HTMLInputElement)
+			|| !(crs instanceof HTMLSelectElement)
+		) {
+			throw new Error('Create Place coordinate controls are incomplete.');
+		}
+
+		nameInput.value = 'M6 GCJ Input E2E';
+		nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+		lat.value = '34.7478004';
+		lat.dispatchEvent(new Event('input', { bubbles: true }));
+		long.value = '113.6192856';
+		long.dispatchEvent(new Event('input', { bubbles: true }));
+
+		crs.value = 'gcj02';
+		crs.dispatchEvent(new Event('change', { bubbles: true }));
+
+		return {
+			crs: crs.value,
+			lat: Number(lat.value),
+			long: Number(long.value)
+		};
+	`);
+
+	assert.equal(coordinateCrsSwitch.crs, 'gcj02');
+	assert.ok(Math.abs(coordinateCrsSwitch.lat - 34.7466173) <= 1e-5);
+	assert.ok(Math.abs(coordinateCrsSwitch.long - 113.6253334) <= 1e-5);
+
+	await session.evalInApp(`
+		const modal = document.querySelector('.crc-create-place-modal');
+		const lat = modal?.querySelector('[aria-label="Latitude"]');
+		const long = modal?.querySelector('[aria-label="Longitude"]');
+		if (!(lat instanceof HTMLInputElement) || !(long instanceof HTMLInputElement)) {
+			throw new Error('Create Place coordinate inputs are unavailable.');
+		}
+
+		// Enter the known GCJ-02 golden fixture as if copied from Amap/Gaode.
+		lat.value = '34.7466173';
+		lat.dispatchEvent(new Event('input', { bubbles: true }));
+		long.value = '113.6253334';
+		long.dispatchEvent(new Event('input', { bubbles: true }));
+
+		const createButton = [...(modal?.querySelectorAll('button') ?? [])]
+			.find(button => button.textContent?.trim() === 'Create place');
+		if (!(createButton instanceof HTMLButtonElement)) {
+			throw new Error('Create Place submit button is unavailable.');
+		}
+		createButton.click();
+		return true;
+	`);
+
+	await session.waitFor(
+		`(() => {
+			const file = app.vault.getMarkdownFiles()
+				.find(file => file.basename === 'M6 GCJ Input E2E');
+			if (!file) return false;
+			const fm = app.metadataCache.getFileCache(file)?.frontmatter;
+			return !!fm
+				&& typeof fm.coordinates_lat === 'number'
+				&& typeof fm.coordinates_long === 'number';
+		})()`
+	);
+
+	const coordinateCrsStorage = await session.evalInApp(`
+		const file = app.vault.getMarkdownFiles()
+			.find(file => file.basename === 'M6 GCJ Input E2E');
+		if (!file) throw new Error('M6 CRS test Place was not created.');
+		const fm = app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+		const result = {
+			lat: fm.coordinates_lat,
+			long: fm.coordinates_long,
+			hasSourceCrs:
+				Object.prototype.hasOwnProperty.call(fm, 'coordinateCRS')
+				|| Object.prototype.hasOwnProperty.call(fm, 'coordinate_crs')
+		};
+		await app.vault.delete(file);
+		return result;
+	`);
+
+	assert.ok(Math.abs(coordinateCrsStorage.lat - 34.7478004) <= 1e-5);
+	assert.ok(Math.abs(coordinateCrsStorage.long - 113.6192856) <= 1e-5);
+	assert.equal(coordinateCrsStorage.hasSourceCrs, false);
+
 	// Exercise the user-visible read-only migration preview command.
 	await session.evalInApp(`
 		const ok = app.commands.executeCommandById('charted-roots:preview-v2-migration');
