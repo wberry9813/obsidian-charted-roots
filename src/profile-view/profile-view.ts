@@ -40,6 +40,7 @@ import { renderParentSourceSection, renderChildSourcesSection, renderSiblingSour
 import { renderMembersSection } from './sections/members-section';
 import { renderResearchSection } from './sections/research-section';
 import { renderAssertionsSection } from './sections/assertions-section';
+import { renderTemporalInstitutionSection } from './sections/temporal-institution-section';
 import { renderProfileSection } from './sections/section-base';
 import { detectNoteType, isPersonNote } from '../utils/note-type-detection';
 import type { NoteType } from '../utils/note-type-detection';
@@ -78,6 +79,7 @@ export class ProfileView extends ItemView {
 	// Debounce timers
 	private syncDebounceTimeout: number | null = null;
 	private refreshTimeout: number | null = null;
+	private temporalFocusUnsubscribe: (() => void) | null = null;
 
 	// DOM references
 	private headerEl: HTMLElement | null = null;
@@ -141,6 +143,21 @@ export class ProfileView extends ItemView {
 			})
 		);
 
+		this.temporalFocusUnsubscribe = this.plugin
+			.getTemporalFocusService()
+			.subscribe(() => {
+				if (
+					this.currentEntityData
+					&& (
+						this.currentEntityData.entityType === 'person'
+						|| this.currentEntityData.entityType === 'organization'
+						|| this.currentEntityData.entityType === 'office'
+					)
+				) {
+					this.renderEntity(this.currentEntityData);
+				}
+			});
+
 		// Do initial sync
 		this.scheduleSyncToActiveNote();
 	}
@@ -148,6 +165,8 @@ export class ProfileView extends ItemView {
 	async onClose(): Promise<void> {
 		if (this.syncDebounceTimeout) window.clearTimeout(this.syncDebounceTimeout);
 		if (this.refreshTimeout) window.clearTimeout(this.refreshTimeout);
+		this.temporalFocusUnsubscribe?.();
+		this.temporalFocusUnsubscribe = null;
 		cleanupMapPreview();
 	}
 
@@ -484,6 +503,8 @@ export class ProfileView extends ItemView {
 
 		renderMembershipsSection(this.sectionsEl, data.memberships, options);
 
+		renderTemporalInstitutionSection(this.sectionsEl, data.crId, options);
+
 		renderAssertionsSection(this.sectionsEl, data.assertions, {
 			...options,
 			entityFile: data.file
@@ -628,6 +649,8 @@ export class ProfileView extends ItemView {
 
 		renderMembersSection(this.sectionsEl, data.members, data.org, options);
 
+		renderTemporalInstitutionSection(this.sectionsEl, data.crId, options);
+
 		renderEventsSection(this.sectionsEl, data.events, {
 			...options,
 			sectionId: 'events',
@@ -655,6 +678,8 @@ export class ProfileView extends ItemView {
 		options: SectionRenderOptions
 	): void {
 		if (!this.sectionsEl) return;
+
+		renderTemporalInstitutionSection(this.sectionsEl, data.crId, options);
 
 		renderAssertionsSection(this.sectionsEl, data.assertions, {
 			...options,
