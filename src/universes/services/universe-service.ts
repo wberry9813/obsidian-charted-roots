@@ -49,6 +49,7 @@ export class UniverseService {
 	private plugin: CanvasRootsPlugin;
 	private universeCache: Map<string, UniverseInfo>;
 	private cacheLoaded: boolean = false;
+	private cacheWorkspaceId: string | null = null;
 
 	constructor(plugin: CanvasRootsPlugin) {
 		this.plugin = plugin;
@@ -60,7 +61,8 @@ export class UniverseService {
 	 * Ensure the universe cache is loaded
 	 */
 	ensureCacheLoaded(): void {
-		if (!this.cacheLoaded) {
+		const workspaceId = this.plugin.getWorkspaceService()?.getActiveId() ?? null;
+		if (!this.cacheLoaded || this.cacheWorkspaceId !== workspaceId) {
 			this.loadUniverseCache();
 		}
 	}
@@ -177,7 +179,7 @@ export class UniverseService {
 		let updateCount = 0;
 		const updatedFiles: TFile[] = [];
 
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of this.getScopedFiles()) {
 			const cache = this.app.metadataCache.getFileCache(file);
 			if (!cache?.frontmatter) continue;
 
@@ -285,7 +287,9 @@ export class UniverseService {
 	 * Create a new universe note
 	 */
 	async createUniverse(data: CreateUniverseData): Promise<TFile> {
-		const folder = this.plugin.settings.universesFolder || '';
+		const folder = this.plugin.getWorkspaceService()?.getFolder('universes')
+			?? this.plugin.settings.universesFolder
+			?? '';
 
 		// Helper to get aliased property name
 		const aliases = this.plugin.settings.propertyAliases || {};
@@ -493,7 +497,7 @@ export class UniverseService {
 	 */
 	getAllUniverseReferences(): Map<string, number> {
 		const references = new Map<string, number>();
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -555,7 +559,7 @@ export class UniverseService {
 			maps: 0
 		};
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -616,7 +620,7 @@ export class UniverseService {
 			schemas: 0
 		};
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedFiles();
 		const lowerValue = crIdOrName.toLowerCase();
 
 		for (const file of files) {
@@ -701,7 +705,7 @@ export class UniverseService {
 			organizations: []
 		};
 
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of this.getScopedFiles()) {
 			const cache = this.app.metadataCache.getFileCache(file);
 			const fm = cache?.frontmatter;
 			if (!fm?.universe) continue;
@@ -788,7 +792,7 @@ export class UniverseService {
 	private loadUniverseCache(): void {
 		this.universeCache.clear();
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedFiles();
 		let loadedCount = 0;
 
 		for (const file of files) {
@@ -800,7 +804,13 @@ export class UniverseService {
 		}
 
 		this.cacheLoaded = true;
+		this.cacheWorkspaceId = this.plugin.getWorkspaceService()?.getActiveId() ?? null;
 		logger.debug('loadUniverseCache', `Loaded ${loadedCount} universes`);
+	}
+
+	private getScopedFiles(): TFile[] {
+		return this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
 	}
 
 	/**
