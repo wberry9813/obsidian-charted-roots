@@ -351,6 +351,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.assertionService?.invalidateCache();
 		this.eventService?.invalidateCache();
 		this.sourceService?.invalidateCache();
+		this.personIndex?.invalidateCache();
 		await this.saveSettings();
 	}
 
@@ -381,6 +382,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.assertionService?.invalidateCache();
 		this.eventService?.invalidateCache();
 		this.sourceService?.invalidateCache();
+		this.personIndex?.invalidateCache();
 		await this.saveSettings();
 	}
 
@@ -604,6 +606,10 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	createFamilyGraphService(): FamilyGraphService {
 		const graphService = new FamilyGraphService(this.app);
+		graphService.setFileProvider(() =>
+			this.workspaceService?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles()
+		);
 		if (this.folderFilter) {
 			graphService.setFolderFilter(this.folderFilter);
 		}
@@ -728,7 +734,17 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.folderFilter.setTemplateFilter(this.templateFilter);
 
 		// Initialize person index service (for wikilink resolution)
-		this.personIndex = new PersonIndexService(this.app, this.settings);
+		this.personIndex = new PersonIndexService(
+			this.app,
+			this.settings,
+			{
+				fileProvider: () =>
+					this.workspaceService?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles(),
+				fileInScope: file =>
+					this.workspaceService?.getScope().contains(file) ?? true
+			}
+		);
 		this.personIndex.setFolderFilter(this.folderFilter);
 
 		// Initialize event service
