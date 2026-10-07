@@ -3172,6 +3172,35 @@ export class MapView extends ItemView {
 			})
 		);
 
+		// Deleted/renamed manifests no longer have readable frontmatter, so
+		// metadataCache cannot classify them after the fact. These operations
+		// are rare; reloading Workspace-scoped control layers for Markdown or
+		// GeoJSON removals/renames prevents stale "ghost" boundaries.
+		this.registerEvent(
+			this.plugin.app.vault.on('delete', file => {
+				if (
+					file instanceof TFile
+					&& ['md', 'geojson'].includes(file.extension.toLowerCase())
+				) {
+					void this.refreshHistoricalControlLayers();
+				}
+			})
+		);
+		this.registerEvent(
+			this.plugin.app.vault.on('rename', (file, oldPath) => {
+				const oldExtension = oldPath.split('.').pop()?.toLowerCase() ?? '';
+				const newExtension = file instanceof TFile
+					? file.extension.toLowerCase()
+					: '';
+				if (
+					['md', 'geojson'].includes(oldExtension)
+					|| ['md', 'geojson'].includes(newExtension)
+				) {
+					void this.refreshHistoricalControlLayers();
+				}
+			})
+		);
+
 		// Listen for family overlay "switch to journey" clicks
 		this.containerEl.addEventListener('cr-switch-journey', ((e: CustomEvent) => {
 			const { personId, personName } = e.detail as { personId: string; personName: string };
