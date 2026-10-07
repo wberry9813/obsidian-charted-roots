@@ -4,6 +4,25 @@ import type { TemporalParseResult } from '../time/types';
 
 export type TemporalItemKind = 'event' | 'process' | 'period' | 'assertion';
 
+export type TemporalGroupingKind =
+	| 'person'
+	| 'place'
+	| 'organization'
+	| 'universe';
+
+export interface TemporalGroupingRef {
+	kind: TemporalGroupingKind;
+	/**
+	 * Stable grouping key. Prefer cr_id when the linked entity resolves;
+	 * otherwise fall back to a normalized link/path value.
+	 */
+	key: string;
+	label: string;
+	reference: string;
+	crId?: string;
+	filePath?: string;
+}
+
 export type TemporalProjectionStatus =
 	| 'resolved'
 	| 'partial'
@@ -56,6 +75,7 @@ export interface TemporalItem {
 	subject?: string;
 	object?: string;
 	value?: string | number | boolean;
+	groups: TemporalGroupingRef[];
 	start?: TemporalBoundaryProjection;
 	end?: TemporalBoundaryProjection;
 	notBefore?: TemporalBoundaryProjection;

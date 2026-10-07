@@ -194,6 +194,168 @@ describe('TemporalProjectionService', () => {
 		expect(items.some(item => item.id === 'undated')).toBe(false);
 	});
 
+	it('projects stable Event grouping refs from linked entities', () => {
+		const eventFile = {
+			path: 'History/Events/Campaign.md',
+			basename: 'Campaign'
+		};
+		const personFile = {
+			path: 'History/People/Cao-Cao.md',
+			basename: 'Cao-Cao'
+		};
+		const placeFile = {
+			path: 'History/Places/Xuchang.md',
+			basename: 'Xuchang'
+		};
+		const orgFile = {
+			path: 'History/Organizations/Wei.md',
+			basename: 'Wei'
+		};
+		const universeFile = {
+			path: 'History/Universes/History.md',
+			basename: 'History'
+		};
+		const frontmatterByPath = new Map<string, Record<string, unknown>>([
+			[eventFile.path, {
+				cr_type: 'event',
+				cr_id: 'campaign',
+				title: 'Campaign',
+				event_type: 'battle',
+				time_start: '200 CE',
+				persons: ['[[History/People/Cao-Cao|曹操]]'],
+				place: '[[History/Places/Xuchang|许昌]]',
+				organizations: ['[[History/Organizations/Wei|魏]]'],
+				universe: '[[History/Universes/History|历史]]'
+			}],
+			[personFile.path, {
+				cr_type: 'person',
+				cr_id: 'cao-cao',
+				name: '曹操'
+			}],
+			[placeFile.path, {
+				cr_type: 'place',
+				cr_id: 'xuchang',
+				name: '许昌'
+			}],
+			[orgFile.path, {
+				cr_type: 'organization',
+				cr_id: 'wei',
+				name: '魏'
+			}],
+			[universeFile.path, {
+				cr_type: 'universe',
+				cr_id: 'history-universe',
+				name: '历史'
+			}]
+		]);
+		const byTarget = new Map([
+			['History/People/Cao-Cao', personFile],
+			['History/Places/Xuchang', placeFile],
+			['History/Organizations/Wei', orgFile],
+			['History/Universes/History', universeFile]
+		]);
+		const app = {
+			vault: { getMarkdownFiles: () => [eventFile] },
+			metadataCache: {
+				getFileCache: (file: { path: string }) => ({
+					frontmatter: frontmatterByPath.get(file.path)
+				}),
+				getFirstLinkpathDest: (target: string) => byTarget.get(target) ?? null
+			}
+		} as never;
+		const service = new TemporalProjectionService(
+			app,
+			new HistoricalDateService()
+		);
+
+		const [item] = service.getAll();
+		expect(item.groups.map(group => ({
+			kind: group.kind,
+			key: group.key,
+			label: group.label
+		}))).toEqual([
+			{
+				kind: 'universe',
+				key: 'universe:crid:history-universe',
+				label: '历史'
+			},
+			{
+				kind: 'person',
+				key: 'person:crid:cao-cao',
+				label: '曹操'
+			},
+			{
+				kind: 'place',
+				key: 'place:crid:xuchang',
+				label: '许昌'
+			},
+			{
+				kind: 'organization',
+				key: 'organization:crid:wei',
+				label: '魏'
+			}
+		]);
+	});
+
+	it('types Assertion subject/object grouping refs from the linked notes', () => {
+		const assertionFile = {
+			path: 'History/Assertions/Office.md',
+			basename: 'Office'
+		};
+		const personFile = {
+			path: 'History/People/Cao-Cao.md',
+			basename: 'Cao-Cao'
+		};
+		const orgFile = {
+			path: 'History/Organizations/Han.md',
+			basename: 'Han'
+		};
+		const frontmatterByPath = new Map<string, Record<string, unknown>>([
+			[assertionFile.path, {
+				cr_type: 'assertion',
+				cr_id: 'office',
+				assertion_type: 'affiliation',
+				subject: '[[History/People/Cao-Cao|曹操]]',
+				predicate: 'member_of',
+				object: '[[History/Organizations/Han|汉廷]]',
+				time_start: '196 CE'
+			}],
+			[personFile.path, {
+				cr_type: 'person',
+				cr_id: 'cao-cao',
+				name: '曹操'
+			}],
+			[orgFile.path, {
+				cr_type: 'organization',
+				cr_id: 'han',
+				name: '汉廷'
+			}]
+		]);
+		const byTarget = new Map([
+			['History/People/Cao-Cao', personFile],
+			['History/Organizations/Han', orgFile]
+		]);
+		const app = {
+			vault: { getMarkdownFiles: () => [assertionFile] },
+			metadataCache: {
+				getFileCache: (file: { path: string }) => ({
+					frontmatter: frontmatterByPath.get(file.path)
+				}),
+				getFirstLinkpathDest: (target: string) => byTarget.get(target) ?? null
+			}
+		} as never;
+		const service = new TemporalProjectionService(
+			app,
+			new HistoricalDateService()
+		);
+
+		const [item] = service.getAll();
+		expect(item.groups.map(group => group.key)).toEqual([
+			'person:crid:cao-cao',
+			'organization:crid:han'
+		]);
+	});
+
 	it('respects the injected Workspace file provider', () => {
 		const fixtures = [
 			{

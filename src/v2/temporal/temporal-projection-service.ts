@@ -8,6 +8,8 @@ import type {
 } from '../time/types';
 import type {
 	TemporalBoundaryProjection,
+	TemporalGroupingKind,
+	TemporalGroupingRef,
 	TemporalItem,
 	TemporalItemKind,
 	TemporalProjectionSource,
@@ -48,6 +50,44 @@ function scalarValue(value: unknown): string | number | boolean | undefined {
 		|| typeof value === 'boolean'
 		? value
 		: undefined;
+}
+
+function stringArrayValue(value: unknown): string[] {
+	if (!Array.isArray(value)) return [];
+	return value
+		.filter((entry): entry is string => typeof entry === 'string')
+		.map(entry => entry.trim())
+		.filter(Boolean);
+}
+
+function parseReference(reference: string): { target: string; label: string } {
+	const trimmed = reference.trim();
+	const inner = trimmed.startsWith('[[') && trimmed.endsWith(']]')
+		? trimmed.slice(2, -2)
+		: trimmed;
+	const [targetPart, aliasPart] = inner.split('|', 2);
+	const target = (targetPart ?? '')
+		.split('#', 1)[0]
+		.trim();
+	const label = aliasPart?.trim()
+		|| target.split('/').pop()
+		|| target
+		|| trimmed;
+	return { target, label };
+}
+
+function groupingKindForNoteType(
+	noteType: ReturnType<typeof detectNoteType>
+): TemporalGroupingKind | null {
+	switch (noteType) {
+		case 'person':
+		case 'place':
+		case 'organization':
+		case 'universe':
+			return noteType;
+		default:
+			return null;
+	}
 }
 
 function precisionValue(value: unknown): TemporalPrecision | undefined {
@@ -218,6 +258,7 @@ export class TemporalProjectionService {
 			value: kind === 'assertion'
 				? scalarValue(frontmatter.value)
 				: undefined,
+			groups: this.buildGroupingRefs(kind, file, frontmatter),
 			start,
 			end,
 			notBefore,
@@ -244,6 +285,92 @@ export class TemporalProjectionService {
 
 	sortItems(items: readonly TemporalItem[]): TemporalItem[] {
 		return [...items].sort((a, b) => this.compareChronologically(a, b));
+	}
+
+	private buildGroupingRefs(
+		kind: TemporalItemKind,
+		file: TFile,
+		frontmatter: Record<string, unknown>
+	): TemporalGroupingRef[] {
+		const refs: TemporalGroupingRef[] = [];
+		const add = (
+			reference: string | undefined,
+			expectedKind?: TemporalGroupingKind
+		): void => {
+			if (!reference) return;
+			const resolved = this.resolveGroupingRef(reference, file, expectedKind);
+			if (resolved) refs.push(resolved);
+		};
+
+		add(stringValue(frontmatter.universe), 'universe');
+
+		if (kind === 'event') {
+			add(stringValue(frontmatter.person), 'person');
+			for (const person of stringArrayValue(frontmatter.persons)) {
+				add(person, 'person');
+			}
+			add(stringValue(frontmatter.place), 'place');
+			for (const organization of stringArrayValue(frontmatter.organizations)) {
+				add(organization, 'organization');
+			}
+		}
+
+		if (kind === 'assertion') {
+			add(stringValue(frontmatter.subject));
+			add(stringValue(frontmatter.object));
+		}
+
+		return [...new Map(
+			refs.map(ref => [ref.key, ref])
+		).values()];
+	}
+
+	private resolveGroupingRef(
+		reference: string,
+		sourceFile: TFile,
+		expectedKind?: TemporalGroupingKind
+	): TemporalGroupingRef | null {
+		const { target, label } = parseReference(reference);
+		if (!target) return null;
+
+		const resolver = this.app.metadataCache.getFirstLinkpathDest;
+		const resolvedFile = typeof resolver === 'function'
+			? resolver.call(this.app.metadataCache, target, sourceFile.path)
+			: null;
+
+		if (resolvedFile) {
+			const cache = this.app.metadataCache.getFileCache(resolvedFile);
+			const frontmatter = cache?.frontmatter as Record<string, unknown> | undefined;
+			const detected = frontmatter
+				? groupingKindForNoteType(detectNoteType(frontmatter, cache))
+				: null;
+			const kind = detected ?? expectedKind;
+			if (!kind) return null;
+
+			const crId = frontmatter
+				? stringValue(frontmatter.cr_id)
+				: undefined;
+			return {
+				kind,
+				key: crId
+					? `${kind}:crid:${crId}`
+					: `${kind}:path:${resolvedFile.path}`,
+				label: stringValue(frontmatter?.name)
+					?? stringValue(frontmatter?.title)
+					?? label,
+				reference,
+				crId,
+				filePath: resolvedFile.path
+			};
+		}
+
+		if (!expectedKind) return null;
+		return {
+			kind: expectedKind,
+			key: `${expectedKind}:ref:${target.toLocaleLowerCase()}`,
+			label,
+			reference
+		};
 	}
 
 	private projectBoundary(
