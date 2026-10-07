@@ -938,6 +938,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const sourceService = plugin.getSourceService();
 		const organizationService = plugin.getOrganizationService();
 		const universeService = plugin.getUniverseService();
+		const familyGraph = plugin.createFamilyGraphService();
 
 		const historyCreated = [
 			await eventService.createEvent({
@@ -987,6 +988,11 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					.map(universe => universe.name)
 					.sort()
 			},
+			personIndex: {
+				history: plugin.personIndex?.getFileByCrId('workspace-history-person')?.path ?? null,
+				shushan: plugin.personIndex?.getFileByCrId('workspace-shushan-person')?.path ?? null
+			},
+			familyPeople: familyGraph.getAllPeople().map(person => person.name).sort(),
 			createdPaths: historyCreated.map(file => file.path)
 		};
 
@@ -1043,6 +1049,11 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					.map(universe => universe.name)
 					.sort()
 			},
+			personIndex: {
+				history: plugin.personIndex?.getFileByCrId('workspace-history-person')?.path ?? null,
+				shushan: plugin.personIndex?.getFileByCrId('workspace-shushan-person')?.path ?? null
+			},
+			familyPeople: familyGraph.getAllPeople().map(person => person.name).sort(),
 			createdPaths: shushanCreated.map(file => file.path)
 		};
 
@@ -1119,6 +1130,11 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		organizations: ['History Organization'],
 		universes: ['History Universe']
 	});
+	assert.deepEqual(workspaceState.history.personIndex, {
+		history: 'Workspace-E2E/History/People/History-Person.md',
+		shushan: null
+	});
+	assert.deepEqual(workspaceState.history.familyPeople, ['History Person']);
 	assert.deepEqual(workspaceState.history.createdPaths.sort(), [
 		'Workspace-E2E/History/Events/History Created Event E2E.md',
 		'Workspace-E2E/History/Organizations/History Created Organization E2E.md',
@@ -1146,6 +1162,11 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		organizations: ['Fiction Organization'],
 		universes: ['Fiction Universe']
 	});
+	assert.deepEqual(workspaceState.shushan.personIndex, {
+		history: null,
+		shushan: 'Workspace-E2E/Shushan/People/Fiction-Person.md'
+	});
+	assert.deepEqual(workspaceState.shushan.familyPeople, ['Fiction Person']);
 	assert.deepEqual(workspaceState.shushan.createdPaths.sort(), [
 		'Workspace-E2E/Shushan/Events/Shushan Created Event E2E.md',
 		'Workspace-E2E/Shushan/Organizations/Shushan Created Organization E2E.md',
