@@ -831,7 +831,13 @@ export class ReportGeneratorModal extends Modal {
 									this.personPickerSetting.setDesc(`Selected: ${person.name}`);
 								}
 							},
-							folderFilter
+							{
+								folderFilter,
+								plugin: this.plugin,
+								fileProvider: () =>
+									this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+									?? this.app.vault.getMarkdownFiles()
+							}
 						);
 						picker.open();
 					});
