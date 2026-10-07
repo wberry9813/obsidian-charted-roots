@@ -147,7 +147,7 @@ export class ExportOptionsBuilder {
 							this.options.branchRootCrId = info.crId;
 							btn.setButtonText(info.name);
 							this.notifyChange();
-						});
+						}, { plugin: this.plugin });
 						picker.open();
 					});
 			});

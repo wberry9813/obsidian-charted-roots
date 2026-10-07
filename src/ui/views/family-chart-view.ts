@@ -1171,7 +1171,7 @@ export class FamilyChartView extends ItemView {
 		new PersonPickerModal(this.app, (selectedPerson) => {
 			this.rootPersonId = selectedPerson.crId;
 			void this.initializeChart();
-		}, folderFilter).open();
+		}, { folderFilter, plugin: this.plugin }).open();
 	}
 
 	/**
@@ -2298,7 +2298,7 @@ export class FamilyChartView extends ItemView {
 
 		new PersonPickerModal(this.app, (selectedPerson) => {
 			this.centerOnPerson(selectedPerson.crId);
-		}, folderFilter).open();
+		}, { folderFilter, plugin: this.plugin }).open();
 	}
 
 	/**

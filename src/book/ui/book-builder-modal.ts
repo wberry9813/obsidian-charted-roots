@@ -338,7 +338,7 @@ export class BookBuilderModal extends Modal {
 			this.applyTemplate(templateId, person.crId, person.name);
 			this.currentStep = 1;
 			this.renderCurrentStep();
-		}, defaultPerson ? { initialSearch: defaultPerson.name } : undefined);
+		}, { plugin: this.plugin, initialSearch: defaultPerson?.name });
 		picker.open();
 	}
 
@@ -1442,7 +1442,7 @@ class ChapterConfigModal extends Modal {
 				this.subjectCrId = person.crId;
 				this.subjectName = person.name;
 				subjectBtn.textContent = person.name;
-			});
+			}, { plugin: this.plugin });
 			picker.open();
 		});
 	}
@@ -1474,7 +1474,7 @@ class ChapterConfigModal extends Modal {
 				this.subjectCrId = person.crId;
 				this.subjectName = person.name;
 				personBtn.textContent = person.name;
-			});
+			}, { plugin: this.plugin });
 			picker.open();
 		});
 

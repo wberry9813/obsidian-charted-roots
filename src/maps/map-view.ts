@@ -1446,7 +1446,7 @@ export class MapView extends ItemView {
 				this.layers.journeys = true;
 				this.mapController?.setLayerVisibility(this.layers);
 			}
-		});
+		}, { plugin: this.plugin });
 		picker.open();
 	}
 
