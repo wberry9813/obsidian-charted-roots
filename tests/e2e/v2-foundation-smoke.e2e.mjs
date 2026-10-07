@@ -2032,5 +2032,169 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(workspaceState.finalActive, 'history-cn');
 	assert.equal(workspaceState.finalLocalSetting, 'history-cn');
 
+	// M6 C3: create a time-bounded historical Place name through the real
+	// Profile UI, then prove shared TemporalFocus changes Profile + Map display
+	// without renaming the stable Place entity.
+	await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const place = app.vault.getAbstractFileByPath(
+			'Workspace-E2E/History/Places/History-Place.md'
+		);
+		if (!(place instanceof obsidian.TFile)) {
+			throw new Error('History Place fixture is unavailable.');
+		}
+		await plugin.activateProfileView(place);
+		return true;
+	`);
+	await session.waitFor(
+		`document.querySelector('.cr-profile__add-historical-name')`
+	);
+	await session.evalInApp(`
+		const button = document.querySelector('.cr-profile__add-historical-name');
+		if (!(button instanceof HTMLButtonElement)) {
+			throw new Error('Add historical name button is unavailable.');
+		}
+		button.click();
+		return true;
+	`);
+	await session.waitFor(
+		`document.querySelector('.cr-historical-name-modal')`
+	);
+
+	await session.evalInApp(`
+		const modal = document.querySelector('.cr-historical-name-modal');
+		if (!modal) throw new Error('Historical name modal is unavailable.');
+
+		const field = (label) => {
+			const setting = [...modal.querySelectorAll('.setting-item')]
+				.find(el => el.querySelector('.setting-item-name')?.textContent === label);
+			return setting?.querySelector('input, textarea');
+		};
+		const setValue = (label, value) => {
+			const input = field(label);
+			if (!(input instanceof HTMLInputElement) && !(input instanceof HTMLTextAreaElement)) {
+				throw new Error(`Historical name field unavailable: ${label}`);
+			}
+			input.value = value;
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+		};
+
+		setValue('Historical name', 'E2E Ancient Name');
+		setValue('Start', 'BCE 500');
+		setValue('End', 'BCE 400');
+		setValue('Source reference', '[[Workspace-E2E/History/Sources/History-Source|History Source]]');
+
+		const create = [...modal.querySelectorAll('button')]
+			.find(button => button.textContent?.trim() === 'Add historical name');
+		if (!(create instanceof HTMLButtonElement)) {
+			throw new Error('Historical name create button is unavailable.');
+		}
+		create.click();
+		return true;
+	`);
+
+	await session.waitFor(
+		`(() => {
+			const plugin = app.plugins.plugins['charted-roots'];
+			const place = app.vault.getAbstractFileByPath(
+				'Workspace-E2E/History/Places/History-Place.md'
+			);
+			if (!(place instanceof obsidian.TFile)) return false;
+			return plugin.getAssertionService().getForFile(place).some(record =>
+				record.assertion.predicate === 'has_designation'
+				&& record.assertion.value === 'E2E Ancient Name'
+			);
+		})()`
+	);
+
+	const historicalNameFocus = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const calendar = plugin.getHistoricalDateService().getCalendarProvider('tyme');
+		if (!calendar) throw new Error('Tyme calendar is unavailable.');
+		const position = calendar.solarToJulianDay({
+			year: -450,
+			month: 6,
+			day: 1
+		});
+		plugin.getTemporalFocusService().setPoint(position, 'e2e-place-name');
+		return position;
+	`);
+	assert.equal(Number.isFinite(historicalNameFocus), true);
+
+	await session.waitFor(
+		`document.querySelector('.cr-profile__historical-name-focus-value')
+			?.textContent?.includes('E2E Ancient Name')`
+	);
+
+	await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		await plugin.activateMapView();
+		return true;
+	`);
+	await session.waitFor(
+		`app.workspace.getLeavesOfType('canvas-roots-map')[0]?.view?.mapController
+			?.currentDisplayData`
+	);
+
+	const historicalMapDisplay = await session.evalInApp(`
+		const place = app.vault.getAbstractFileByPath(
+			'Workspace-E2E/History/Places/History-Place.md'
+		);
+		const placeId = app.metadataCache.getFileCache(place)?.frontmatter?.cr_id;
+		const view = app.workspace.getLeavesOfType('canvas-roots-map')[0]?.view;
+		const data = view?.mapController?.currentDisplayData;
+		return {
+			placeId,
+			placeMarkerName: data?.placeMarkers?.find(marker => marker.placeId === placeId)
+				?.placeName ?? null,
+			eventMarkerNames: (data?.markers ?? [])
+				.filter(marker => marker.placeId === placeId)
+				.map(marker => marker.placeName),
+			journeyNames: (data?.journeyPaths ?? [])
+				.flatMap(journey => journey.waypoints)
+				.filter(waypoint => waypoint.placeId === placeId)
+				.map(waypoint => waypoint.name)
+		};
+	`);
+	assert.equal(historicalMapDisplay.placeMarkerName, 'E2E Ancient Name');
+	assert.ok(
+		historicalMapDisplay.eventMarkerNames.length === 0
+		|| historicalMapDisplay.eventMarkerNames.every(name => name === 'E2E Ancient Name')
+	);
+	assert.ok(
+		historicalMapDisplay.journeyNames.length === 0
+		|| historicalMapDisplay.journeyNames.every(name => name === 'E2E Ancient Name')
+	);
+
+	const restoredHistoricalName = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		plugin.getTemporalFocusService().clear();
+		await new Promise(resolve => window.setTimeout(resolve, 40));
+		const place = app.vault.getAbstractFileByPath(
+			'Workspace-E2E/History/Places/History-Place.md'
+		);
+		const placeId = app.metadataCache.getFileCache(place)?.frontmatter?.cr_id;
+		const view = app.workspace.getLeavesOfType('canvas-roots-map')[0]?.view;
+		const data = view?.mapController?.currentDisplayData;
+		const record = plugin.getAssertionService().getForFile(place).find(item =>
+			item.assertion.predicate === 'has_designation'
+			&& item.assertion.value === 'E2E Ancient Name'
+		);
+		const result = {
+			profileFocusPresent: !!document.querySelector(
+				'.cr-profile__historical-name-focus-value'
+			),
+			placeMarkerName: data?.placeMarkers?.find(marker => marker.placeId === placeId)
+				?.placeName ?? null,
+			canonicalName: app.metadataCache.getFileCache(place)?.frontmatter?.name ?? null
+		};
+		if (record) await app.vault.delete(record.file);
+		return result;
+	`);
+	assert.equal(restoredHistoricalName.profileFocusPresent, false);
+	assert.equal(restoredHistoricalName.placeMarkerName, 'History Place');
+	assert.equal(restoredHistoricalName.canonicalName, 'History Place');
+
+	await session.screenshot(path.join(ARTIFACTS, 'v2-historical-place-name.png'));
 	await session.screenshot(path.join(ARTIFACTS, 'v2-workspaces-foundation.png'));
 });

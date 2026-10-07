@@ -174,8 +174,9 @@ export class MapController {
 	private regionEditDragStart: L.LatLng | null = null;
 	private regionEditBoundsH: number = 0;
 
-	// Current data
+	// Current canonical/source data and display-only temporal projection.
 	private currentData: MapData | null = null;
+	private currentDisplayData: MapData | null = null;
 	private currentLayers: LayerVisibility = {
 		// Core life events
 		births: true,
@@ -653,22 +654,27 @@ export class MapController {
 		logger.debug('search-update', `Updated search layer with markers`);
 	}
 
+	private renderDisplayData(data: MapData): void {
+		this.renderMarkers(data.markers);
+		this.renderPlaceMarkers(data.placeMarkers);
+		this.renderPaths(data.paths);
+		this.renderJourneyPaths(data.journeyPaths);
+		this.renderHeatMap(data.markers);
+		this.updateSearchLayer();
+	}
+
 	/**
-	 * Set map data and render markers/paths
+	 * Set canonical/source map data plus an optional display-only projection.
+	 * Exports and persistence keep reading currentData; temporal labels can live
+	 * in currentDisplayData without changing source semantics.
 	 */
-	setData(data: MapData): void {
+	setData(data: MapData, displayData: MapData = data): void {
 		try {
 			this.currentData = data;
-			this.renderMarkers(data.markers);
-			this.renderPlaceMarkers(data.placeMarkers);
-			this.renderPaths(data.paths);
-			this.renderJourneyPaths(data.journeyPaths);
-			this.renderHeatMap(data.markers);
+			this.currentDisplayData = displayData;
+			this.renderDisplayData(displayData);
 
-			// Update search layer with new markers
-			this.updateSearchLayer();
-
-			// Fit bounds to show all markers
+			// Fit bounds from canonical/source coordinates.
 			this.fitBounds();
 		} catch (error) {
 			logger.error('set-data-error', 'Error setting map data', { error });
@@ -677,18 +683,42 @@ export class MapController {
 	}
 
 	/**
-	 * Set filtered data (for time slider) without changing current data reference
-	 * This updates only the visible markers/paths without fitting bounds
+	 * Re-render a display-only projection without changing currentData or view.
 	 */
-	setFilteredData(markers: MapMarker[], paths: MigrationPath[], journeyPaths?: JourneyPath[]): void {
+	setDisplayData(displayData: MapData): void {
 		try {
+			this.currentDisplayData = displayData;
+			this.renderDisplayData(displayData);
+		} catch (error) {
+			logger.error('set-display-data-error', 'Error setting map display data', { error });
+			throw error;
+		}
+	}
+
+	/**
+	 * Set filtered data (for time slider) without changing canonical currentData
+	 * or fitting bounds.
+	 */
+	setFilteredData(
+		markers: MapMarker[],
+		paths: MigrationPath[],
+		journeyPaths?: JourneyPath[],
+		placeMarkers?: PlaceMarker[],
+		displayData?: MapData
+	): void {
+		try {
+			if (displayData) this.currentDisplayData = displayData;
 			this.renderMarkers(markers);
 			this.renderPaths(paths);
 			if (journeyPaths) {
 				this.renderJourneyPaths(journeyPaths);
 			}
+			if (placeMarkers) {
+				this.renderPlaceMarkers(placeMarkers);
+			}
 			this.renderHeatMap(markers);
-			// Don't fit bounds - keep current view during animation
+			this.updateSearchLayer();
+			// Don't fit bounds - keep current view during animation.
 		} catch (error) {
 			logger.error('set-filtered-data-error', 'Error setting filtered data', { error });
 			throw error;
@@ -2186,8 +2216,9 @@ export class MapController {
 		// Re-render event markers with updated visibility filters
 		// All event types share a single cluster group (#343),
 		// so we re-render to add/remove individual markers
-		if (this.currentData) {
-			this.renderMarkers(this.currentData.markers);
+		const displayData = this.currentDisplayData ?? this.currentData;
+		if (displayData) {
+			this.renderMarkers(displayData.markers);
 		}
 
 		// Migration paths (birth → death)
@@ -2344,8 +2375,9 @@ export class MapController {
 	private async switchCRS(mapId: string, targetCRS: 'geographic' | 'pixel'): Promise<void> {
 		logger.debug('switch-crs', `Switching CRS from ${this.currentCRS} to ${targetCRS}`);
 
-		// Save current data to restore after map recreation
+		// Save canonical/source + display projection across map recreation.
 		const savedData = this.currentData;
+		const savedDisplayData = this.currentDisplayData;
 		const savedLayers = { ...this.currentLayers };
 
 		// Clean up existing map layers
@@ -2480,7 +2512,7 @@ export class MapController {
 
 		// Restore data and layer visibility
 		if (savedData) {
-			this.setData(savedData);
+			this.setData(savedData, savedDisplayData ?? savedData);
 		}
 		this.setLayerVisibility(savedLayers);
 

@@ -120,7 +120,9 @@ WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
 - [x] Place Profile re-renders on shared TemporalFocus and shows active/possible historical names;
 - [x] batch Place designation lookup avoids rebuilding the temporal model per marker;
 - [x] migration preview surfaces legacy `historical_names` as explicit review items without guessing dates or deleting legacy data;
-- [ ] focused Map marker/popup display of the historically active name.
+- [x] focused Map marker/popup/Journey display uses one unambiguous active historical name without mutating canonical MapData;
+- [x] clearing shared TemporalFocus restores the canonical Place name;
+- [ ] migration paths need stable endpoint place IDs before their labels can safely follow historical designations.
 
 ### C4 — historical control layers
 

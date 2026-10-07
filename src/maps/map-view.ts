@@ -37,6 +37,10 @@ import {
 	type TemporalMapOverlayMarker
 } from '../v2/temporal/temporal-map-overlay';
 import type { TemporalFocus } from '../v2/temporal/temporal-focus-service';
+import {
+	applyFocusedHistoricalPlaceNames,
+	PlaceDesignationService
+} from '../v2/maps';
 
 const logger = getLogger('MapView');
 
@@ -2217,8 +2221,14 @@ export class MapView extends ItemView {
 	/**
 	 * Apply time filter to show/hide markers
 	 */
-	private applyTimeFilter(): void {
+	private applyTimeFilter(
+		focus: TemporalFocus | null = this.plugin.getTemporalFocusService().get(),
+		displayData?: MapData
+	): void {
 		if (!this.mapController || !this.currentMapData) return;
+
+		const focusedData = displayData
+			?? this.buildFocusedHistoricalMapData(this.currentMapData, focus);
 
 		// Get IDs of people visible for current year
 		const visiblePersonIds = new Set<string>();
@@ -2228,16 +2238,24 @@ export class MapView extends ItemView {
 			}
 		}
 
-		// Filter markers
-		const filteredMarkers = this.currentMapData.markers.filter(m => visiblePersonIds.has(m.personId));
+		const filteredMarkers = focusedData.markers.filter(
+			m => visiblePersonIds.has(m.personId)
+		);
+		const filteredPaths = focusedData.paths.filter(
+			p => visiblePersonIds.has(p.personId)
+		);
+		const filteredJourneys = focusedData.journeyPaths.filter(
+			journey => visiblePersonIds.has(journey.personId)
+		);
 
-		// Filter paths (both endpoints must be visible)
-		const filteredPaths = this.currentMapData.paths.filter(p => visiblePersonIds.has(p.personId));
+		this.mapController.setFilteredData(
+			filteredMarkers,
+			filteredPaths,
+			filteredJourneys,
+			focusedData.placeMarkers,
+			focusedData
+		);
 
-		// Update map controller with filtered data
-		this.mapController.setFilteredData(filteredMarkers, filteredPaths);
-
-		// Update display
 		this.updateTimeSliderDisplay();
 		this.updateStatusBar(filteredMarkers.length, filteredPaths.length);
 	}
@@ -2248,8 +2266,16 @@ export class MapView extends ItemView {
 	private showAllMarkers(): void {
 		if (!this.mapController || !this.currentMapData) return;
 
-		this.mapController.setData(this.currentMapData);
-		this.updateStatusBar(this.currentMapData.markers.length, this.currentMapData.paths.length);
+		const focus = this.plugin.getTemporalFocusService().get();
+		const displayData = this.buildFocusedHistoricalMapData(
+			this.currentMapData,
+			focus
+		);
+		this.mapController.setDisplayData(displayData);
+		this.updateStatusBar(
+			this.currentMapData.markers.length,
+			this.currentMapData.paths.length
+		);
 	}
 
 	/**
@@ -2325,14 +2351,68 @@ export class MapView extends ItemView {
 	// Temporal place-state overlay
 	// =========================================================================
 
+	private buildFocusedHistoricalMapData(
+		data: MapData,
+		focus: TemporalFocus | null
+	): MapData {
+		if (!focus) return data;
+		const temporalAssertions =
+			this.plugin.getTemporalAssertionStateService();
+		if (!temporalAssertions) return data;
+
+		const placeIds = new Set<string>();
+		for (const marker of data.markers) {
+			if (marker.placeId) placeIds.add(marker.placeId);
+		}
+		for (const marker of data.placeMarkers) {
+			placeIds.add(marker.placeId);
+		}
+		for (const journey of data.journeyPaths) {
+			for (const waypoint of journey.waypoints) {
+				if (waypoint.placeId) placeIds.add(waypoint.placeId);
+			}
+		}
+		if (placeIds.size === 0) return data;
+
+		const designationService = new PlaceDesignationService(
+			temporalAssertions
+		);
+		const ids = [...placeIds];
+		const snapshots = focus.kind === 'point'
+			? designationService.getAtMany(ids, focus.position)
+			: designationService.getRangeMany(ids, {
+				start: focus.start,
+				endExclusive: focus.endExclusive
+			});
+
+		return applyFocusedHistoricalPlaceNames(data, snapshots);
+	}
+
+	private renderFocusedHistoricalPlaceNames(
+		focus: TemporalFocus | null
+	): void {
+		if (!this.mapController || !this.currentMapData) return;
+		const displayData = this.buildFocusedHistoricalMapData(
+			this.currentMapData,
+			focus
+		);
+		if (this.timeSlider.enabled) {
+			this.applyTimeFilter(focus, displayData);
+			return;
+		}
+		this.mapController.setDisplayData(displayData);
+	}
+
 	private bindTemporalFocus(): void {
 		this.unbindTemporalFocus();
 		const focusService = this.plugin.getTemporalFocusService();
 		this.temporalFocusUnsubscribe = focusService.subscribe(focus => {
+			this.renderFocusedHistoricalPlaceNames(focus);
 			this.renderTemporalPlaceOverlay(focus);
 			this.renderTemporalContextOverlay(focus);
 		});
 		const focus = focusService.get();
+		this.renderFocusedHistoricalPlaceNames(focus);
 		this.renderTemporalPlaceOverlay(focus);
 		this.renderTemporalContextOverlay(focus);
 	}
@@ -2715,15 +2795,22 @@ export class MapView extends ItemView {
 			// Get data from service (force refresh bypasses metadata cache)
 			const data = await this.dataService.getMapData(this.filters, forceRefresh);
 
-			// Store current map data for time slider
+			// Store canonical/source map data for time slider and exports.
 			this.currentMapData = data;
 
-			// Update map with new data (or filtered if time slider is active)
+			const temporalFocus =
+				this.plugin.getTemporalFocusService().get();
+			const displayData = this.buildFocusedHistoricalMapData(
+				data,
+				temporalFocus
+			);
+
+			// Update map with new data (or filtered if time slider is active).
 			if (this.timeSlider.enabled) {
 				this.updateTimeSliderRange();
-				this.applyTimeFilter();
+				this.applyTimeFilter(temporalFocus, displayData);
 			} else {
-				this.mapController.setData(data);
+				this.mapController.setData(data, displayData);
 				this.updateStatusBar(data.markers.length, data.paths.length);
 			}
 
@@ -2732,7 +2819,6 @@ export class MapView extends ItemView {
 			// Update collection dropdown
 			this.updateCollectionDropdown(data.collections);
 
-			const temporalFocus = this.plugin.getTemporalFocusService().get();
 			this.renderTemporalPlaceOverlay(temporalFocus);
 			this.renderTemporalContextOverlay(temporalFocus);
 
