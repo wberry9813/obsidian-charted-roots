@@ -29,6 +29,23 @@ export interface TemporalContextStateSnapshot {
 	possible: TemporalContextStateEntry[];
 }
 
+const CONTEXT_KINDS: TemporalContextKind[] = ['process', 'period'];
+
+function contextFilter(
+	filter: TimelineItemFilter
+): TimelineItemFilter {
+	const requested = filter.kinds;
+	return {
+		...filter,
+		kinds: requested?.length
+			? requested.filter(
+				(kind): kind is TemporalContextKind =>
+					kind === 'process' || kind === 'period'
+			)
+			: CONTEXT_KINDS
+	};
+}
+
 function toEntry(
 	item: TemporalItem,
 	state: TemporalContextState
@@ -76,7 +93,7 @@ export class TemporalContextStateService {
 		const result = queryTimelineAt(
 			this.buildModel(),
 			position,
-			{ ...filter, kinds: ['process', 'period'] }
+			contextFilter(filter)
 		);
 		return {
 			active: compact(
@@ -97,7 +114,7 @@ export class TemporalContextStateService {
 		const result = queryTimelineRange(
 			this.buildModel(),
 			range,
-			{ ...filter, kinds: ['process', 'period'] }
+			contextFilter(filter)
 		);
 		return {
 			active: compact(
