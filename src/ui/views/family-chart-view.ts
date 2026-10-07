@@ -938,7 +938,8 @@ export class FamilyChartView extends ItemView {
 	private linkSourceFromPanel(): void {
 		if (!this.selectedPersonId) return;
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
 		let targetFile: TFile | null = null;
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -963,7 +964,8 @@ export class FamilyChartView extends ItemView {
 		if (!this.selectedPersonId) return;
 
 		// Find the file for this person
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
 		let targetFile: TFile | null = null;
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -2108,7 +2110,8 @@ export class FamilyChartView extends ItemView {
 	 */
 	private async openPersonNote(crId: string): Promise<void> {
 		// Find the file for this person
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -5064,7 +5067,8 @@ export class FamilyChartView extends ItemView {
 			logger.debug('sync-to-md', 'Syncing datum to markdown', { crId, data: datum.data });
 
 			// Find the file for this person
-			const files = this.app.vault.getMarkdownFiles();
+			const files = this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
 			let targetFile: TFile | null = null;
 
 			for (const file of files) {
