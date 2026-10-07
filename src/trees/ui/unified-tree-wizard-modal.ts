@@ -284,7 +284,9 @@ export class UnifiedTreeWizardModal extends Modal {
 
 			// Output defaults
 			canvasName: 'Family Tree',
-			saveFolder: plugin.settings.canvasesFolder || '',
+			saveFolder: plugin.getWorkspaceService()?.getFolder('canvases')
+				?? plugin.settings.canvasesFolder
+				?? '',
 			openAfterGenerate: true,
 			pdfTitle: ''
 		};
@@ -297,7 +299,8 @@ export class UnifiedTreeWizardModal extends Modal {
 	 * Find a person file by cr_id
 	 */
 	private findPersonFileByCrId(crId: string): TFile | null {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
 			if (cache?.frontmatter?.cr_id === crId) {
@@ -393,7 +396,8 @@ export class UnifiedTreeWizardModal extends Modal {
 	 * Load all people from the vault
 	 */
 	private loadPeople(): void {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
 		this.allPeople = [];
 
 		for (const file of files) {
@@ -1839,9 +1843,10 @@ export class UnifiedTreeWizardModal extends Modal {
 				fileName += '.canvas';
 			}
 
-			const folder = this.formData.saveFolder.trim() ||
-				this.plugin.settings.canvasesFolder ||
-				'Charted Roots/Canvases';
+			const folder = this.formData.saveFolder.trim()
+				|| this.plugin.getWorkspaceService()?.getFolder('canvases')
+				|| this.plugin.settings.canvasesFolder
+				|| 'Charted Roots/Canvases';
 
 			await ensureFolderExists(this.app, folder);
 			const filePath = normalizePath(`${folder}/${fileName}`);
@@ -1965,9 +1970,10 @@ export class UnifiedTreeWizardModal extends Modal {
 				fileName += '.canvas';
 			}
 
-			const folder = this.formData.saveFolder.trim() ||
-				this.plugin.settings.canvasesFolder ||
-				'Charted Roots/Canvases';
+			const folder = this.formData.saveFolder.trim()
+				|| this.plugin.getWorkspaceService()?.getFolder('canvases')
+				|| this.plugin.settings.canvasesFolder
+				|| 'Charted Roots/Canvases';
 
 			await ensureFolderExists(this.app, folder);
 			const canvasPath = normalizePath(`${folder}/${fileName}`);
