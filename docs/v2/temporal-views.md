@@ -124,7 +124,8 @@ runtime is available.
 - [x] Workspace-scoped file provider;
 - [x] resolved/ambiguous/unresolved/undated preservation;
 - [x] non-lossy chronological comparison;
-- [ ] precision-declaration conflict diagnostics.
+- [x] precision-declaration conflict diagnostics;
+- [x] renderer-neutral Julian Day interval projection.
 
 ### T1 — temporal validation and queries
 
