@@ -1158,6 +1158,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'Workspace-E2E/History/Organizations/History-Org.md',
 		'Workspace-E2E/History/People/History-Person.md',
 		'Workspace-E2E/History/Places/History-Place.md',
+		'Workspace-E2E/History/Schemas/History-Schema.md',
 		'Workspace-E2E/History/Sources/History-Source.md',
 		'Workspace-E2E/History/Sources/Proofs/History-Proof.md',
 		'Workspace-E2E/History/Universes/History-Universe.md'
@@ -1199,6 +1200,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'Workspace-E2E/Shushan/Organizations/Fiction-Org.md',
 		'Workspace-E2E/Shushan/People/Fiction-Person.md',
 		'Workspace-E2E/Shushan/Places/Fiction-Place.md',
+		'Workspace-E2E/Shushan/Schemas/Fiction-Schema.md',
 		'Workspace-E2E/Shushan/Sources/Fiction-Source.md',
 		'Workspace-E2E/Shushan/Sources/Proofs/Fiction-Proof.md',
 		'Workspace-E2E/Shushan/Universes/Fiction-Universe.md'
