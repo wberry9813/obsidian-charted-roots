@@ -30,18 +30,30 @@ describe('M6 Map -> shared TemporalFocus chronology bridge', () => {
 		expect(result.endExclusive).toBeGreaterThan(result.start);
 	});
 
-	it('refuses fictional canonical years instead of treating them as CE/BCE', () => {
+	it('maps configured fictional calendars to explicit chronology-local axes', () => {
 		const bridge = new MapTemporalFocusBridge(
 			legacyDates(),
 			new HistoricalDateService()
 		);
 		expect(bridge.resolveYear(-82, 'Star Wars')).toMatchObject({
-			status: 'unsupported',
-			reason: 'fictional_calendar_bridge_required'
+			status: 'resolved',
+			start: -82,
+			endExclusive: -81,
+			source: 'fictional-canonical-year',
+			axis: {
+				kind: 'chronology_year',
+				chronologyId: 'star_wars',
+				universe: 'Star Wars'
+			}
 		});
 		expect(bridge.resolveYear(5, 'Star Wars')).toMatchObject({
-			status: 'unsupported',
-			reason: 'fictional_calendar_bridge_required'
+			status: 'resolved',
+			start: 5,
+			endExclusive: 6,
+			axis: {
+				kind: 'chronology_year',
+				chronologyId: 'star_wars'
+			}
 		});
 	});
 
@@ -111,15 +123,19 @@ describe('M6 Map -> shared TemporalFocus chronology bridge', () => {
 		});
 	});
 
-	it('keeps explicit BCE semantics isolated from fictional calendars', () => {
+	it('keeps explicit BCE semantics isolated from fictional calendar axes', () => {
 		const bridge = new MapTemporalFocusBridge(
 			legacyDates(),
 			new HistoricalDateService(),
 			'bce_display'
 		);
 		expect(bridge.resolveYear(-82, 'Star Wars')).toMatchObject({
-			status: 'unsupported',
-			reason: 'fictional_calendar_bridge_required'
+			status: 'resolved',
+			source: 'fictional-canonical-year',
+			axis: {
+				kind: 'chronology_year',
+				chronologyId: 'star_wars'
+			}
 		});
 	});
 
@@ -147,8 +163,15 @@ describe('M6 Map -> shared TemporalFocus chronology bridge', () => {
 			new MapTemporalFocusBridge(dates, new HistoricalDateService())
 				.resolveYear(100, 'My World')
 		).toMatchObject({
-			status: 'unsupported',
-			reason: 'fictional_calendar_bridge_required'
+			status: 'resolved',
+			start: 100,
+			endExclusive: 101,
+			source: 'fictional-canonical-year',
+			axis: {
+				kind: 'chronology_year',
+				chronologyId: 'custom-calendar',
+				universe: 'My World'
+			}
 		});
 	});
 
