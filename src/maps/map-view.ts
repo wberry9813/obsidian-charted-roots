@@ -2689,6 +2689,20 @@ export class MapView extends ItemView {
 	}
 
 	/**
+	 * Apply global real-world basemap settings to an already-open Map view.
+	 * Marker/path data is then re-rendered through the new datum adapter.
+	 */
+	async refreshGeographicBasemapSettings(): Promise<void> {
+		if (!this.mapController) return;
+		this.mapController.updateGeographicBasemapSettings({
+			geographicBasemapId: this.plugin.settings.geographicBasemapId,
+			customGeographicBasemaps:
+				this.plugin.settings.customGeographicBasemaps ?? []
+		});
+		await this.refreshData();
+	}
+
+	/**
 	 * Refresh map data based on current filters
 	 * @param forceRefresh If true, read directly from files instead of metadata cache
 	 */

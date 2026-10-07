@@ -1387,6 +1387,60 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		await new Promise(resolve => window.setTimeout(resolve, 150));
 		history.mapTemporal = readTemporalMap();
 
+		// Exercise M6 C2 provider hot-switching on the already-open Map. Reuse
+		// CARTO's tile URL so the test validates provider/datum plumbing without
+		// depending on a separate external tile service.
+		const mapLeafForBasemap = app.workspace.getLeavesOfType('canvas-roots-map')[0];
+		const mapViewForBasemap = mapLeafForBasemap?.view;
+		const mapControllerForBasemap = mapViewForBasemap?.mapController;
+		if (!mapControllerForBasemap) {
+			throw new Error('Map controller is unavailable for basemap E2E.');
+		}
+		const originalBasemapId = plugin.settings.geographicBasemapId;
+		const originalCustomBasemaps = [
+			...(plugin.settings.customGeographicBasemaps ?? [])
+		];
+		plugin.settings.customGeographicBasemaps = [{
+			id: 'e2e-gcj',
+			label: 'E2E GCJ',
+			coordinateCRS: 'gcj02',
+			tileUrl: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+			attribution: 'E2E',
+			maxZoom: 19,
+			miniMapMaxZoom: 13,
+			noReferrer: true
+		}];
+		plugin.settings.geographicBasemapId = 'e2e-gcj';
+		await plugin.saveSettings();
+		await mapViewForBasemap.refreshGeographicBasemapSettings();
+		const gcjDefinition = mapControllerForBasemap.getGeographicBasemapDefinition();
+		const gcjDisplay = mapControllerForBasemap.canonicalGeographicToMapLatLng(
+			34.7478004,
+			113.6192856
+		);
+		history.basemapHotSwitch = {
+			id: gcjDefinition.id,
+			crs: gcjDefinition.coordinateCRS,
+			lat: gcjDisplay.lat,
+			lng: gcjDisplay.lng
+		};
+
+		plugin.settings.geographicBasemapId = originalBasemapId;
+		plugin.settings.customGeographicBasemaps = originalCustomBasemaps;
+		await plugin.saveSettings();
+		await mapViewForBasemap.refreshGeographicBasemapSettings();
+		const restoredDefinition = mapControllerForBasemap.getGeographicBasemapDefinition();
+		const restoredDisplay = mapControllerForBasemap.canonicalGeographicToMapLatLng(
+			34.7478004,
+			113.6192856
+		);
+		history.basemapRestored = {
+			id: restoredDefinition.id,
+			crs: restoredDefinition.coordinateCRS,
+			lat: restoredDisplay.lat,
+			lng: restoredDisplay.lng
+		};
+
 		plugin.getTemporalFocusService().clear();
 		await new Promise(resolve => window.setTimeout(resolve, 30));
 		history.mapTemporalCleared = readTemporalMap();
@@ -1764,6 +1818,23 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		contextPossibleIds: ['workspace-history-bounded-period'],
 		contextSummary: '2 active · 1 possible'
 	});
+	assert.equal(workspaceState.history.basemapHotSwitch.id, 'e2e-gcj');
+	assert.equal(workspaceState.history.basemapHotSwitch.crs, 'gcj02');
+	assert.ok(
+		Math.abs(workspaceState.history.basemapHotSwitch.lat - 34.7466173) <= 1e-5
+	);
+	assert.ok(
+		Math.abs(workspaceState.history.basemapHotSwitch.lng - 113.6253334) <= 1e-5
+	);
+	assert.equal(workspaceState.history.basemapRestored.id, 'carto-voyager');
+	assert.equal(workspaceState.history.basemapRestored.crs, 'wgs84');
+	assert.ok(
+		Math.abs(workspaceState.history.basemapRestored.lat - 34.7478004) <= 1e-9
+	);
+	assert.ok(
+		Math.abs(workspaceState.history.basemapRestored.lng - 113.6192856) <= 1e-9
+	);
+
 	assert.deepEqual(workspaceState.history.mapTemporalCleared, {
 		focusKind: '',
 		markerCount: 0,

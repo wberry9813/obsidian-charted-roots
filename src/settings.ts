@@ -13,7 +13,11 @@ import type { OrganizationCategoryDefinition } from './organizations/types/organ
 import type { RelationshipCategoryDefinition } from './relationships/types/relationship-types';
 import type { PlaceTypeDefinition, PlaceTypeCategoryDefinition } from './places/types/place-types';
 import type { GedcomCompatibilityMode } from './gedcom/gedcom-preprocessor';
-import type { CustomGeographicBasemapConfig } from './v2/maps/basemaps';
+import {
+	buildGeographicBasemapRegistry,
+	type CustomGeographicBasemapConfig
+} from './v2/maps/basemaps';
+import type { GeographicCRS } from './v2/maps/coordinates';
 import { getSpouseCompoundLabel } from './utils/terminology';
 import {
 	PropertyAliasService,
@@ -1014,6 +1018,7 @@ export class CanvasRootsSettingTab extends PluginSettingTab {
 	// refreshSettings() re-renders the right element. Null on older app versions,
 	// where display() drives the imperative tab against containerEl instead.
 	private hostEl: HTMLElement | null = null;
+	private newGeographicBasemapDraft: CustomGeographicBasemapConfig | null = null;
 
 	constructor(app: App, plugin: CanvasRootsPlugin) {
 		super(app, plugin);
@@ -1086,6 +1091,242 @@ export class CanvasRootsSettingTab extends PluginSettingTab {
 	 */
 	private refreshSettings(): void {
 		this.rerender(this.hostEl ?? this.containerEl);
+	}
+
+	private async refreshOpenGeographicBasemaps(): Promise<void> {
+		const leaves = this.app.workspace.getLeavesOfType('canvas-roots-map');
+		await Promise.all(leaves.map(async leaf => {
+			const view = leaf.view as unknown as {
+				refreshGeographicBasemapSettings?: () => Promise<void> | void;
+			};
+			await view.refreshGeographicBasemapSettings?.();
+		}));
+	}
+
+	private renderGeographicBasemapSettings(container: HTMLElement): void {
+		new Setting(container).setName('Real-world basemap').setHeading();
+
+		const registryResult = buildGeographicBasemapRegistry(
+			this.plugin.settings.customGeographicBasemaps ?? []
+		);
+		const providers = registryResult.registry.list();
+
+		new Setting(container)
+			.setName('Basemap provider')
+			.setDesc('Provider used by the Real-world map slot. Place coordinates remain canonical WGS84 regardless of provider.')
+			.addDropdown(dropdown => {
+				for (const provider of providers) {
+					dropdown.addOption(
+						provider.id,
+						`${provider.label} · ${provider.coordinateCRS.toUpperCase()}`
+					);
+				}
+				const selected = registryResult.registry.resolve(
+					this.plugin.settings.geographicBasemapId
+				);
+				dropdown.setValue(selected.id);
+				dropdown.onChange(async value => {
+					this.plugin.settings.geographicBasemapId = value;
+					await this.plugin.saveSettings();
+					await this.refreshOpenGeographicBasemaps();
+				});
+			});
+
+		if (registryResult.issues.length > 0) {
+			const warning = container.createDiv({
+				cls: 'cr-info-box cr-info-box--muted'
+			});
+			setIcon(warning.createSpan({ cls: 'cr-info-box-icon' }), 'triangle-alert');
+			warning.createSpan({
+				text: `${registryResult.issues.length} invalid custom basemap setting${registryResult.issues.length === 1 ? '' : 's'} ignored. Edit or remove the affected provider below.`
+			});
+		}
+
+		new Setting(container)
+			.setName('Custom XYZ basemaps')
+			.setDesc('Add authorized/user-supplied XYZ WebMercator endpoints. CRS describes the geographic datum used to align overlays.')
+			.addButton(button => button
+				.setButtonText('Add provider')
+				.onClick(() => {
+					if (!this.newGeographicBasemapDraft) {
+						let suffix = 1;
+						const used = new Set(
+							(this.plugin.settings.customGeographicBasemaps ?? [])
+								.map(config => config.id)
+						);
+						while (used.has(`custom-${suffix}`)) suffix++;
+						this.newGeographicBasemapDraft = {
+							id: `custom-${suffix}`,
+							label: 'Custom basemap',
+							coordinateCRS: 'wgs84',
+							tileUrl: '',
+							attribution: '',
+							maxZoom: 19
+						};
+					}
+					this.refreshSettings();
+				}));
+
+		const list = container.createDiv({ cls: 'cr-geographic-basemap-list' });
+		for (let index = 0;
+			index < (this.plugin.settings.customGeographicBasemaps ?? []).length;
+			index++
+		) {
+			this.renderGeographicBasemapCard(
+				list,
+				{ ...this.plugin.settings.customGeographicBasemaps[index] },
+				index
+			);
+		}
+		if (this.newGeographicBasemapDraft) {
+			this.renderGeographicBasemapCard(
+				list,
+				{ ...this.newGeographicBasemapDraft },
+				null
+			);
+		}
+	}
+
+	private renderGeographicBasemapCard(
+		container: HTMLElement,
+		initial: CustomGeographicBasemapConfig,
+		index: number | null
+	): void {
+		const draft: CustomGeographicBasemapConfig = { ...initial };
+		const details = container.createEl('details', {
+			cls: 'cr-settings-section'
+		});
+		if (index === null) details.open = true;
+		const summary = details.createEl('summary');
+		summary.createSpan({
+			text: index === null
+				? 'New custom basemap'
+				: (initial.label || initial.id || 'Custom basemap')
+		});
+		summary.createSpan({
+			cls: 'cr-section-desc',
+			text: ` ${initial.coordinateCRS.toUpperCase()}`
+		});
+		const content = details.createDiv({ cls: 'cr-section-content' });
+
+		new Setting(content)
+			.setName('Provider ID')
+			.setDesc('Stable lowercase ID used in saved settings')
+			.addText(text => text
+				.setValue(draft.id)
+				.onChange(value => { draft.id = value.trim(); }));
+
+		new Setting(content)
+			.setName('Name')
+			.addText(text => text
+				.setValue(draft.label)
+				.onChange(value => { draft.label = value; }));
+
+		new Setting(content)
+			.setName('Coordinate system')
+			.setDesc('Datum used by the tile imagery; this does not change stored Place coordinates')
+			.addDropdown(dropdown => dropdown
+				.addOption('wgs84', 'WGS84')
+				.addOption('gcj02', 'GCJ-02')
+				.addOption('bd09', 'BD-09')
+				.setValue(draft.coordinateCRS)
+				.onChange(value => {
+					draft.coordinateCRS = value as GeographicCRS;
+				}));
+
+		new Setting(content)
+			.setName('XYZ tile URL')
+			.setDesc('HTTPS template containing {z}, {x} and {y}. API keys remain in your local plugin settings.')
+			.addText(text => text
+				.setPlaceholder('https://tiles.example.com/{z}/{x}/{y}.png')
+				.setValue(draft.tileUrl)
+				.onChange(value => { draft.tileUrl = value.trim(); }));
+
+		new Setting(content)
+			.setName('Attribution')
+			.addText(text => text
+				.setValue(draft.attribution ?? '')
+				.onChange(value => { draft.attribution = value; }));
+
+		new Setting(content)
+			.setName('Maximum zoom')
+			.addText(text => text
+				.setValue(String(draft.maxZoom ?? 19))
+				.onChange(value => {
+					const parsed = Number(value);
+					if (Number.isFinite(parsed)) draft.maxZoom = parsed;
+				}));
+
+		new Setting(content)
+			.setName('Suppress referrer')
+			.setDesc('Useful for tile servers that reject Obsidian/Electron app:// referrers')
+			.addToggle(toggle => toggle
+				.setValue(draft.noReferrer ?? false)
+				.onChange(value => { draft.noReferrer = value; }));
+
+		const actions = new Setting(content)
+			.setName(index === null ? 'Save provider' : 'Provider actions');
+
+		actions.addButton(button => button
+			.setButtonText(index === null ? 'Add' : 'Save')
+			.setCta()
+			.onClick(async () => {
+				const configs = [
+					...(this.plugin.settings.customGeographicBasemaps ?? [])
+				];
+				const previousId = index === null ? null : configs[index]?.id ?? null;
+				if (index === null) configs.push({ ...draft });
+				else configs[index] = { ...draft };
+
+				const validation = buildGeographicBasemapRegistry(configs);
+				if (validation.issues.length > 0) {
+					new Notice(
+						`Basemap not saved: ${validation.issues[0].message}`
+					);
+					return;
+				}
+
+				this.plugin.settings.customGeographicBasemaps = configs;
+				if (
+					previousId
+					&& this.plugin.settings.geographicBasemapId === previousId
+				) {
+					this.plugin.settings.geographicBasemapId = draft.id;
+				}
+				this.newGeographicBasemapDraft = null;
+				await this.plugin.saveSettings();
+				await this.refreshOpenGeographicBasemaps();
+				this.refreshSettings();
+			}));
+
+		if (index === null) {
+			actions.addButton(button => button
+				.setButtonText('Cancel')
+				.onClick(() => {
+					this.newGeographicBasemapDraft = null;
+					this.refreshSettings();
+				}));
+		} else {
+			actions.addButton(button => button
+				.setWarning()
+				.setButtonText('Remove')
+				.onClick(async () => {
+					const configs = [
+						...(this.plugin.settings.customGeographicBasemaps ?? [])
+					];
+					const [removed] = configs.splice(index, 1);
+					this.plugin.settings.customGeographicBasemaps = configs;
+					if (
+						removed
+						&& this.plugin.settings.geographicBasemapId === removed.id
+					) {
+						this.plugin.settings.geographicBasemapId = 'carto-voyager';
+					}
+					await this.plugin.saveSettings();
+					await this.refreshOpenGeographicBasemaps();
+					this.refreshSettings();
+				}));
+		}
 	}
 
 	/** Rebuild the full tab into the given container, preserving section open state and scroll. */
@@ -2157,6 +2398,8 @@ export class CanvasRootsSettingTab extends PluginSettingTab {
 					this.plugin.settings.enableDMSCoordinates = value;
 					await this.plugin.saveSettings();
 				}));
+
+		this.renderGeographicBasemapSettings(placesContent);
 
 		// --- Place lookup subsection (#218) ---
 		new Setting(placesContent).setName("Place lookup").setHeading();

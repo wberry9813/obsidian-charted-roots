@@ -1,6 +1,6 @@
 # Historical Map Foundation
 
-> Status: **M6 C0-C2 coordinate and basemap foundation in progress**
+> Status: **M6 C0-C2 coordinate and basemap foundation implemented; C3 historical place identity next**
 >
 > M6 follows the implemented M5 Temporal Views foundation.
 
@@ -71,11 +71,14 @@ Supported first-stage geographic CRS:
 - [x] current WGS84 rendering/integration remains green in real Obsidian smoke (#513, `9aba2162`);
 - [x] keep GeoJSON export canonical WGS84;
 - [x] route SVG current-view marker/path projection through the basemap adapter;
-- [ ] add GeoJSON import/render adapter coverage;
+- [ ] add GeoJSON import/render adapter coverage (tracked with C4 historical control layers);
 - [x] define an XYZ/WebMercator provider registry with runtime validation and safe fallback;
 - [x] persist global selected provider ID and user-defined XYZ provider configs through plugin settings;
 - [x] Controller validates saved provider configs and falls back to Carto for missing/invalid IDs without logging tile URL secrets;
-- [ ] expose Real-world basemap selection without mixing it into custom image maps;
+- [x] expose Real-world basemap selection without mixing it into custom image maps;
+- [x] expose validated user-defined XYZ providers with WGS84 / GCJ-02 / BD-09 datum metadata;
+- [x] hot-switch already-open Map views while preserving the visible center in canonical WGS84;
+- [x] real Obsidian smoke covers WGS84 -> GCJ-02 provider hot-switch and restoration;
 - [ ] add China-friendly provider templates only through documented/authorized APIs or user-supplied endpoints;
 - [ ] add dedicated WMTS / EPSG:4490 support before treating Tianditu CGCS2000 services as compatible.
 
@@ -89,6 +92,23 @@ This means WGS84, GCJ-02 and BD-09 XYZ providers can share the same rendering
 boundary, while WMTS services with a different matrix/projection (for example
 CGCS2000 / EPSG:4490) require a separate adapter rather than being mislabeled
 as XYZ.
+
+#### C2 acceptance
+
+C2 is considered complete for the XYZ/WebMercator provider boundary when:
+
+1. the existing CARTO Real-world map remains WGS84-compatible;
+2. main map and MiniMap use the same provider definition;
+3. canonical WGS84 markers, paths, heat data, searches and current-view SVG
+   projections are transformed only at render time;
+4. clicks, drags, saved centers and exports return to canonical WGS84;
+5. invalid/missing providers fall back safely without logging tile URL secrets;
+6. users can select and edit validated custom WGS84/GCJ-02/BD-09 XYZ
+   providers in Settings;
+7. an already-open Map can hot-switch provider/datum without changing the
+   represented canonical center.
+
+WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
 
 ### C3 — historical place identity
 

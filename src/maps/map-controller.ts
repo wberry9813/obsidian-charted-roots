@@ -245,10 +245,71 @@ export class MapController {
 	}
 
 	/**
-	 * Update settings (e.g., when heat map intensity changes)
+	 * Update settings (e.g., when heat map intensity changes).
 	 */
 	updateSettings(settings: Partial<MapSettings>): void {
 		Object.assign(this.settings, settings);
+	}
+
+	/**
+	 * Rebuild the active real-world basemap provider without changing canonical
+	 * vault coordinates. If the map is currently showing the real-world slot,
+	 * preserve its center in canonical WGS84 while replacing tiles/datum.
+	 */
+	updateGeographicBasemapSettings(
+		settings: Pick<MapSettings, 'geographicBasemapId' | 'customGeographicBasemaps'>
+	): void {
+		let canonicalCenter: { latitude: number; longitude: number } | null = null;
+		const zoom = this.map?.getZoom();
+
+		if (
+			this.map
+			&& this.currentCRS === 'geographic'
+			&& this.activeMapId === 'openstreetmap'
+		) {
+			const center = this.map.getCenter();
+			canonicalCenter = this.basemapCoordinateAdapter.fromLeafletLatLng({
+				lat: center.lat,
+				lng: center.lng
+			});
+		}
+
+		Object.assign(this.settings, settings);
+		const basemaps = buildGeographicBasemapRegistry(
+			settings.customGeographicBasemaps ?? []
+		);
+		this.geographicBasemapRegistry = basemaps.registry;
+		this.basemapRegistryIssues = basemaps.issues;
+		this.geographicBasemap = this.geographicBasemapRegistry.resolve(
+			settings.geographicBasemapId || DEFAULT_GEOGRAPHIC_BASEMAP.id
+		);
+		this.basemapCoordinateAdapter.setBasemap(this.geographicBasemap);
+
+		if (
+			!this.map
+			|| this.currentCRS !== 'geographic'
+			|| this.activeMapId !== 'openstreetmap'
+		) {
+			return;
+		}
+
+		if (this.tileLayer && this.map.hasLayer(this.tileLayer)) {
+			this.map.removeLayer(this.tileLayer);
+		}
+		this.tileLayer = this.createGeographicTileLayer().addTo(this.map);
+
+		if (this.miniMap) {
+			this.map.removeControl(this.miniMap);
+			this.miniMap = null;
+		}
+		this.initializeMiniMap();
+
+		if (canonicalCenter && zoom !== undefined) {
+			const display = this.basemapCoordinateAdapter.toLeafletLatLng(
+				canonicalCenter
+			);
+			this.map.setView([display.lat, display.lng], zoom, { animate: false });
+		}
 	}
 
 	/**
