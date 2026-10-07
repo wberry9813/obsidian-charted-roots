@@ -285,7 +285,19 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	getProofSummaryService(): ProofSummaryService {
 		if (!this.proofSummaryService) {
-			this.proofSummaryService = new ProofSummaryService(this.app, this.settings);
+			this.proofSummaryService = new ProofSummaryService(
+				this.app,
+				this.settings,
+				this.getSourceService(),
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles(),
+					defaultSourcesFolderProvider: () =>
+						this.workspaceService?.getFolder('sources')
+						?? this.settings.sourcesFolder
+				}
+			);
 			if (this.personIndex) {
 				this.proofSummaryService.setPersonIndex(this.personIndex);
 			}
@@ -352,6 +364,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.eventService?.invalidateCache();
 		this.sourceService?.invalidateCache();
 		this.personIndex?.invalidateCache();
+		this.proofSummaryService?.invalidateCache();
 		await this.saveSettings();
 	}
 
@@ -383,6 +396,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.eventService?.invalidateCache();
 		this.sourceService?.invalidateCache();
 		this.personIndex?.invalidateCache();
+		this.proofSummaryService?.invalidateCache();
 		await this.saveSettings();
 	}
 
@@ -637,7 +651,16 @@ export default class CanvasRootsPlugin extends Plugin {
 	 * Populate research coverage percentages for all people in the graph
 	 */
 	private populateResearchCoverage(graphService: FamilyGraphService): void {
-		const evidenceService = new EvidenceService(this.app, this.settings);
+		const evidenceService = new EvidenceService(
+			this.app,
+			this.settings,
+			this.getSourceService(),
+			{
+				fileProvider: () =>
+					this.workspaceService?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles()
+			}
+		);
 		const people = graphService.getAllPeople();
 
 		for (const person of people) {
@@ -680,6 +703,12 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	createPlaceGraphService(): PlaceGraphService {
 		const placeGraph = new PlaceGraphService(this.app);
+		placeGraph.setFileProvider(
+			() =>
+				this.workspaceService?.getScope().getMarkdownFiles()
+				?? this.app.vault.getMarkdownFiles(),
+			() => this.workspaceService?.getActiveId() ?? null
+		);
 		if (this.folderFilter) {
 			placeGraph.setFolderFilter(this.folderFilter);
 		}
