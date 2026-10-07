@@ -988,6 +988,21 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				)?.getAttribute('data-focus-kind') ?? null,
 				focusLabel: root?.querySelector(
 					'.cr-v2-timeline__focus-label'
+				)?.textContent ?? '',
+				contextActiveIds: [...(root?.querySelectorAll(
+					'.cr-v2-timeline__context-item[data-temporal-state="active"]'
+				) ?? [])]
+					.map(el => el.getAttribute('data-context-id'))
+					.filter(Boolean)
+					.sort(),
+				contextPossibleIds: [...(root?.querySelectorAll(
+					'.cr-v2-timeline__context-item[data-temporal-state="possible"]'
+				) ?? [])]
+					.map(el => el.getAttribute('data-context-id'))
+					.filter(Boolean)
+					.sort(),
+				contextSummary: root?.querySelector(
+					'.cr-v2-timeline__context-summary'
 				)?.textContent ?? ''
 			};
 		};
@@ -1250,6 +1265,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			'e2e-history'
 		);
 		await new Promise(resolve => window.setTimeout(resolve, 30));
+		history.timelineContext = readTimelineView();
 
 		await plugin.activateRelationshipsView();
 		await new Promise(resolve => window.setTimeout(resolve, 100));
@@ -1269,6 +1285,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			'e2e-shushan'
 		);
 		await new Promise(resolve => window.setTimeout(resolve, 50));
+		const shushanTimelineFocused = readTimelineView();
 		const shushanRelationshipTemporal = readTemporalRelationships();
 
 		const fictionPersonFile = app.vault.getFileByPath(
@@ -1373,6 +1390,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				}))
 				.sort((a, b) => a.id.localeCompare(b.id)),
 			timeline: shushanTimeline,
+			timelineFocused: shushanTimelineFocused,
 			relationshipTemporal: shushanRelationshipTemporal,
 			profileTemporal: shushanProfileTemporal,
 			mapAfterWorkspaceSwitch: shushanMapAfterSwitch,
@@ -1575,6 +1593,17 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		}
 	});
 	assert.ok(workspaceState.history.timelineClickedFocus.view.focusLabel.length > 0);
+	assert.deepEqual(workspaceState.history.timelineContext.contextActiveIds, [
+		'workspace-history-period',
+		'workspace-history-process'
+	]);
+	assert.deepEqual(workspaceState.history.timelineContext.contextPossibleIds, [
+		'workspace-history-bounded-period'
+	]);
+	assert.equal(
+		workspaceState.history.timelineContext.contextSummary,
+		'2 active · 1 possible'
+	);
 	assert.deepEqual(workspaceState.history.relationshipTemporal.activeIds, [
 		'workspace-history-assertion'
 	]);
@@ -1703,6 +1732,15 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	);
 	assert.ok(
 		workspaceState.shushan.timeline.tickLabels.every(label => !/\b0\b/.test(label))
+	);
+	assert.deepEqual(workspaceState.shushan.timelineFocused.contextActiveIds, [
+		'workspace-shushan-period',
+		'workspace-shushan-process'
+	]);
+	assert.deepEqual(workspaceState.shushan.timelineFocused.contextPossibleIds, []);
+	assert.equal(
+		workspaceState.shushan.timelineFocused.contextSummary,
+		'2 active · 0 possible'
 	);
 	assert.deepEqual(workspaceState.shushan.mapAfterWorkspaceSwitch, {
 		focusKind: 'point',

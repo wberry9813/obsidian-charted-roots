@@ -122,6 +122,19 @@ describe('TemporalContextStateService', () => {
 		expect(result.possible.map(entry => entry.id)).toEqual(['bounded']);
 	});
 
+	it('returns no context for explicitly non-context kinds', () => {
+		const { calendar, service } = setup();
+		const point = calendar.solarToJulianDay({
+			year: 110,
+			month: 6,
+			day: 1
+		});
+		expect(service.getAt(point, { kinds: ['event'] })).toEqual({
+			active: [],
+			possible: []
+		});
+	});
+
 	it('returns overlapping context for a focused range', () => {
 		const { calendar, service } = setup();
 		const result = service.getRange({

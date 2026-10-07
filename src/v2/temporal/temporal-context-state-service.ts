@@ -33,17 +33,18 @@ const CONTEXT_KINDS: TemporalContextKind[] = ['process', 'period'];
 
 function contextFilter(
 	filter: TimelineItemFilter
-): TimelineItemFilter {
+): TimelineItemFilter | null {
 	const requested = filter.kinds;
-	return {
-		...filter,
-		kinds: requested?.length
-			? requested.filter(
-				(kind): kind is TemporalContextKind =>
-					kind === 'process' || kind === 'period'
-			)
-			: CONTEXT_KINDS
-	};
+	if (!requested?.length) {
+		return { ...filter, kinds: CONTEXT_KINDS };
+	}
+	const kinds = requested.filter(
+		(kind): kind is TemporalContextKind =>
+			kind === 'process' || kind === 'period'
+	);
+	return kinds.length > 0
+		? { ...filter, kinds }
+		: null;
 }
 
 function toEntry(
@@ -90,10 +91,12 @@ export class TemporalContextStateService {
 		position: number,
 		filter: TimelineItemFilter = {}
 	): TemporalContextStateSnapshot {
+		const scopedFilter = contextFilter(filter);
+		if (!scopedFilter) return { active: [], possible: [] };
 		const result = queryTimelineAt(
 			this.buildModel(),
 			position,
-			contextFilter(filter)
+			scopedFilter
 		);
 		return {
 			active: compact(
@@ -111,10 +114,12 @@ export class TemporalContextStateService {
 		range: TimelineDomain,
 		filter: TimelineItemFilter = {}
 	): TemporalContextStateSnapshot {
+		const scopedFilter = contextFilter(filter);
+		if (!scopedFilter) return { active: [], possible: [] };
 		const result = queryTimelineRange(
 			this.buildModel(),
 			range,
-			contextFilter(filter)
+			scopedFilter
 		);
 		return {
 			active: compact(
