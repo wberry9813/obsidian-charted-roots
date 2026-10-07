@@ -1,4 +1,4 @@
-import type { App } from 'obsidian';
+import type { App, TFile } from 'obsidian';
 import { ALL_NOTE_TYPES, type NoteType } from '../utils/note-type-detection';
 import type { AssertionService } from './assertion-service';
 import type { OntologyRegistry } from './ontology-registry';
@@ -13,11 +13,19 @@ export interface V2LintIssue {
 	crId?: string;
 }
 
+export interface V2LinterOptions {
+	/** Active dataset boundary for schema/content checks. */
+	fileProvider?: () => TFile[];
+	/** Vault-global provider used only for globally unique cr_id validation. */
+	globalFileProvider?: () => TFile[];
+}
+
 export class V2Linter {
 	constructor(
 		private readonly app: App,
 		private readonly ontology: OntologyRegistry,
-		private readonly assertions: AssertionService
+		private readonly assertions: AssertionService,
+		private readonly options: V2LinterOptions = {}
 	) {}
 
 	lint(): V2LintIssue[] {
@@ -32,7 +40,32 @@ export class V2Linter {
 			});
 		}
 
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		// cr_id is a vault-global identity invariant, including legacy notes.
+		const globalFiles = this.options.globalFileProvider?.()
+			?? this.app.vault.getMarkdownFiles();
+		for (const file of globalFiles) {
+			const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+			const crId = frontmatter?.cr_id;
+			if (typeof crId !== 'string' || !crId.trim()) continue;
+
+			const firstPath = seenIds.get(crId);
+			if (firstPath) {
+				issues.push({
+					severity: 'error',
+					code: 'duplicate_cr_id',
+					message: `Duplicate cr_id "${crId}" also used by ${firstPath}.`,
+					filePath: file.path,
+					crId
+				});
+			} else {
+				seenIds.set(crId, file.path);
+			}
+		}
+
+		// Structural/content checks belong to the active Workspace.
+		const scopedFiles = this.options.fileProvider?.()
+			?? this.app.vault.getMarkdownFiles();
+		for (const file of scopedFiles) {
 			const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 			if (!frontmatter || frontmatter.cr_schema !== 2) continue;
 
@@ -57,20 +90,6 @@ export class V2Linter {
 					message: 'v2 notes require a non-empty cr_id.',
 					filePath: file.path
 				});
-				continue;
-			}
-
-			const firstPath = seenIds.get(crId);
-			if (firstPath) {
-				issues.push({
-					severity: 'error',
-					code: 'duplicate_cr_id',
-					message: `Duplicate cr_id "${crId}" also used by ${firstPath}.`,
-					filePath: file.path,
-					crId
-				});
-			} else {
-				seenIds.set(crId, file.path);
 			}
 		}
 
