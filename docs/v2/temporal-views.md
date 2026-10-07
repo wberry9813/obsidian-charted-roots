@@ -173,7 +173,9 @@ additional mapping layer that is unnecessary with D3.
 ### T4 — temporal graph/map integration
 
 - [x] read-only Assertion relationship state at an exact axis position / range;
-- [ ] relationship state wired into the relationship graph UI;
+- [x] shared runtime TemporalFocusService for cross-view JDN point/range focus;
+- [x] Timeline axis point selection writes shared focus;
+- [x] Relationships surface shows v2 active/possible Assertions at focus without mixing them into the legacy relationship table;
 - organization/office/affiliation state over time;
 - timeline ↔ map synchronization;
 - Period/Process contextual overlays.

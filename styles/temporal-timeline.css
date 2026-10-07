@@ -161,3 +161,26 @@
 	color: var(--text-normal);
 	font-weight: var(--font-medium);
 }
+
+
+.cr-v2-timeline__focus-line {
+	stroke: var(--interactive-accent);
+	stroke-width: 1.5;
+	stroke-dasharray: 3 2;
+	pointer-events: none;
+}
+
+.cr-v2-timeline__focus-label {
+	fill: var(--text-accent);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-medium);
+	pointer-events: none;
+}
+
+.cr-v2-timeline__focus-range {
+	fill: var(--interactive-accent);
+	fill-opacity: 10%;
+	stroke: var(--interactive-accent);
+	stroke-opacity: 50%;
+	pointer-events: none;
+}

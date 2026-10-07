@@ -4,6 +4,7 @@ import {
 	setIcon
 } from 'obsidian';
 import {
+	pointer,
 	scaleLinear,
 	select,
 	zoom,
@@ -12,6 +13,7 @@ import {
 } from 'd3';
 import type CanvasRootsPlugin from '../../../../main';
 import type { CalendarProvider } from '../../time/calendar-provider';
+import { astronomicalYearToHistorical } from '../../time/historical-year';
 import {
 	buildTimelineLanes,
 	buildTimelineModel,
@@ -132,6 +134,17 @@ function buildVisualRows(
 	return rows;
 }
 
+function formatFocusPoint(
+	position: number,
+	calendar: CalendarProvider
+): string {
+	const solar = calendar.julianDayToSolar(position);
+	const historical = astronomicalYearToHistorical(solar.year);
+	const month = String(solar.month).padStart(2, '0');
+	const day = String(solar.day).padStart(2, '0');
+	return `${historical.year} ${historical.era} · ${month}-${day}`;
+}
+
 export class TemporalTimelineView extends ItemView {
 	private readonly plugin: CanvasRootsPlugin;
 	private refreshTimeout: number | null = null;
@@ -139,6 +152,7 @@ export class TemporalTimelineView extends ItemView {
 	private currentKind: TimelineKindFilter = 'all';
 	private currentGroupBy: TimelineGroupBy = 'none';
 	private resetZoom: (() => void) | null = null;
+	private focusUnsubscribe: (() => void) | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: CanvasRootsPlugin) {
 		super(leaf);
@@ -159,6 +173,13 @@ export class TemporalTimelineView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		this.refresh();
+		this.focusUnsubscribe = this.plugin.getTemporalFocusService().subscribe(
+			focus => {
+				if (focus?.source !== 'timeline') {
+					this.refresh();
+				}
+			}
+		);
 		this.registerEvent(
 			this.app.vault.on('create', () => this.scheduleRefresh())
 		);
@@ -179,6 +200,8 @@ export class TemporalTimelineView extends ItemView {
 			this.refreshTimeout = null;
 		}
 		this.resetZoom = null;
+		this.focusUnsubscribe?.();
+		this.focusUnsubscribe = null;
 	}
 
 	public refresh(): void {
@@ -433,6 +456,8 @@ export class TemporalTimelineView extends ItemView {
 			.attr('class', 'cr-v2-timeline__spans');
 		const windowsGroup = svg.append('g')
 			.attr('class', 'cr-v2-timeline__windows');
+		const focusGroup = svg.append('g')
+			.attr('class', 'cr-v2-timeline__focus');
 
 		labelsGroup
 			.selectAll<SVGTextElement, TimelineVisualRow>('text')
@@ -530,6 +555,49 @@ export class TemporalTimelineView extends ItemView {
 				return `${window.item.title} · possible window${bounds ? ` · ${bounds}` : ''}`;
 			});
 
+		let activeScale = baseScale;
+		const focusService = this.plugin.getTemporalFocusService();
+
+		const renderFocus = (xScale: typeof baseScale): void => {
+			focusGroup.selectAll('*').remove();
+			const focus = focusService.get();
+			if (!focus) return;
+
+			if (focus.kind === 'point') {
+				if (
+					focus.position < model.domain!.start
+					|| focus.position >= model.domain!.endExclusive
+				) {
+					return;
+				}
+				const x = xScale(focus.position);
+				focusGroup.append('line')
+					.attr('class', 'cr-v2-timeline__focus-line')
+					.attr('data-focus-kind', 'point')
+					.attr('x1', x)
+					.attr('x2', x)
+					.attr('y1', AXIS_Y + 7)
+					.attr('y2', height - 16);
+				focusGroup.append('text')
+					.attr('class', 'cr-v2-timeline__focus-label')
+					.attr('x', x + 6)
+					.attr('y', AXIS_Y + 18)
+					.text(formatFocusPoint(focus.position, calendar));
+				return;
+			}
+
+			const start = Math.max(focus.start, model.domain!.start);
+			const end = Math.min(focus.endExclusive, model.domain!.endExclusive);
+			if (end <= start) return;
+			focusGroup.append('rect')
+				.attr('class', 'cr-v2-timeline__focus-range')
+				.attr('data-focus-kind', 'range')
+				.attr('x', xScale(start))
+				.attr('y', AXIS_Y + 7)
+				.attr('width', Math.max(1, xScale(end) - xScale(start)))
+				.attr('height', Math.max(1, height - AXIS_Y - 23));
+		};
+
 		const maxTicks = Math.max(
 			4,
 			Math.floor((width - LEFT_MARGIN - RIGHT_MARGIN) / 100)
@@ -606,6 +674,9 @@ export class TemporalTimelineView extends ItemView {
 					const end = upper ?? model.domain!.endExclusive;
 					return Math.max(3, xScale(end) - xScale(start));
 				});
+
+			activeScale = xScale;
+			renderFocus(xScale);
 		};
 
 		renderScale(baseScale);
@@ -620,6 +691,29 @@ export class TemporalTimelineView extends ItemView {
 			);
 
 		svg.call(zoomBehavior);
+		svg.on('click.temporal-focus', (event: MouseEvent) => {
+			if (event.defaultPrevented) return;
+			const target = event.target;
+			if (
+				target instanceof Element
+				&& target.closest(
+					'.cr-v2-timeline__span, .cr-v2-timeline__window'
+				)
+			) {
+				return;
+			}
+			const [x] = pointer(event, svgNode);
+			if (x < LEFT_MARGIN || x > width - RIGHT_MARGIN) return;
+			const position = activeScale.invert(x);
+			if (
+				position < model.domain!.start
+				|| position >= model.domain!.endExclusive
+			) {
+				return;
+			}
+			focusService.setPoint(position, 'timeline');
+			renderFocus(activeScale);
+		});
 		this.resetZoom = () => {
 			svg.call(zoomBehavior.transform, zoomIdentity);
 		};

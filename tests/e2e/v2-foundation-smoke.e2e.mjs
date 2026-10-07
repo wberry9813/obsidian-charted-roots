@@ -982,7 +982,37 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					.map(el => el.textContent ?? '')
 					.filter(Boolean),
 				groupBy: root?.querySelector('.cr-v2-timeline__group-filter')?.value ?? null,
-				persistedGroupBy: leaf?.view?.getState?.().groupBy ?? null
+				persistedGroupBy: leaf?.view?.getState?.().groupBy ?? null,
+				focusKind: root?.querySelector(
+					'.cr-v2-timeline__focus [data-focus-kind]'
+				)?.getAttribute('data-focus-kind') ?? null,
+				focusLabel: root?.querySelector(
+					'.cr-v2-timeline__focus-label'
+				)?.textContent ?? ''
+			};
+		};
+		const readTemporalRelationships = () => {
+			const leaf = app.workspace.getLeavesOfType('canvas-roots-relationships')[0];
+			const root = leaf?.view?.containerEl;
+			return {
+				activeIds: [...(root?.querySelectorAll(
+					'.cr-rv-temporal-state__item[data-temporal-state="active"]'
+				) ?? [])]
+					.map(el => el.getAttribute('data-assertion-id'))
+					.filter(Boolean)
+					.sort(),
+				possibleIds: [...(root?.querySelectorAll(
+					'.cr-rv-temporal-state__item[data-temporal-state="possible"]'
+				) ?? [])]
+					.map(el => el.getAttribute('data-assertion-id'))
+					.filter(Boolean)
+					.sort(),
+				focusText: root?.querySelector(
+					'.cr-rv-temporal-state__focus'
+				)?.textContent ?? '',
+				summary: root?.querySelector(
+					'.cr-rv-temporal-state__summary'
+				)?.textContent ?? ''
 			};
 		};
 
@@ -1127,9 +1157,53 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		timelineGroup.dispatchEvent(new Event('change', { bubbles: true }));
 		history.timelinePersonGroup = readTimelineView();
 
+		const timelineSvg = timelineRoot?.querySelector('.cr-v2-timeline__svg');
+		if (!(timelineSvg instanceof SVGSVGElement)) {
+			throw new Error('Temporal Timeline SVG is unavailable.');
+		}
+		const timelineBounds = timelineSvg.getBoundingClientRect();
+		timelineSvg.dispatchEvent(new MouseEvent('click', {
+			bubbles: true,
+			clientX: timelineBounds.left + timelineBounds.width * 0.6,
+			clientY: timelineBounds.top + 60
+		}));
+		await new Promise(resolve => window.setTimeout(resolve, 20));
+		const clickedFocus = plugin.getTemporalFocusService().get();
+		history.timelineClickedFocus = {
+			kind: clickedFocus?.kind ?? null,
+			source: clickedFocus?.source ?? null,
+			hasFinitePosition: clickedFocus?.kind === 'point'
+				? Number.isFinite(clickedFocus.position)
+				: false,
+			view: readTimelineView()
+		};
+
+		plugin.getTemporalFocusService().setPoint(
+			historicalCalendar.solarToJulianDay({
+				year: -456,
+				month: 6,
+				day: 1
+			}),
+			'e2e-history'
+		);
+		await plugin.activateRelationshipsView();
+		await new Promise(resolve => window.setTimeout(resolve, 100));
+		history.relationshipTemporal = readTemporalRelationships();
+
 		await plugin.setActiveWorkspace('shushan');
 		await new Promise(resolve => window.setTimeout(resolve, 50));
 		const shushanTimeline = readTimelineView();
+
+		plugin.getTemporalFocusService().setPoint(
+			historicalCalendar.solarToJulianDay({
+				year: 115,
+				month: 6,
+				day: 1
+			}),
+			'e2e-shushan'
+		);
+		await new Promise(resolve => window.setTimeout(resolve, 50));
+		const shushanRelationshipTemporal = readTemporalRelationships();
 
 		const shushanAssertionState = temporalAssertionStateService.getAt(
 			historicalCalendar.solarToJulianDay({
@@ -1223,6 +1297,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				}))
 				.sort((a, b) => a.id.localeCompare(b.id)),
 			timeline: shushanTimeline,
+			relationshipTemporal: shushanRelationshipTemporal,
 			createdPaths: shushanCreated.map(file => file.path)
 		};
 
@@ -1412,6 +1487,25 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'History Person',
 		'Ungrouped'
 	]);
+	assert.deepEqual(workspaceState.history.timelineClickedFocus, {
+		kind: 'point',
+		source: 'timeline',
+		hasFinitePosition: true,
+		view: {
+			...workspaceState.history.timelineClickedFocus.view,
+			focusKind: 'point'
+		}
+	});
+	assert.ok(workspaceState.history.timelineClickedFocus.view.focusLabel.length > 0);
+	assert.deepEqual(workspaceState.history.relationshipTemporal.activeIds, [
+		'workspace-history-assertion'
+	]);
+	assert.deepEqual(workspaceState.history.relationshipTemporal.possibleIds, []);
+	assert.match(workspaceState.history.relationshipTemporal.focusText, /BCE/);
+	assert.equal(
+		workspaceState.history.relationshipTemporal.summary,
+		'1 active · 0 possible'
+	);
 	assert.deepEqual(workspaceState.history.createdPaths.sort(), [
 		'Workspace-E2E/History/Events/History Created Event E2E.md',
 		'Workspace-E2E/History/Organizations/History Created Organization E2E.md',
@@ -1522,6 +1616,15 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'Fiction Person',
 		'Ungrouped'
 	]);
+	assert.deepEqual(workspaceState.shushan.relationshipTemporal.activeIds, [
+		'workspace-shushan-assertion'
+	]);
+	assert.deepEqual(workspaceState.shushan.relationshipTemporal.possibleIds, []);
+	assert.match(workspaceState.shushan.relationshipTemporal.focusText, /CE/);
+	assert.equal(
+		workspaceState.shushan.relationshipTemporal.summary,
+		'1 active · 0 possible'
+	);
 	assert.deepEqual(workspaceState.shushan.createdPaths.sort(), [
 		'Workspace-E2E/Shushan/Events/Shushan Created Event E2E.md',
 		'Workspace-E2E/Shushan/Organizations/Shushan Created Organization E2E.md',
