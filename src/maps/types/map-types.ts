@@ -629,6 +629,11 @@ export interface CRPolyline extends L.Polyline {
 /**
  * Map-related plugin settings
  */
+export type LegacyNegativeYearSemantics =
+	| 'reject'
+	| 'bce_display'
+	| 'astronomical';
+
 export interface MapSettings {
 	/** Tile provider for real-world maps */
 	tileProvider: 'openstreetmap' | 'custom';
@@ -638,6 +643,12 @@ export interface MapSettings {
 	geographicBasemapId: string;
 	/** User-defined validated XYZ/WebMercator raster providers. */
 	customGeographicBasemaps: CustomGeographicBasemapConfig[];
+	/**
+	 * Explicit interpretation for legacy non-positive real-world slider years
+	 * when bridging into v2 astronomical/JDN focus. Default reject preserves
+	 * existing ambiguity instead of guessing.
+	 */
+	legacyNegativeYearSemantics: LegacyNegativeYearSemantics;
 
 	/** Default center for initial map view */
 	defaultCenter: { lat: number; lng: number };
@@ -722,6 +733,7 @@ export const DEFAULT_MAP_SETTINGS: MapSettings = {
 	tileProvider: 'openstreetmap',
 	geographicBasemapId: 'carto-voyager',
 	customGeographicBasemaps: [],
+	legacyNegativeYearSemantics: 'reject',
 	defaultCenter: { lat: 40, lng: -40 },
 	defaultZoom: 3,
 

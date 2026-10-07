@@ -154,12 +154,16 @@ WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
   - [x] unambiguous positive standard/CE years -> full-year JDN ranges;
   - [x] fictional epoch-relative years are explicitly rejected instead of
     being coerced into astronomical year/JDN;
-  - [x] legacy year 0 / negative standard years are explicitly rejected until
-    their BCE numbering contract is defined;
+  - [x] legacy year 0 / negative standard years default to rejection;
+  - [x] users can explicitly opt into BCE display-year semantics
+    (`-453 = 453 BCE`) or astronomical numbering (`0 = 1 BCE`) without
+    rewriting source data;
   - [ ] map configured fictional calendars to explicit v2 chronology-local
     axes where a trustworthy mapping exists;
-  - [ ] define reviewed BCE semantics/migration for legacy negative standard
-    years;
+  - [x] define explicit runtime BCE interpretation policies for legacy
+    negative standard years while keeping source data untouched;
+  - [ ] optional migration assistant to rewrite ambiguous legacy negative
+    standard years into explicit v2 BCE expressions;
 - [x] Map time controls publish shared TemporalFocus only through the explicit
   bridge; unsupported actions clear stale shared focus rather than mixing axes;
 - [x] never coerce fictional epoch-relative canonical years into astronomical

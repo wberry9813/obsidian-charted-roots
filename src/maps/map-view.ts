@@ -2376,7 +2376,8 @@ export class MapView extends ItemView {
 
 		const result = new MapTemporalFocusBridge(
 			legacyDates,
-			this.plugin.getHistoricalDateService()
+			this.plugin.getHistoricalDateService(),
+			this.plugin.settings.legacyNegativeYearSemantics ?? 'reject'
 		).resolveYear(
 			this.timeSlider.currentYear,
 			this.filters.universe
@@ -3322,6 +3323,8 @@ export class MapView extends ItemView {
 			tileProvider: 'openstreetmap',
 			geographicBasemapId: this.plugin.settings.geographicBasemapId || 'carto-voyager',
 			customGeographicBasemaps: this.plugin.settings.customGeographicBasemaps || [],
+			legacyNegativeYearSemantics:
+				this.plugin.settings.legacyNegativeYearSemantics ?? 'reject',
 			defaultCenter: { lat: 40, lng: -40 },
 			defaultZoom: 3,
 			// Core life event colors

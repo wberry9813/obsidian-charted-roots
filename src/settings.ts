@@ -18,6 +18,7 @@ import {
 	type CustomGeographicBasemapConfig
 } from './v2/maps/basemaps';
 import type { GeographicCRS } from './v2/maps/coordinates';
+import type { LegacyNegativeYearSemantics } from './maps/types/map-types';
 import { getSpouseCompoundLabel } from './utils/terminology';
 import {
 	PropertyAliasService,
@@ -335,6 +336,8 @@ export interface CanvasRootsSettings {
 	geographicBasemapId: string;
 	/** User-defined XYZ/WebMercator raster providers. Provider secrets stay in local plugin settings. */
 	customGeographicBasemaps: CustomGeographicBasemapConfig[];
+	/** Explicit legacy BCE/year-zero interpretation used only by Map -> v2 focus bridging. */
+	legacyNegativeYearSemantics: LegacyNegativeYearSemantics;
 	// Custom relationship types
 	customRelationshipTypes: RelationshipTypeDefinition[];
 	showBuiltInRelationshipTypes: boolean;
@@ -865,6 +868,7 @@ export const DEFAULT_SETTINGS: CanvasRootsSettings = {
 	pathLabelStroke: 'none' as const,        // Map path label outline (none / white / black)
 	geographicBasemapId: 'carto-voyager', // Provider inside the Real-world map slot
 	customGeographicBasemaps: [],         // User-configured XYZ/WebMercator providers
+	legacyNegativeYearSemantics: 'reject', // Do not guess legacy BCE/year-zero semantics
 	// Custom relationship types
 	customRelationshipTypes: [],   // User-defined relationship types (built-ins are always available)
 	showBuiltInRelationshipTypes: true,  // Whether to show built-in types in UI
@@ -1185,6 +1189,22 @@ export class CanvasRootsSettingTab extends PluginSettingTab {
 				null
 			);
 		}
+
+		new Setting(container)
+			.setName('Legacy BCE year interpretation')
+			.setDesc(
+				'Only affects Map time-slider synchronization with the v2 historical axis. It never rewrites note dates.'
+			)
+			.addDropdown(dropdown => dropdown
+				.addOption('reject', 'Reject ambiguous non-positive years (safest)')
+				.addOption('bce_display', 'Negative N means N BCE')
+				.addOption('astronomical', 'Astronomical numbering (0 = 1 BCE)')
+				.setValue(this.plugin.settings.legacyNegativeYearSemantics ?? 'reject')
+				.onChange(async value => {
+					this.plugin.settings.legacyNegativeYearSemantics =
+						value as LegacyNegativeYearSemantics;
+					await this.plugin.saveSettings();
+				}));
 	}
 
 	private renderGeographicBasemapCard(

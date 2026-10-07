@@ -60,6 +60,69 @@ describe('M6 Map -> shared TemporalFocus chronology bridge', () => {
 		});
 	});
 
+	it('maps explicit BCE display-year semantics without introducing a display year zero', () => {
+		const historical = new HistoricalDateService();
+		const bridge = new MapTemporalFocusBridge(
+			legacyDates(),
+			historical,
+			'bce_display'
+		);
+		const result = bridge.resolveYear(-453);
+
+		expect(result.status).toBe('resolved');
+		if (result.status !== 'resolved') return;
+		expect(result.astronomicalYear).toBe(-452);
+		expect(result.source).toBe('legacy-bce-display-year');
+
+		const calendar = historical.getCalendarProvider('tyme');
+		if (!calendar) throw new Error('Tyme unavailable');
+		expect(result.start).toBe(calendar.solarToJulianDay({
+			year: -452, month: 1, day: 1
+		}));
+		expect(result.endExclusive).toBe(calendar.solarToJulianDay({
+			year: -451, month: 1, day: 1
+		}));
+
+		expect(bridge.resolveYear(-1)).toMatchObject({
+			status: 'resolved',
+			astronomicalYear: 0
+		});
+		expect(bridge.resolveYear(0)).toMatchObject({
+			status: 'unsupported',
+			reason: 'invalid_bce_display_year_zero'
+		});
+	});
+
+	it('supports explicit astronomical numbering including year zero', () => {
+		const bridge = new MapTemporalFocusBridge(
+			legacyDates(),
+			new HistoricalDateService(),
+			'astronomical'
+		);
+		expect(bridge.resolveYear(0)).toMatchObject({
+			status: 'resolved',
+			astronomicalYear: 0,
+			source: 'legacy-astronomical-year'
+		});
+		expect(bridge.resolveYear(-453)).toMatchObject({
+			status: 'resolved',
+			astronomicalYear: -453,
+			source: 'legacy-astronomical-year'
+		});
+	});
+
+	it('keeps explicit BCE semantics isolated from fictional calendars', () => {
+		const bridge = new MapTemporalFocusBridge(
+			legacyDates(),
+			new HistoricalDateService(),
+			'bce_display'
+		);
+		expect(bridge.resolveYear(-82, 'Star Wars')).toMatchObject({
+			status: 'unsupported',
+			reason: 'fictional_calendar_bridge_required'
+		});
+	});
+
 	it('recognizes an explicitly selected fictional universe calendar', () => {
 		const dates = createDateService({
 			enableFictionalDates: true,
