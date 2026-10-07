@@ -94,7 +94,8 @@ export class ValidationService {
 		onProgress?: (progress: ValidationProgress) => void
 	): Promise<ValidationResult[]> {
 		const results: ValidationResult[] = [];
-		const allFiles = this.plugin.app.vault.getMarkdownFiles();
+		const allFiles = this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.plugin.app.vault.getMarkdownFiles();
 
 		// First pass: identify person notes
 		onProgress?.({ phase: 'scanning', current: 0, total: allFiles.length });
@@ -155,7 +156,8 @@ export class ValidationService {
 		onProgress?: (progress: ValidationProgress) => void
 	): Promise<ValidationResult[]> {
 		const results: ValidationResult[] = [];
-		const allFiles = this.plugin.app.vault.getMarkdownFiles();
+		const allFiles = this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.plugin.app.vault.getMarkdownFiles();
 		const noteTypeSettings = this.plugin.settings.noteTypeDetection;
 
 		// Find person notes that match this schema
