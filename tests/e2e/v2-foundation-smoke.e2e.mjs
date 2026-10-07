@@ -1573,6 +1573,41 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			)?.getAttribute('data-map-temporal-bridge-reason') ?? null
 		};
 
+		// C5 BCE bridge: the default remains reject, but an explicit
+		// BCE-display interpretation makes -456 mean 456 BCE (astronomical -455).
+		const originalLegacyYearSemantics =
+			plugin.settings.legacyNegativeYearSemantics ?? 'reject';
+		const originalMapSliderYear = Number(mapYearSlider.value);
+		plugin.settings.legacyNegativeYearSemantics = 'bce_display';
+		mapYearSlider.value = '-456';
+		mapYearSlider.dispatchEvent(new Event('input', { bubbles: true }));
+		await new Promise(resolve => window.setTimeout(resolve, 30));
+		history.mapSliderBceFocus = {
+			sliderYear: Number(mapYearSlider.value),
+			focus: plugin.getTemporalFocusService().get(),
+			bridgeStatus: historyMapView.containerEl.querySelector(
+				'.cr-map-container'
+			)?.getAttribute('data-map-temporal-bridge-status') ?? null,
+			bridgeReason: historyMapView.containerEl.querySelector(
+				'.cr-map-container'
+			)?.getAttribute('data-map-temporal-bridge-reason') ?? null,
+			expectedStart: historicalCalendar.solarToJulianDay({
+				year: -455,
+				month: 1,
+				day: 1
+			}),
+			expectedEndExclusive: historicalCalendar.solarToJulianDay({
+				year: -454,
+				month: 1,
+				day: 1
+			})
+		};
+
+		plugin.settings.legacyNegativeYearSemantics = originalLegacyYearSemantics;
+		mapYearSlider.value = String(originalMapSliderYear);
+		mapYearSlider.dispatchEvent(new Event('input', { bubbles: true }));
+		await new Promise(resolve => window.setTimeout(resolve, 20));
+
 		timelineToggle.click();
 		await new Promise(resolve => window.setTimeout(resolve, 20));
 		history.mapSliderFocusAfterDisable =
@@ -2054,6 +2089,25 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(
 		workspaceState.history.mapSliderFocus.focus.source,
 		'map-time-slider'
+	);
+	assert.equal(workspaceState.history.mapSliderBceFocus.sliderYear, -456);
+	assert.equal(
+		workspaceState.history.mapSliderBceFocus.bridgeStatus,
+		'resolved'
+	);
+	assert.equal(workspaceState.history.mapSliderBceFocus.bridgeReason, '');
+	assert.equal(workspaceState.history.mapSliderBceFocus.focus.kind, 'range');
+	assert.equal(
+		workspaceState.history.mapSliderBceFocus.focus.source,
+		'map-time-slider'
+	);
+	assert.equal(
+		workspaceState.history.mapSliderBceFocus.focus.start,
+		workspaceState.history.mapSliderBceFocus.expectedStart
+	);
+	assert.equal(
+		workspaceState.history.mapSliderBceFocus.focus.endExclusive,
+		workspaceState.history.mapSliderBceFocus.expectedEndExclusive
 	);
 	assert.equal(workspaceState.history.mapSliderFocusAfterDisable, null);
 	assert.equal(
