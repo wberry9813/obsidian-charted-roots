@@ -28,6 +28,7 @@ import { GrampsImporter, type GrampsImportOptions, type GrampsImportResult } fro
 import { readFileWithDecompression } from '../core/compression-utils';
 import { estimateImportSize } from '../core/import-size-estimate';
 import { PrivacyNoticeModal } from './privacy-notice-modal';
+import { resolveWorkspaceTransferFolders } from './workspace-transfer-paths';
 
 /**
  * Import format types
@@ -189,10 +190,7 @@ export class ImportWizardModal extends Modal {
 	 * Get default form data
 	 */
 	private getDefaultFormData(): ImportWizardFormData {
-		const workspace = this.plugin.getWorkspaceService();
-		const peopleFolder = workspace?.getFolder('people')
-			?? this.plugin.settings.peopleFolder
-			?? 'People';
+		const transferFolders = resolveWorkspaceTransferFolders(this.plugin);
 		return {
 			// Step 1
 			format: 'gedcom',
@@ -214,7 +212,7 @@ export class ImportWizardModal extends Modal {
 			mediaFolder: this.plugin?.settings?.mediaFolders?.[0] || 'Charted Roots/Media',
 			preserveMediaFolderStructure: false,
 			includeDynamicBlocks: true,
-			targetFolder: peopleFolder,
+			targetFolder: transferFolders.people,
 			conflictHandling: 'skip',
 			largeImportMode: false,  // Default: off (user must opt-in for large imports)
 
@@ -1188,16 +1186,12 @@ export class ImportWizardModal extends Modal {
 				try {
 					// Build import options
 					const settings = this.plugin.settings;
+					const transferFolders = resolveWorkspaceTransferFolders(this.plugin);
 					const options: GedcomImportOptionsV2 = {
-						peopleFolder: this.formData.targetFolder
-							|| this.plugin.getWorkspaceService()?.getFolder('people')
-							|| settings.peopleFolder,
-						eventsFolder: this.plugin.getWorkspaceService()?.getFolder('events')
-							?? settings.eventsFolder,
-						sourcesFolder: this.plugin.getWorkspaceService()?.getFolder('sources')
-							?? settings.sourcesFolder,
-						placesFolder: this.plugin.getWorkspaceService()?.getFolder('places')
-							?? settings.placesFolder,
+						peopleFolder: this.formData.targetFolder || transferFolders.people,
+						eventsFolder: transferFolders.events,
+						sourcesFolder: transferFolders.sources,
+						placesFolder: transferFolders.places,
 						overwriteExisting: this.formData.conflictHandling === 'overwrite',
 						fileName: this.formData.fileName,
 						createPeopleNotes: this.formData.importPeople,
@@ -1206,8 +1200,7 @@ export class ImportWizardModal extends Modal {
 						createPlaceNotes: this.formData.importPlaces,
 						importNotes: this.formData.importNotes,
 						createSeparateNoteFiles: this.formData.createSeparateNoteFiles,
-						notesFolder: this.plugin.getWorkspaceService()?.getFolder('notes')
-							?? settings.notesFolder,
+						notesFolder: transferFolders.notes,
 						importMedia: this.formData.importMedia,
 						mediaPathPrefix: this.formData.mediaPathPrefix || undefined,
 						includeDynamicBlocks: this.formData.includeDynamicBlocks,
@@ -1317,21 +1310,17 @@ export class ImportWizardModal extends Modal {
 				try {
 					// Build import options
 					const settings = this.plugin.settings;
+					const transferFolders = resolveWorkspaceTransferFolders(this.plugin);
 					const options: GrampsImportOptions = {
-						peopleFolder: this.formData.targetFolder
-							|| this.plugin.getWorkspaceService()?.getFolder('people')
-							|| settings.peopleFolder,
+						peopleFolder: this.formData.targetFolder || transferFolders.people,
 						overwriteExisting: this.formData.conflictHandling === 'overwrite',
 						fileName: this.formData.fileName,
 						createSourceNotes: this.formData.importSources,
-						sourcesFolder: this.plugin.getWorkspaceService()?.getFolder('sources')
-							?? settings.sourcesFolder,
+						sourcesFolder: transferFolders.sources,
 						createPlaceNotes: this.formData.importPlaces,
-						placesFolder: this.plugin.getWorkspaceService()?.getFolder('places')
-							?? settings.placesFolder,
+						placesFolder: transferFolders.places,
 						createEventNotes: this.formData.importEvents,
-						eventsFolder: this.plugin.getWorkspaceService()?.getFolder('events')
-							?? settings.eventsFolder,
+						eventsFolder: transferFolders.events,
 						propertyAliases: settings.propertyAliases,
 						includeDynamicBlocks: this.formData.includeDynamicBlocks,
 						dynamicBlockTypes: ['media', 'timeline', 'relationships'],
@@ -1342,8 +1331,7 @@ export class ImportWizardModal extends Modal {
 						extractMedia: this.formData.importMedia && this.formData.gpkgExtractionResult !== null,
 						importNotes: this.formData.importNotes,
 						createSeparateNoteFiles: this.formData.createSeparateNoteFiles,
-						notesFolder: this.plugin.getWorkspaceService()?.getFolder('notes')
-							?? settings.notesFolder,
+						notesFolder: transferFolders.notes,
 						onProgress: (progress) => {
 							// Update UI based on progress
 							const percent = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
@@ -1788,8 +1776,7 @@ export class ImportWizardModal extends Modal {
 		const workspace = this.plugin.getWorkspaceService();
 		const files = workspace?.getScope().getMarkdownFiles()
 			?? this.app.vault.getMarkdownFiles();
-		const peopleFolder = workspace?.getFolder('people')
-			?? this.plugin.settings.peopleFolder;
+		const peopleFolder = resolveWorkspaceTransferFolders(this.plugin).people;
 
 		for (const file of files) {
 			// Only check files in people folder
