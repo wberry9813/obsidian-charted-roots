@@ -171,12 +171,22 @@ export class CleanupWizardModal extends Modal {
 		return this.geocodingService;
 	}
 
+	/** Active Workspace is the primary safety boundary for destructive cleanup. */
+	private getWorkspaceFiles(): TFile[] {
+		return this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
+	}
+
 	/**
 	 * Initialize the SourceMigrationService (lazy initialization)
 	 */
 	private getSourceMigrationService(): SourceMigrationService {
 		if (!this.sourceMigrationService) {
-			this.sourceMigrationService = new SourceMigrationService(this.app, this.plugin.settings);
+			this.sourceMigrationService = new SourceMigrationService(
+				this.app,
+				this.plugin.settings,
+				() => this.getWorkspaceFiles()
+			);
 		}
 		return this.sourceMigrationService;
 	}
@@ -186,7 +196,11 @@ export class CleanupWizardModal extends Modal {
 	 */
 	private getEventPersonMigrationService(): EventPersonMigrationService {
 		if (!this.eventPersonMigrationService) {
-			this.eventPersonMigrationService = new EventPersonMigrationService(this.app, this.plugin.settings);
+			this.eventPersonMigrationService = new EventPersonMigrationService(
+				this.app,
+				this.plugin.settings,
+				() => this.getWorkspaceFiles()
+			);
 		}
 		return this.eventPersonMigrationService;
 	}
@@ -196,7 +210,11 @@ export class CleanupWizardModal extends Modal {
 	 */
 	private getSourcedFactsMigrationService(): SourcedFactsMigrationService {
 		if (!this.sourcedFactsMigrationService) {
-			this.sourcedFactsMigrationService = new SourcedFactsMigrationService(this.app, this.plugin.settings);
+			this.sourcedFactsMigrationService = new SourcedFactsMigrationService(
+				this.app,
+				this.plugin.settings,
+				() => this.getWorkspaceFiles()
+			);
 		}
 		return this.sourcedFactsMigrationService;
 	}
@@ -206,7 +224,13 @@ export class CleanupWizardModal extends Modal {
 	 */
 	private getLifeEventsMigrationService(): LifeEventsMigrationService {
 		if (!this.lifeEventsMigrationService) {
-			this.lifeEventsMigrationService = new LifeEventsMigrationService(this.app, this.plugin.settings);
+			this.lifeEventsMigrationService = new LifeEventsMigrationService(
+				this.app,
+				this.plugin.settings,
+				() => this.getWorkspaceFiles(),
+				() => this.plugin.getWorkspaceService()?.getFolder('events')
+					?? this.plugin.settings.eventsFolder
+			);
 		}
 		return this.lifeEventsMigrationService;
 	}
@@ -3776,7 +3800,7 @@ export class CleanupWizardModal extends Modal {
 	 */
 	private detectLegacyChildProperty(): TFile[] {
 		const files: TFile[] = [];
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of this.getWorkspaceFiles()) {
 			const cache = this.app.metadataCache.getFileCache(file);
 			if (!cache?.frontmatter) continue;
 
@@ -3858,7 +3882,7 @@ export class CleanupWizardModal extends Modal {
 	private detectPlacesWithoutCrId(): TFile[] {
 		const files: TFile[] = [];
 		const settings = this.plugin.settings.noteTypeDetection;
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of this.getWorkspaceFiles()) {
 			const cache = this.app.metadataCache.getFileCache(file);
 			if (!cache?.frontmatter) continue;
 

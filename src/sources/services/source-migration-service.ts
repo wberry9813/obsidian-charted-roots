@@ -113,8 +113,13 @@ export interface SourceMigrationResult {
 export class SourceMigrationService {
 	constructor(
 		private app: App,
-		private settings: CanvasRootsSettings
+		private settings: CanvasRootsSettings,
+		private readonly fileProvider?: () => TFile[]
 	) {}
+
+	private getFiles(): TFile[] {
+		return this.fileProvider?.() ?? this.app.vault.getMarkdownFiles();
+	}
 
 	/**
 	 * Detect all notes with indexed source properties
@@ -122,7 +127,7 @@ export class SourceMigrationService {
 	 */
 	detectIndexedSources(): IndexedSourceNote[] {
 		const results: IndexedSourceNote[] = [];
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);

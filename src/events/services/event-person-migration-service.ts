@@ -100,8 +100,13 @@ export interface EventPersonMigrationResult {
 export class EventPersonMigrationService {
 	constructor(
 		private app: App,
-		private settings: CanvasRootsSettings
+		private settings: CanvasRootsSettings,
+		private readonly fileProvider?: () => TFile[]
 	) {}
+
+	private getFiles(): TFile[] {
+		return this.fileProvider?.() ?? this.app.vault.getMarkdownFiles();
+	}
 
 	/**
 	 * Detect all event notes with the legacy person property
@@ -109,7 +114,7 @@ export class EventPersonMigrationService {
 	 */
 	detectLegacyPersonProperty(): LegacyPersonEventNote[] {
 		const results: LegacyPersonEventNote[] = [];
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getFiles();
 		const personProp = getPropertyName('person', this.settings.propertyAliases);
 		const personsProp = getPropertyName('persons', this.settings.propertyAliases);
 
@@ -331,7 +336,7 @@ export class EventPersonMigrationService {
 	 * Used for showing migration notices
 	 */
 	hasLegacyPersonProperties(): boolean {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getFiles();
 		const personProp = getPropertyName('person', this.settings.propertyAliases);
 
 		for (const file of files) {
