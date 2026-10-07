@@ -202,6 +202,48 @@ export class MapView extends ItemView {
 		return this.historicalControlLayers;
 	}
 
+	/**
+	 * Reload persisted control-layer manifests/GeoJSON for the Active Workspace.
+	 * Ordinary map filtering does not call this; storage is re-read only when
+	 * Workspace or layer assets change.
+	 */
+	async refreshHistoricalControlLayers(): Promise<void> {
+		const result = await this.plugin
+			.getHistoricalControlLayerRepository()
+			.loadAll();
+		this.historicalControlLayers = result.layers;
+
+		if (this.mapContainerEl) {
+			this.mapContainerEl.dataset.controlLayerIssueCount =
+				String(result.issues.length);
+		}
+		if (result.issues.length > 0) {
+			logger.warn(
+				'control-layer-storage',
+				'Historical control-layer storage issues detected',
+				{
+					issues: result.issues.map(issue => ({
+						code: issue.code,
+						manifestPath: issue.manifestPath,
+						geojsonPath: issue.geojsonPath
+					}))
+				}
+			);
+		}
+
+		this.renderHistoricalControlLayers(
+			this.plugin.getTemporalFocusService().get()
+		);
+	}
+
+	/**
+	 * Refresh every Map dataset whose boundary is the Active Workspace.
+	 */
+	async refreshWorkspaceScopedData(): Promise<void> {
+		await this.refreshHistoricalControlLayers();
+		await this.refreshData();
+	}
+
 	getViewType(): string {
 		return VIEW_TYPE_MAP;
 	}
@@ -225,6 +267,10 @@ export class MapView extends ItemView {
 
 		// Initialize map
 		await this.initializeMap();
+
+		// Load Workspace-scoped persisted historical control layers before
+		// binding shared focus so the first temporal render is complete.
+		await this.refreshHistoricalControlLayers();
 
 		// Shared Timeline/Relationships temporal focus drives a read-only
 		// place-state overlay without mutating the legacy Map data model.
@@ -3100,12 +3146,28 @@ export class MapView extends ItemView {
 					this.renderTemporalPlaceOverlay(
 						this.plugin.getTemporalFocusService().get()
 					);
+				} else if (crType === 'control_layer') {
+					void this.refreshHistoricalControlLayers();
 				}
 
 				if (this.isRelevantFile(file.path)) {
 					logger.debug('metadata-changed', `Refreshing map due to change in ${file.path}`);
 					this.syncMapConfigOnChange(file);
 					void this.refreshData();
+				}
+			})
+		);
+
+		// GeoJSON assets do not pass through metadataCache. Reload only when
+		// a .geojson file itself changes; normal Markdown modifies remain on the
+		// metadata-cache path above.
+		this.registerEvent(
+			this.plugin.app.vault.on('modify', file => {
+				if (
+					file instanceof TFile
+					&& file.extension.toLowerCase() === 'geojson'
+				) {
+					void this.refreshHistoricalControlLayers();
 				}
 			})
 		);

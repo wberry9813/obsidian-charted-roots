@@ -140,6 +140,9 @@ WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
 - [x] Real Obsidian smoke covers active/possible filtering, focus clearing and basemap hot-switch retention;
 - [x] `cr_type: control_layer` Markdown manifest contract with separate GeoJSON geometry files;
 - [x] Workspace-scoped manifest repository and relative/vault-root GeoJSON path resolution;
+- [x] open Map views automatically load persisted control layers from the Active Workspace;
+- [x] Active Workspace switches replace the control-layer dataset instead of leaking prior Workspace geometry;
+- [x] manifest metadata and referenced `.geojson` modifications refresh open Map views without re-reading layers on ordinary map filters;
 - [x] storage loader rejects malformed/unsupported geometry and reports missing assets per layer;
 - [x] non-canonical persisted CRS is normalized for compatibility but surfaced as a data-quality issue;
 - [ ] import writer/UI for creating canonical WGS84 GeoJSON + manifest pairs.
