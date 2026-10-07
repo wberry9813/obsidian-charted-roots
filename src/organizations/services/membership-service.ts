@@ -152,11 +152,11 @@ export class MembershipService {
 	}
 
 	/**
-	 * Get all members of an organization by cr_id
+	 * Get all members of an organization by cr_id in the active Workspace.
 	 */
 	getOrganizationMembers(orgCrId: string): PersonMembership[] {
 		const members: PersonMembership[] = [];
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -401,14 +401,18 @@ export class MembershipService {
 	}
 
 	/**
-	 * Get count of people with memberships and total memberships
+	 * Get count of people with memberships and total memberships in the active Workspace.
 	 */
 	getMembershipStats(): { peopleWithMemberships: number; totalMemberships: number } {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedFiles();
 		let peopleWithMemberships = 0;
 		let totalMemberships = 0;
 
 		for (const file of files) {
+			const cache = this.app.metadataCache.getFileCache(file);
+			if (!cache?.frontmatter) continue;
+			if (!isPersonNote(cache.frontmatter, cache, this.plugin.settings.noteTypeDetection)) continue;
+
 			const memberships = this.getPersonMembershipsFromFile(file);
 			if (memberships.length > 0) {
 				peopleWithMemberships++;
@@ -462,10 +466,10 @@ export class MembershipService {
 	}
 
 	/**
-	 * Find a person file by their cr_id
+	 * Find a person file by their cr_id in the active Workspace.
 	 */
 	private findPersonFileByCrId(crId: string): TFile | null {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -475,6 +479,11 @@ export class MembershipService {
 		}
 
 		return null;
+	}
+
+	private getScopedFiles(): TFile[] {
+		return this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
 	}
 
 	/**
