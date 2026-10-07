@@ -101,6 +101,7 @@ export class OrganizationService {
 	private plugin: CanvasRootsPlugin;
 	private organizationCache: Map<string, OrganizationInfo>;
 	private cacheLoaded: boolean = false;
+	private cacheWorkspaceId: string | null = null;
 
 	constructor(plugin: CanvasRootsPlugin) {
 		this.plugin = plugin;
@@ -112,7 +113,8 @@ export class OrganizationService {
 	 * Ensure the organization cache is loaded
 	 */
 	ensureCacheLoaded(): void {
-		if (!this.cacheLoaded) {
+		const workspaceId = this.plugin.getWorkspaceService()?.getActiveId() ?? null;
+		if (!this.cacheLoaded || this.cacheWorkspaceId !== workspaceId) {
 			this.loadOrganizationCache();
 		}
 	}
@@ -309,7 +311,7 @@ export class OrganizationService {
 		}
 
 		const orphans = new Map<string, OrphanOrganization>();
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of this.getScopedFiles()) {
 			const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
 			if (!fm) continue;
 			const refNames = collectOrgReferenceNames(fm);
@@ -364,7 +366,7 @@ export class OrganizationService {
 	 */
 	private async backfillMembershipOrgIds(orphanName: string, newCrId: string): Promise<number> {
 		let count = 0;
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of this.getScopedFiles()) {
 			const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
 			if (!fm || fm.cr_type !== 'person') continue;
 			const updated = computeOrgIdBackfill(fm.membership_orgs, fm.membership_org_ids, orphanName, newCrId);
@@ -391,7 +393,9 @@ export class OrganizationService {
 			folder?: string;
 		}
 	): Promise<TFile> {
-		const folder = options?.folder || this.plugin.settings.organizationsFolder;
+		const folder = options?.folder
+			?? this.plugin.getWorkspaceService()?.getFolder('organizations')
+			?? this.plugin.settings.organizationsFolder;
 
 		// Helper to get aliased property name
 		const aliases = this.plugin.settings.propertyAliases || {};
@@ -589,7 +593,7 @@ export class OrganizationService {
 	private loadOrganizationCache(): void {
 		this.organizationCache.clear();
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedFiles();
 		let loadedCount = 0;
 
 		for (const file of files) {
@@ -601,7 +605,13 @@ export class OrganizationService {
 		}
 
 		this.cacheLoaded = true;
+		this.cacheWorkspaceId = this.plugin.getWorkspaceService()?.getActiveId() ?? null;
 		logger.debug('loadOrganizationCache', `Loaded ${loadedCount} organizations`);
+	}
+
+	private getScopedFiles(): TFile[] {
+		return this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
 	}
 
 	/**
