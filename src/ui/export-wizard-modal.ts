@@ -26,6 +26,7 @@ import { EventService } from '../events/services/event-service';
 import { SourceService } from '../sources/services/source-service';
 import type { CanvasRootsSettings } from '../settings';
 import { PrivateFieldsWarningModal, type PrivateFieldsDecision } from './private-fields-warning-modal';
+import { resolveWorkspaceTransferFolders } from './workspace-transfer-paths';
 
 /**
  * Folder picker modal
@@ -204,28 +205,18 @@ export class ExportWizardModal extends Modal {
 	 * Get default form data
 	 */
 	private getDefaultFormData(): ExportWizardFormData {
-		const workspace = this.plugin.getWorkspaceService();
+		const transferFolders = resolveWorkspaceTransferFolders(this.plugin);
 		return {
 			// Step 1
 			format: 'gedcom',
 
 			// Step 2
 			folderSource: 'preferences',
-			peoplePath: workspace?.getFolder('people')
-				?? this.plugin.settings.peopleFolder
-				?? 'People',
-			placesPath: workspace?.getFolder('places')
-				?? this.plugin.settings.placesFolder
-				?? 'Places',
-			eventsPath: workspace?.getFolder('events')
-				?? this.plugin.settings.eventsFolder
-				?? 'Events',
-			sourcesPath: workspace?.getFolder('sources')
-				?? this.plugin.settings.sourcesFolder
-				?? 'Sources',
-			citationsPath: workspace?.getFolder('citations')
-				?? this.plugin.settings.citationsFolder
-				?? 'Charted Roots/Citations',
+			peoplePath: transferFolders.people,
+			placesPath: transferFolders.places,
+			eventsPath: transferFolders.events,
+			sourcesPath: transferFolders.sources,
+			citationsPath: transferFolders.citations,
 
 			// Step 3
 			includeSources: true,
