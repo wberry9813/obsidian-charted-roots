@@ -1573,8 +1573,38 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			)?.getAttribute('data-map-temporal-bridge-reason') ?? null
 		};
 
-		// C5 BCE bridge: the default remains reject, but an explicit
-		// BCE-display interpretation makes -456 mean 456 BCE (astronomical -455).
+		// C5 BCE bridge: add a temporary legacy person so the real MapData year
+		// range genuinely exposes -456 on the slider. This verifies the user path
+		// rather than bypassing the range input's min/max constraints.
+		const bceBridgePersonPath =
+			'Workspace-E2E/History/People/M6-BCE-Bridge-Person.md';
+		const existingBceBridgePerson =
+			app.vault.getAbstractFileByPath(bceBridgePersonPath);
+		if (existingBceBridgePerson) {
+			await app.vault.delete(existingBceBridgePerson);
+		}
+		const bceBridgePerson = await app.vault.create(
+			bceBridgePersonPath,
+			[
+				'---',
+				'cr_schema: 2',
+				'cr_type: person',
+				'cr_id: workspace-history-bce-bridge-person',
+				'name: M6 BCE Bridge Person',
+				'birth_date: "-456"',
+				'death_date: "-455"',
+				'---',
+				''
+			].join('\\n')
+		);
+		await new Promise(resolve => window.setTimeout(resolve, 50));
+		await historyMapView.refreshData();
+		for (let i = 0; i < 80 && Number(mapYearSlider.min) > -456; i++) {
+			await new Promise(resolve => window.setTimeout(resolve, 25));
+		}
+
+		// The default remains reject, but an explicit BCE-display interpretation
+		// makes -456 mean 456 BCE (astronomical -455).
 		const originalLegacyYearSemantics =
 			plugin.settings.legacyNegativeYearSemantics ?? 'reject';
 		const originalMapSliderYear = Number(mapYearSlider.value);
@@ -1583,6 +1613,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		mapYearSlider.dispatchEvent(new Event('input', { bubbles: true }));
 		await new Promise(resolve => window.setTimeout(resolve, 30));
 		history.mapSliderBceFocus = {
+			sliderMin: Number(mapYearSlider.min),
 			sliderYear: Number(mapYearSlider.value),
 			focus: plugin.getTemporalFocusService().get(),
 			bridgeStatus: historyMapView.containerEl.querySelector(
@@ -1606,7 +1637,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		plugin.settings.legacyNegativeYearSemantics = originalLegacyYearSemantics;
 		mapYearSlider.value = String(originalMapSliderYear);
 		mapYearSlider.dispatchEvent(new Event('input', { bubbles: true }));
-		await new Promise(resolve => window.setTimeout(resolve, 20));
+		await app.vault.delete(bceBridgePerson);
+		await historyMapView.refreshData();
+		await new Promise(resolve => window.setTimeout(resolve, 30));
 
 		timelineToggle.click();
 		await new Promise(resolve => window.setTimeout(resolve, 20));
@@ -2090,6 +2123,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		workspaceState.history.mapSliderFocus.focus.source,
 		'map-time-slider'
 	);
+	assert.ok(workspaceState.history.mapSliderBceFocus.sliderMin <= -456);
 	assert.equal(workspaceState.history.mapSliderBceFocus.sliderYear, -456);
 	assert.equal(
 		workspaceState.history.mapSliderBceFocus.bridgeStatus,
