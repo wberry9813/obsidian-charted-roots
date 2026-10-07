@@ -1933,7 +1933,7 @@ export class CleanupWizardModal extends Modal {
 
 		if (this.placeVariantMatches.length === 0 && this.state.preScanComplete) {
 			// No variants found - check for duplicates instead
-			this.placeDuplicateGroups = findDuplicatePlacesByFullName(this.app);
+			this.placeDuplicateGroups = findDuplicatePlacesByFullName(this.app, () => this.getWorkspaceFiles());
 			if (this.placeDuplicateGroups.length > 0) {
 				this.showDeduplicationStep = true;
 				this.renderPlaceDeduplicationStep(container, stepState);
@@ -2124,7 +2124,7 @@ export class CleanupWizardModal extends Modal {
 		}
 
 		// Check for duplicates after variant standardization
-		this.placeDuplicateGroups = findDuplicatePlacesByFullName(this.app);
+		this.placeDuplicateGroups = findDuplicatePlacesByFullName(this.app, () => this.getWorkspaceFiles());
 		if (this.placeDuplicateGroups.length > 0) {
 			// Show deduplication step instead of marking complete
 			this.showDeduplicationStep = true;
@@ -2280,7 +2280,7 @@ export class CleanupWizardModal extends Modal {
 
 		for (const [group, canonicalFile] of canonicalSelections.entries()) {
 			try {
-				const result = await mergeDuplicatePlaces(this.app, group, canonicalFile);
+				const result = await mergeDuplicatePlaces(this.app, group, canonicalFile, () => this.getWorkspaceFiles());
 				totalUpdatedLinks += result.updatedLinks;
 				totalDeletedFiles += result.deletedFiles;
 			} catch (error) {
@@ -3652,7 +3652,7 @@ export class CleanupWizardModal extends Modal {
 			logger.debug('runPreScan', `Step 10 (Nested): ${this.state.steps[10].issueCount} issues`);
 
 			// Step 7: Place variants
-			this.placeVariantMatches = findPlaceNameVariants(this.app);
+			this.placeVariantMatches = findPlaceNameVariants(this.app, () => this.getWorkspaceFiles());
 			this.state.steps[7].issueCount = this.placeVariantMatches.length;
 			logger.debug('runPreScan', `Step 7 (Place Variants): ${this.placeVariantMatches.length} issues`);
 
