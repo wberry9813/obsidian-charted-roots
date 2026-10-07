@@ -1,6 +1,6 @@
 # Temporal Views Foundation
 
-> Status: **T0-T3 implemented; T4 temporal graph/map integration in progress**
+> Status: **M5 implemented; reverse Map->Timeline calendar bridging deferred to M6 Historical Map**
 >
 > This document supersedes the Event-only assumptions in the older
 > `docs/planning/interactive-timeline-view.md` wherever the two conflict.
@@ -179,10 +179,33 @@ additional mapping layer that is unnecessary with D3.
 - [x] ontology-safe read-only organization/office/affiliation state over time;
 - [x] shared-focus Period/Process active/possible context state across Timeline and Map context overlays;
 - [x] shared Timeline focus -> Map active/possible place-state overlay;
-- [ ] Map interactions/time controls -> shared Timeline focus;
-- Period/Process contextual overlays.
+- [x] shared-focus Period/Process active/possible contextual overlays on Timeline and Map;
+- [ ] Map interactions/time controls -> shared Timeline focus (**deferred to M6 calendar bridge; see below**).
 
-## 8. Reuse from the legacy timeline system
+## 8. Map reverse-sync boundary
+
+M5 deliberately does **not** write the legacy Map time slider directly into
+`TemporalFocusService`.
+
+The two numeric axes are not semantically interchangeable:
+
+- v2 Historical Time uses real astronomical years and Julian Day coordinates;
+- BCE/CE display has no year zero even though astronomical numbering does;
+- the legacy DateService accepts signed standard years including `0`;
+- fictional calendars use an epoch-relative `canonicalYear` such as
+  `82 BBY -> -82`, which is not a real astronomical year.
+
+Therefore treating a Map slider integer as a v2 astronomical year would
+silently corrupt BCE and fictional-world chronology.
+
+Reverse synchronization belongs in M6 Historical Map after an explicit
+calendar/chronology bridge (or chronology-local axis) is defined. Until then:
+
+- Timeline/shared TemporalFocus may drive read-only Map temporal state;
+- Map time controls continue to filter legacy Map data locally;
+- fictional and historical coordinates are never coerced into each other.
+
+## 9. Reuse from the legacy timeline system
 
 Reuse where semantics still fit:
 
@@ -198,7 +221,7 @@ Do not reuse assumptions that:
 - year/month precision can be represented by the first day;
 - legacy `before` / `after` semantics are authoritative.
 
-## 9. Renderer acceptance gate
+## 10. Renderer acceptance gate
 
 The pre-renderer gate is now covered by automated tests and real-Obsidian
 fixtures. The contract remains:
