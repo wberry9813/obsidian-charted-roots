@@ -228,7 +228,7 @@ export class CreatePlaceModal extends Modal {
 			if (options?.directory) {
 				this.directory = options.directory;
 			} else if (this.settings) {
-				this.directory = getPlaceFolderForCategory(this.settings, defaultCategory);
+				this.directory = this.getWorkspacePlaceFolder(defaultCategory);
 			} else {
 				this.directory = '';
 			}
@@ -406,6 +406,22 @@ export class CreatePlaceModal extends Modal {
 				this.placeData.parentPlace = suggestedParent.name;
 			}
 		}
+	}
+
+	private getWorkspacePlaceFolder(category: PlaceCategory): string {
+		if (!this.settings) {
+			return this.plugin?.getWorkspaceService()?.getFolder('places') ?? '';
+		}
+
+		const workspaceRoot = this.plugin?.getWorkspaceService()?.getFolder('places');
+		if (!workspaceRoot) {
+			return getPlaceFolderForCategory(this.settings, category);
+		}
+
+		return getPlaceFolderForCategory(
+			{ ...this.settings, placesFolder: workspaceRoot },
+			category
+		);
 	}
 
 	/**
@@ -600,7 +616,7 @@ export class CreatePlaceModal extends Modal {
 					this.updateCoordinatesVisibility();
 					// Update directory based on category (#163)
 					if (!this.editMode && this.settings) {
-						this.directory = getPlaceFolderForCategory(this.settings, value as PlaceCategory);
+						this.directory = this.getWorkspacePlaceFolder(value as PlaceCategory);
 						if (this.directoryInputEl) {
 							this.directoryInputEl.value = this.directory;
 						}
@@ -1673,7 +1689,7 @@ export class CreatePlaceModal extends Modal {
 
 			if (categoryChanged) {
 				// Calculate the target folder for the new category
-				const targetFolder = getPlaceFolderForCategory(this.settings!, newCategory);
+				const targetFolder = this.getWorkspacePlaceFolder(newCategory);
 				const currentFolder = this.directory;
 
 				// Only prompt if the target folder is different
