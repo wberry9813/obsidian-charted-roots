@@ -138,7 +138,11 @@ WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
 - [x] render canonical WGS84 control layers through the active basemap datum adapter;
 - [x] dedicated Leaflet control-layer group with distinct possible-state treatment;
 - [x] Real Obsidian smoke covers active/possible filtering, focus clearing and basemap hot-switch retention;
-- [ ] storage/import UI for GeoJSON layer sources.
+- [x] `cr_type: control_layer` Markdown manifest contract with separate GeoJSON geometry files;
+- [x] Workspace-scoped manifest repository and relative/vault-root GeoJSON path resolution;
+- [x] storage loader rejects malformed/unsupported geometry and reports missing assets per layer;
+- [x] non-canonical persisted CRS is normalized for compatibility but surfaced as a data-quality issue;
+- [ ] import writer/UI for creating canonical WGS84 GeoJSON + manifest pairs.
 
 ### C5 — full Timeline <-> Map synchronization
 
