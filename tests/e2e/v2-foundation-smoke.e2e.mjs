@@ -1021,6 +1021,23 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			};
 		};
 
+		const readTemporalProfile = () => {
+			const leaf = app.workspace.getLeavesOfType('charted-roots-entity-profile')[0];
+			const root = leaf?.view?.containerEl;
+			return {
+				items: [...(root?.querySelectorAll(
+					'.cr-profile__temporal-institution-item'
+				) ?? [])]
+					.map(el => ({
+						assertionId: el.getAttribute('data-assertion-id'),
+						state: el.getAttribute('data-temporal-state'),
+						relationKind: el.getAttribute('data-relation-kind'),
+						text: el.textContent ?? ''
+					}))
+					.sort((a, b) => String(a.assertionId).localeCompare(String(b.assertionId)))
+			};
+		};
+
 		const readTemporalRelationships = () => {
 			const leaf = app.workspace.getLeavesOfType('canvas-roots-relationships')[0];
 			const root = leaf?.view?.containerEl;
@@ -1254,6 +1271,16 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		await new Promise(resolve => window.setTimeout(resolve, 50));
 		const shushanRelationshipTemporal = readTemporalRelationships();
 
+		const fictionPersonFile = app.vault.getFileByPath(
+			'Workspace-E2E/Shushan/People/Fiction-Person.md'
+		);
+		if (!fictionPersonFile) {
+			throw new Error('Fiction Person fixture is unavailable.');
+		}
+		await plugin.activateProfileView(fictionPersonFile);
+		await new Promise(resolve => window.setTimeout(resolve, 100));
+		const shushanProfileTemporal = readTemporalProfile();
+
 		const shushanAssertionState = temporalAssertionStateService.getAt(
 			historicalCalendar.solarToJulianDay({
 				year: 115,
@@ -1347,6 +1374,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				.sort((a, b) => a.id.localeCompare(b.id)),
 			timeline: shushanTimeline,
 			relationshipTemporal: shushanRelationshipTemporal,
+			profileTemporal: shushanProfileTemporal,
 			mapAfterWorkspaceSwitch: shushanMapAfterSwitch,
 			createdPaths: shushanCreated.map(file => file.path)
 		};
@@ -1698,6 +1726,18 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(
 		workspaceState.shushan.relationshipTemporal.summary,
 		'1 active · 0 possible'
+	);
+	assert.deepEqual(workspaceState.shushan.profileTemporal.items, [
+		{
+			assertionId: 'workspace-shushan-assertion',
+			state: 'active',
+			relationKind: 'affiliation',
+			text: workspaceState.shushan.profileTemporal.items[0].text
+		}
+	]);
+	assert.match(
+		workspaceState.shushan.profileTemporal.items[0].text,
+		/Fiction Organization/
 	);
 	assert.deepEqual(workspaceState.shushan.createdPaths.sort(), [
 		'Workspace-E2E/Shushan/Events/Shushan Created Event E2E.md',
