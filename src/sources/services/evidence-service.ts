@@ -41,12 +41,21 @@ export interface ResearchGapsSummary {
 /**
  * Service for analyzing evidence and research coverage
  */
+export interface EvidenceServiceOptions {
+	fileProvider?: () => TFile[];
+}
+
 export class EvidenceService {
 	private app: App;
 	private settings: CanvasRootsSettings;
 	private sourceService: SourceService;
 
-	constructor(app: App, settings: CanvasRootsSettings, sourceService?: SourceService) {
+	constructor(
+		app: App,
+		settings: CanvasRootsSettings,
+		sourceService?: SourceService,
+		private readonly options: EvidenceServiceOptions = {}
+	) {
 		this.app = app;
 		this.settings = settings;
 		this.sourceService = sourceService ?? new SourceService(app, settings);
@@ -198,7 +207,7 @@ export class EvidenceService {
 		}
 
 		const allCoverage: PersonResearchCoverage[] = [];
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.options.fileProvider?.() ?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {
 			const coverage = this.getFactCoverageForFile(file);
@@ -241,7 +250,7 @@ export class EvidenceService {
 	 */
 	getPeopleWithUnsourcedFact(factKey: FactKey): PersonResearchCoverage[] {
 		const results: PersonResearchCoverage[] = [];
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.options.fileProvider?.() ?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {
 			const coverage = this.getFactCoverageForFile(file);
@@ -264,7 +273,7 @@ export class EvidenceService {
 	 */
 	getPeopleWithWeaklySourcingFact(factKey: FactKey): PersonResearchCoverage[] {
 		const results: PersonResearchCoverage[] = [];
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.options.fileProvider?.() ?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {
 			const coverage = this.getFactCoverageForFile(file);
@@ -418,7 +427,7 @@ export class EvidenceService {
 	 * Find a person file by cr_id
 	 */
 	private findPersonFileByCrId(crId: string): TFile | null {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.options.fileProvider?.() ?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
