@@ -181,6 +181,10 @@ function renderQuickActionsSection(
 	const openCreateEvent = () => {
 		closeModal();
 		const eventService = plugin.getEventService();
+		if (!eventService) {
+			new Notice('Event service is not ready yet. Please try again.');
+			return;
+		}
 		new CreateEventModal(app, eventService, plugin.settings, {
 			plugin,
 			onCreated: (file) => {
