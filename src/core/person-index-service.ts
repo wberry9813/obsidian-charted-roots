@@ -24,6 +24,11 @@ const logger = getLogger('PersonIndexService');
  * - basename → cr_id(s) (resolve wikilinks, detect ambiguity)
  * - path → cr_id (full path wikilink resolution)
  */
+export interface PersonIndexServiceOptions {
+	fileProvider?: () => TFile[];
+	fileInScope?: (file: TFile) => boolean;
+}
+
 export class PersonIndexService {
 	// Primary indices
 	private crIdToFile: Map<string, TFile> = new Map();
@@ -48,7 +53,8 @@ export class PersonIndexService {
 
 	constructor(
 		private app: App,
-		private settings: CanvasRootsSettings
+		private settings: CanvasRootsSettings,
+		private readonly options: PersonIndexServiceOptions = {}
 	) {
 		// Subscribe to metadata cache events
 		this.subscribeToEvents();
@@ -95,7 +101,8 @@ export class PersonIndexService {
 		this.basenameToFiles.clear();
 		this.pathToFile.clear();
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.options.fileProvider?.()
+			?? this.app.vault.getMarkdownFiles();
 		let indexedCount = 0;
 		let filteredCount = 0;
 
@@ -170,6 +177,12 @@ export class PersonIndexService {
 			return;  // Index not built yet, ignore
 		}
 
+		// Workspace is the primary boundary; FolderFilter is secondary.
+		if (this.options.fileInScope && !this.options.fileInScope(file)) {
+			this.removeFileFromIndex(file.path);
+			return;
+		}
+
 		// Check folder filter
 		if (this.folderFilter && !this.folderFilter.shouldIncludeFile(file)) {
 			// File is now filtered out, remove it
@@ -233,6 +246,9 @@ export class PersonIndexService {
 		const crId = cache?.frontmatter?.cr_id;
 
 		if (crId && typeof crId === 'string') {
+			if (this.options.fileInScope && !this.options.fileInScope(file)) {
+				return;
+			}
 			// Check folder filter with new path
 			if (!this.folderFilter || this.folderFilter.shouldIncludeFile(file)) {
 				this.updateFileInIndex(file, crId);
