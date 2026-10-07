@@ -5,7 +5,7 @@
  * Provides quick-action tiles for common operations and vault overview.
  */
 
-import { App, Menu, TFile } from 'obsidian';
+import { App, Menu, Notice, TFile } from 'obsidian';
 import CanvasRootsPlugin from '../../main';
 import { LucideIconName, setLucideIcon } from './lucide-icons';
 import { VaultStatsService, FullVaultStats } from '../core/vault-stats';
