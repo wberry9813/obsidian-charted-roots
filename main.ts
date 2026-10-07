@@ -30,6 +30,7 @@ import { PersonIndexService } from './src/core/person-index-service';
 import { PlaceGraphService } from './src/core/place-graph';
 import { EvidenceService, ProofSummaryService, SourceService } from './src/sources';
 import { EventService } from './src/events/services/event-service';
+import { OrganizationService } from './src/organizations/services/organization-service';
 import { DateService, createDateService } from './src/dates';
 import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, V2MigrationExecutor, WorkspaceCatalogService, WorkspaceService, bootstrapWorkspaceFoundation, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type LegacyWorkspaceDerivation, type MigrationExecutionOptions, type MigrationExecutionResult, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry, type WorkspaceCatalog } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
@@ -39,7 +40,7 @@ import { MediaService } from './src/core/media-service';
 import { MigrationNoticeView, VIEW_TYPE_MIGRATION_NOTICE } from './src/ui/views/migration-notice-view';
 import { ProfileView, VIEW_TYPE_ENTITY_PROFILE } from './src/profile-view/profile-view';
 import { WebClipperService } from './src/core/web-clipper-service';
-import { createUniverseService } from './src/universes/services/universe-service';
+import { UniverseService, createUniverseService } from './src/universes/services/universe-service';
 import { PluginRenameMigrationService, showMigrationNotice } from './src/migration/plugin-rename-migration-service';
 
 import { registerContextMenus } from './src/plugin/context-menus';
@@ -105,6 +106,8 @@ export default class CanvasRootsPlugin extends Plugin {
 	public personIndex: PersonIndexService | null = null;
 	private eventService: EventService | null = null;
 	private sourceService: SourceService | null = null;
+	private organizationService: OrganizationService | null = null;
+	private universeService: UniverseService | null = null;
 	private proofSummaryService: ProofSummaryService | null = null;
 	private recentFilesService: RecentFilesService | null = null;
 	private mediaService: MediaService | null = null;
@@ -251,6 +254,27 @@ export default class CanvasRootsPlugin extends Plugin {
 			this.sourceService.setupVaultListeners(this);
 		}
 		return this.sourceService;
+	}
+
+	/**
+	 * Shared Organization service. The service itself resolves Workspace scope
+	 * dynamically from the plugin so one instance survives Workspace switches.
+	 */
+	getOrganizationService(): OrganizationService {
+		if (!this.organizationService) {
+			this.organizationService = new OrganizationService(this);
+		}
+		return this.organizationService;
+	}
+
+	/**
+	 * Shared Universe service with dynamic Workspace scope.
+	 */
+	getUniverseService(): UniverseService {
+		if (!this.universeService) {
+			this.universeService = new UniverseService(this);
+		}
+		return this.universeService;
 	}
 
 	/**
@@ -745,7 +769,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		let universeCalendarService: ReturnType<typeof createUniverseService> | null = null;
 		this.dateService.setUniverseCalendarResolver((universeRef) => {
 			if (!universeRef) return null;
-			if (!universeCalendarService) universeCalendarService = createUniverseService(this);
+			if (!universeCalendarService) universeCalendarService = this.getUniverseService();
 			const universe = universeCalendarService.getUniverseByName(universeRef) ?? universeCalendarService.getUniverse(universeRef);
 			return universe?.defaultCalendar ?? null;
 		});
@@ -1311,7 +1335,7 @@ export default class CanvasRootsPlugin extends Plugin {
 			}
 			if (crType !== 'universe') return;
 
-			const universeService = createUniverseService(this);
+			const universeService = this.getUniverseService();
 			void universeService.cascadeUniverseRename(oldBasename, newBasename)
 				.then(updateCount => {
 					if (updateCount > 0) {
