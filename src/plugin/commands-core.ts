@@ -769,7 +769,7 @@ export function registerCommandsAndEvents(plugin: CanvasRootsPlugin): void {
 		id: 'split-tree-wizard',
 		name: 'Split tree wizard',
 		callback: () => {
-			new SplitWizardModal(plugin.app, plugin.settings, plugin.getFolderFilter() ?? undefined).open();
+			new SplitWizardModal(plugin.app, plugin.settings, plugin.getFolderFilter() ?? undefined, plugin).open();
 		}
 	});
 
