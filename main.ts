@@ -106,6 +106,7 @@ export default class CanvasRootsPlugin extends Plugin {
 	public personIndex: PersonIndexService | null = null;
 	private eventService: EventService | null = null;
 	private sourceService: SourceService | null = null;
+	private evidenceService: EvidenceService | null = null;
 	private organizationService: OrganizationService | null = null;
 	private universeService: UniverseService | null = null;
 	private proofSummaryService: ProofSummaryService | null = null;
@@ -254,6 +255,22 @@ export default class CanvasRootsPlugin extends Plugin {
 			this.sourceService.setupVaultListeners(this);
 		}
 		return this.sourceService;
+	}
+
+	getEvidenceService(): EvidenceService {
+		if (!this.evidenceService) {
+			this.evidenceService = new EvidenceService(
+				this.app,
+				this.settings,
+				this.getSourceService(),
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles()
+				}
+			);
+		}
+		return this.evidenceService;
 	}
 
 	/**
@@ -651,16 +668,7 @@ export default class CanvasRootsPlugin extends Plugin {
 	 * Populate research coverage percentages for all people in the graph
 	 */
 	private populateResearchCoverage(graphService: FamilyGraphService): void {
-		const evidenceService = new EvidenceService(
-			this.app,
-			this.settings,
-			this.getSourceService(),
-			{
-				fileProvider: () =>
-					this.workspaceService?.getScope().getMarkdownFiles()
-					?? this.app.vault.getMarkdownFiles()
-			}
-		);
+		const evidenceService = this.getEvidenceService();
 		const people = graphService.getAllPeople();
 
 		for (const person of people) {
