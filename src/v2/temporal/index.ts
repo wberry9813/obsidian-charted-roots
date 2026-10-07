@@ -8,3 +8,4 @@ export * from './temporal-assertion-state-service';
 export * from './temporal-focus-service';
 export * from './temporal-place-state-service';
 export * from './temporal-map-overlay';
+export * from './temporal-institution-state-service';

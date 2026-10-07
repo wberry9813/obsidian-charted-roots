@@ -83,6 +83,7 @@ function groupingKindForNoteType(
 		case 'person':
 		case 'place':
 		case 'organization':
+		case 'office':
 		case 'universe':
 			return noteType;
 		default:

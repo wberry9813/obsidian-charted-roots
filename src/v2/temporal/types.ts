@@ -8,6 +8,7 @@ export type TemporalGroupingKind =
 	| 'person'
 	| 'place'
 	| 'organization'
+	| 'office'
 	| 'universe';
 
 export interface TemporalGroupingRef {
