@@ -58,7 +58,7 @@ describe('Workspace-scoped cleanup migrations', () => {
 		const history = file('History/People/A.md');
 		const fiction = file('Fiction/People/B.md');
 		const sourcedFacts = {
-			birth_date: { sources: ['[[Source]]' }
+			birth_date: { sources: ['[[Source]]'] }
 		};
 		const fm = new Map([
 			[history.path, { cr_type: 'person', cr_id: 'a', sourced_facts: sourcedFacts }],
