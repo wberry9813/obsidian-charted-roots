@@ -177,7 +177,8 @@ additional mapping layer that is unnecessary with D3.
 - [x] Timeline axis point selection writes shared focus;
 - [x] Relationships surface shows v2 active/possible Assertions at focus without mixing them into the legacy relationship table;
 - organization/office/affiliation state over time;
-- timeline ↔ map synchronization;
+- [x] shared Timeline focus -> Map active/possible place-state overlay;
+- [ ] Map interactions/time controls -> shared Timeline focus;
 - Period/Process contextual overlays.
 
 ## 8. Reuse from the legacy timeline system

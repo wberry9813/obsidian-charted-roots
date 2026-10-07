@@ -991,6 +991,36 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				)?.textContent ?? ''
 			};
 		};
+		const readTemporalMap = () => {
+			const leaf = app.workspace.getLeavesOfType('canvas-roots-map')[0];
+			const root = leaf?.view?.containerEl;
+			const mapContainer = root?.querySelector('.cr-map-container');
+			return {
+				focusKind: mapContainer?.getAttribute('data-temporal-focus-kind') ?? null,
+				markerCount: Number(
+					mapContainer?.getAttribute('data-temporal-marker-count') ?? '0'
+				),
+				activeCount: Number(
+					mapContainer?.getAttribute('data-temporal-active-count') ?? '0'
+				),
+				possibleCount: Number(
+					mapContainer?.getAttribute('data-temporal-possible-count') ?? '0'
+				),
+				markerIds: [...(root?.querySelectorAll(
+					'.cr-temporal-place-marker-icon[data-temporal-place-id]'
+				) ?? [])]
+					.map(el => el.getAttribute('data-temporal-place-id'))
+					.filter(Boolean)
+					.sort(),
+				states: [...(root?.querySelectorAll(
+					'.cr-temporal-place-marker-icon[data-temporal-state]'
+				) ?? [])]
+					.map(el => el.getAttribute('data-temporal-state'))
+					.filter(Boolean)
+					.sort()
+			};
+		};
+
 		const readTemporalRelationships = () => {
 			const leaf = app.workspace.getLeavesOfType('canvas-roots-relationships')[0];
 			const root = leaf?.view?.containerEl;
@@ -1186,13 +1216,32 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			}),
 			'e2e-history'
 		);
+		await plugin.activateMapView();
+		await new Promise(resolve => window.setTimeout(resolve, 150));
+		history.mapTemporal = readTemporalMap();
+
+		plugin.getTemporalFocusService().clear();
+		await new Promise(resolve => window.setTimeout(resolve, 30));
+		history.mapTemporalCleared = readTemporalMap();
+
+		plugin.getTemporalFocusService().setPoint(
+			historicalCalendar.solarToJulianDay({
+				year: -456,
+				month: 6,
+				day: 1
+			}),
+			'e2e-history'
+		);
+		await new Promise(resolve => window.setTimeout(resolve, 30));
+
 		await plugin.activateRelationshipsView();
 		await new Promise(resolve => window.setTimeout(resolve, 100));
 		history.relationshipTemporal = readTemporalRelationships();
 
 		await plugin.setActiveWorkspace('shushan');
-		await new Promise(resolve => window.setTimeout(resolve, 50));
+		await new Promise(resolve => window.setTimeout(resolve, 80));
 		const shushanTimeline = readTimelineView();
+		const shushanMapAfterSwitch = readTemporalMap();
 
 		plugin.getTemporalFocusService().setPoint(
 			historicalCalendar.solarToJulianDay({
@@ -1298,6 +1347,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				.sort((a, b) => a.id.localeCompare(b.id)),
 			timeline: shushanTimeline,
 			relationshipTemporal: shushanRelationshipTemporal,
+			mapAfterWorkspaceSwitch: shushanMapAfterSwitch,
 			createdPaths: shushanCreated.map(file => file.path)
 		};
 
@@ -1506,6 +1556,22 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		workspaceState.history.relationshipTemporal.summary,
 		'1 active · 0 possible'
 	);
+	assert.deepEqual(workspaceState.history.mapTemporal, {
+		focusKind: 'point',
+		markerCount: 1,
+		activeCount: 1,
+		possibleCount: 0,
+		markerIds: ['history-place'],
+		states: ['active']
+	});
+	assert.deepEqual(workspaceState.history.mapTemporalCleared, {
+		focusKind: '',
+		markerCount: 0,
+		activeCount: 0,
+		possibleCount: 0,
+		markerIds: [],
+		states: []
+	});
 	assert.deepEqual(workspaceState.history.createdPaths.sort(), [
 		'Workspace-E2E/History/Events/History Created Event E2E.md',
 		'Workspace-E2E/History/Organizations/History Created Organization E2E.md',
@@ -1610,6 +1676,14 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.ok(
 		workspaceState.shushan.timeline.tickLabels.every(label => !/\b0\b/.test(label))
 	);
+	assert.deepEqual(workspaceState.shushan.mapAfterWorkspaceSwitch, {
+		focusKind: 'point',
+		markerCount: 0,
+		activeCount: 0,
+		possibleCount: 0,
+		markerIds: [],
+		states: []
+	});
 	assert.equal(workspaceState.shushan.timeline.groupBy, 'person');
 	assert.equal(workspaceState.shushan.timeline.persistedGroupBy, 'person');
 	assert.deepEqual(workspaceState.shushan.timeline.laneLabels, [
