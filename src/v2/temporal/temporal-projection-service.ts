@@ -24,6 +24,35 @@ const PRECISIONS = new Set<TemporalPrecision>([
 	'unknown'
 ]);
 
+const ASSERTION_NON_QUALIFIER_KEYS = new Set([
+	'cr_schema',
+	'cr_type',
+	'cr_id',
+	'name',
+	'title',
+	'aliases',
+	'universe',
+	'research_sets',
+	'external_ids',
+	'tags',
+	'assertion_type',
+	'subject',
+	'predicate',
+	'object',
+	'value',
+	'time_start',
+	'time_end',
+	'time_not_before',
+	'time_not_after',
+	'time_start_precision',
+	'time_end_precision',
+	'time_start_certainty',
+	'time_end_certainty',
+	'confidence',
+	'research_status',
+	'notes'
+]);
+
 const CERTAINTIES = new Set<TemporalCertainty>([
 	'certain',
 	'approximate',
@@ -50,6 +79,18 @@ function scalarValue(value: unknown): string | number | boolean | undefined {
 		|| typeof value === 'boolean'
 		? value
 		: undefined;
+}
+
+function assertionQualifiers(
+	frontmatter: Record<string, unknown>
+): Record<string, string | number | boolean> | undefined {
+	const qualifiers: Record<string, string | number | boolean> = {};
+	for (const [key, raw] of Object.entries(frontmatter)) {
+		if (ASSERTION_NON_QUALIFIER_KEYS.has(key)) continue;
+		const scalar = scalarValue(raw);
+		if (scalar !== undefined) qualifiers[key] = scalar;
+	}
+	return Object.keys(qualifiers).length > 0 ? qualifiers : undefined;
 }
 
 function stringArrayValue(value: unknown): string[] {
@@ -258,6 +299,9 @@ export class TemporalProjectionService {
 				: undefined,
 			value: kind === 'assertion'
 				? scalarValue(frontmatter.value)
+				: undefined,
+			qualifiers: kind === 'assertion'
+				? assertionQualifiers(frontmatter)
 				: undefined,
 			groups: this.buildGroupingRefs(kind, file, frontmatter),
 			start,

@@ -112,9 +112,13 @@ WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
 
 ### C3 — historical place identity
 
-- [ ] historical aliases with time/source context;
-- [ ] place-name resolution without rewriting stable Place identity;
-- [ ] ontology/Assertion integration for time-bounded names where appropriate.
+- [x] Core `historical_name` designation type;
+- [x] `has_designation` supports Place subjects and designation/source qualifiers;
+- [x] Temporal projection preserves scalar Assertion qualifiers at the renderer boundary;
+- [x] `PlaceDesignationService` queries active/possible names by stable Place `cr_id`;
+- [ ] create/edit UI for time-bounded Place designations;
+- [ ] legacy `historical_names` -> designation migration preview;
+- [ ] focused Map/Profile display of the historically active name.
 
 ### C4 — historical control layers
 
