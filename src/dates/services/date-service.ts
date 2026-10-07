@@ -258,26 +258,28 @@ export class DateService {
 	 * system. Other subsystems use this explicit semantic check instead of
 	 * guessing from formatted labels or signed canonical numbers.
 	 */
-	hasFictionalDateSystemForUniverse(universe?: string): boolean {
-		if (!universe || !this.fictionalParser) return false;
+	getFictionalDateSystemForUniverse(
+		universe?: string
+	): FictionalDateSystem | null {
+		if (!universe || !this.fictionalParser) return null;
 		const cleanUniverse = universe
 			.replace(/^\[\[/, '')
 			.replace(/\]\]$/, '')
 			.split('|', 1)[0]
 			.trim();
-		if (!cleanUniverse) return false;
+		if (!cleanUniverse) return null;
 
 		const preferredSystemId = this.universeCalendarResolver
 			?.(cleanUniverse) ?? undefined;
-		if (
-			preferredSystemId
-			&& this.fictionalParser.getSystem(preferredSystemId)
-		) {
-			return true;
+		if (preferredSystemId) {
+			const preferred = this.fictionalParser.getSystem(preferredSystemId);
+			if (preferred) return preferred;
 		}
-		return Boolean(
-			this.fictionalParser.findSystemForUniverse(cleanUniverse)
-		);
+		return this.fictionalParser.findSystemForUniverse(cleanUniverse) ?? null;
+	}
+
+	hasFictionalDateSystemForUniverse(universe?: string): boolean {
+		return this.getFictionalDateSystemForUniverse(universe) !== null;
 	}
 
 	/**
