@@ -126,11 +126,15 @@ WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
 
 ### C4 — historical control layers
 
-- [ ] time-bounded GeoJSON/control-layer contract;
-- [ ] WGS84 canonical GeoJSON policy;
-- [ ] adapter conversion for GCJ-02/BD-09 layer sources;
-- [ ] source/provenance and uncertainty metadata;
-- [ ] shared TemporalFocus filtering.
+- [x] time-bounded geographic GeoJSON/control-layer contract;
+- [x] WGS84 is the canonical GeoJSON geometry datum;
+- [x] import adapter normalizes WGS84 / GCJ-02 / BD-09 layer geometry to WGS84;
+- [x] layer/feature contracts preserve source, confidence and uncertainty metadata;
+- [x] Point / MultiPoint / LineString / MultiLineString / Polygon / MultiPolygon / GeometryCollection normalization;
+- [x] altitude/extra position dimensions survive datum conversion;
+- [ ] shared TemporalFocus active/possible filtering;
+- [ ] render canonical control layers through the active basemap datum adapter;
+- [ ] storage/import UI for GeoJSON layer sources.
 
 ### C5 — full Timeline <-> Map synchronization
 
