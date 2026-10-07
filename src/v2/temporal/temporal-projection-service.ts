@@ -259,12 +259,25 @@ export class TemporalProjectionService {
 			? result.value
 			: undefined;
 
+		const parsedPrecision = parsed?.precision;
+		const precisionConflict = Boolean(
+			declaredPrecision
+			&& declaredPrecision !== 'unknown'
+			&& parsedPrecision
+			&& parsedPrecision !== 'unknown'
+			&& declaredPrecision !== parsedPrecision
+		);
+
 		return {
 			expression,
 			declaredPrecision,
 			declaredCertainty,
-			effectivePrecision: declaredPrecision ?? parsed?.precision,
+			// The authored expression is authoritative for positional precision.
+			// Explicit metadata is preserved separately and may be linted, but it
+			// must never turn a year into a fake day/month coordinate.
+			effectivePrecision: parsedPrecision ?? declaredPrecision,
 			effectiveCertainty: declaredCertainty ?? parsed?.certainty,
+			precisionConflict,
 			result
 		};
 	}

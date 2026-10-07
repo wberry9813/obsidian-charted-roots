@@ -89,6 +89,29 @@ describe('TemporalProjectionService', () => {
 		expect(item.start?.effectiveCertainty).toBe('approximate');
 	});
 
+	it('never lets declared precision manufacture finer coordinates than the expression', () => {
+		const { app } = makeVault([{
+			path: 'History/Events/Conflicting-Precision.md',
+			frontmatter: {
+				cr_type: 'event',
+				cr_id: 'precision-conflict',
+				title: 'Conflicting precision',
+				event_type: 'custom',
+				time_start: 'BCE 453',
+				time_start_precision: 'day'
+			}
+		}]);
+		const service = new TemporalProjectionService(
+			app,
+			new HistoricalDateService()
+		);
+
+		const [item] = service.getAll();
+		expect(item.start?.declaredPrecision).toBe('day');
+		expect(item.start?.effectivePrecision).toBe('year');
+		expect(item.start?.precisionConflict).toBe(true);
+	});
+
 	it('projects Event, Process, Period and time-bounded Assertion into one contract', () => {
 		const { app } = makeVault([
 			{

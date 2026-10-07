@@ -76,6 +76,7 @@ Ordinary plugin settings use normal i18n. Only extensible domain definitions nee
 - [Schema v2](schema-v2.md)
 - [Temporal Assertions](temporal-assertions.md)
 - [Historical Time](historical-time.md)
+- [Temporal Views Foundation](temporal-views.md)
 - [Chinese History Pack](chinese-history-pack.md)
 - [Evidence, Providers and Reuse](evidence-providers.md)
 - [Migration and Implementation Boundaries](migration-and-implementation.md)

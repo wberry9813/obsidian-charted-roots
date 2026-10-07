@@ -28,6 +28,12 @@ export interface TemporalBoundaryProjection {
 	declaredCertainty?: TemporalCertainty;
 	effectivePrecision?: TemporalPrecision;
 	effectiveCertainty?: TemporalCertainty;
+	/**
+	 * True when explicit v2 precision metadata contradicts the precision that
+	 * can actually be inferred from the authored expression. Renderers must
+	 * never use the declaration to manufacture finer coordinates.
+	 */
+	precisionConflict: boolean;
 	result: TemporalParseResult;
 }
 
