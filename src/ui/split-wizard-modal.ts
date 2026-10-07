@@ -418,7 +418,11 @@ export class SplitWizardModal extends Modal {
 						new PersonPickerModal(this.app, (person: PersonInfo) => {
 							this.selectedRootPerson = { crId: person.crId, name: person.name };
 							this.render();
-						}, this.folderFilter).open();
+						}, {
+							folderFilter: this.folderFilter,
+							plugin: this.plugin,
+							familyGraph: this.familyGraph
+						}).open();
 					});
 			});
 
@@ -472,7 +476,11 @@ export class SplitWizardModal extends Modal {
 						new PersonPickerModal(this.app, (person: PersonInfo) => {
 							this.branchAnchorPerson = { crId: person.crId, name: person.name };
 							this.render();
-						}, this.folderFilter).open();
+						}, {
+							folderFilter: this.folderFilter,
+							plugin: this.plugin,
+							familyGraph: this.familyGraph
+						}).open();
 					});
 			});
 
@@ -547,7 +555,11 @@ export class SplitWizardModal extends Modal {
 						new PersonPickerModal(this.app, (person: PersonInfo) => {
 							this.lineageStartPerson = { crId: person.crId, name: person.name };
 							this.render();
-						}, this.folderFilter).open();
+						}, {
+							folderFilter: this.folderFilter,
+							plugin: this.plugin,
+							familyGraph: this.familyGraph
+						}).open();
 					});
 			});
 
@@ -562,7 +574,11 @@ export class SplitWizardModal extends Modal {
 						new PersonPickerModal(this.app, (person: PersonInfo) => {
 							this.lineageEndPerson = { crId: person.crId, name: person.name };
 							this.render();
-						}, this.folderFilter).open();
+						}, {
+							folderFilter: this.folderFilter,
+							plugin: this.plugin,
+							familyGraph: this.familyGraph
+						}).open();
 					});
 			});
 
@@ -678,7 +694,11 @@ export class SplitWizardModal extends Modal {
 						new PersonPickerModal(this.app, (person: PersonInfo) => {
 							this.ancestorDescendantRoot = { crId: person.crId, name: person.name };
 							this.render();
-						}, this.folderFilter).open();
+						}, {
+							folderFilter: this.folderFilter,
+							plugin: this.plugin,
+							familyGraph: this.familyGraph
+						}).open();
 					});
 			});
 
