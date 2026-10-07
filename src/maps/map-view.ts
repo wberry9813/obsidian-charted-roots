@@ -1595,7 +1595,11 @@ export class MapView extends ItemView {
 				if (isPixelCRS && m.pixelX !== undefined && m.pixelY !== undefined) {
 					points.push([m.pixelY, m.pixelX]);
 				} else if (m.lat !== undefined && m.lng !== undefined) {
-					points.push([m.lat, m.lng]);
+					const display = this.mapController.canonicalGeographicToMapLatLng(
+						m.lat,
+						m.lng
+					);
+					points.push([display.lat, display.lng]);
 				}
 			}
 			if (points.length > 0) {
@@ -1813,7 +1817,11 @@ export class MapView extends ItemView {
 		if (isPixelCRS && hasPixel) {
 			target = [waypoint.pixelY!, waypoint.pixelX!];
 		} else if (hasLatLng) {
-			target = [waypoint.lat, waypoint.lng];
+			const display = this.mapController.canonicalGeographicToMapLatLng(
+				waypoint.lat,
+				waypoint.lng
+			);
+			target = [display.lat, display.lng];
 		}
 
 		if (target) {
@@ -2502,9 +2510,18 @@ export class MapView extends ItemView {
 	private createTemporalPlaceMarker(
 		data: TemporalMapOverlayMarker
 	): L.Marker {
-		const coords: L.LatLngExpression = data.coordinate.kind === 'geographic'
-			? [data.coordinate.lat, data.coordinate.long]
-			: [data.coordinate.y, data.coordinate.x];
+		let coords: L.LatLngExpression;
+		if (data.coordinate.kind === 'geographic' && this.mapController) {
+			const display = this.mapController.canonicalGeographicToMapLatLng(
+				data.coordinate.lat,
+				data.coordinate.long
+			);
+			coords = [display.lat, display.lng];
+		} else if (data.coordinate.kind === 'geographic') {
+			coords = [data.coordinate.lat, data.coordinate.long];
+		} else {
+			coords = [data.coordinate.y, data.coordinate.x];
+		}
 
 		const icon = L.divIcon({
 			className: `cr-temporal-place-marker-icon cr-temporal-place-marker-icon--${data.state}`,

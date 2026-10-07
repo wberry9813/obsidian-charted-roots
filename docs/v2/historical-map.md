@@ -64,9 +64,12 @@ Supported first-stage geographic CRS:
 - [x] declare the existing Carto Voyager / OSM-backed Real world basemap as WGS84;
 - [x] route main-map, MiniMap, map-switch and CRS-recreation tile creation through one definition;
 - [x] define a bidirectional canonical WGS84 <-> basemap datum coordinate adapter;
-- [ ] route geographic marker/path/heat/fitBounds rendering through the adapter;
-- [ ] route geographic click/drag write-back through the inverse adapter;
-- [ ] prove current WGS84 marker/path/heat/GeoJSON rendering remains unchanged through the adapter;
+- [x] route event/place marker, search, migration/journey path, arrow, heat and fitBounds rendering through the adapter;
+- [x] route Journey camera and v2 temporal place overlay through the same Controller conversion API;
+- [x] route geographic map click and Place drag write-back through the inverse adapter;
+- [x] persist map center state as canonical WGS84 instead of basemap-shifted coordinates;
+- [ ] prove current WGS84 rendering remains unchanged in the latest real-Obsidian smoke after integration;
+- [ ] keep GeoJSON export canonical WGS84 and add import/render adapter coverage;
 - [ ] add China-friendly GCJ-02/BD-09 basemap options only after adapter tests.
 
 ### C3 — historical place identity

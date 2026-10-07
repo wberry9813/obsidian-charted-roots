@@ -94,8 +94,13 @@ import { getMarkerColor, isMarkerTypeVisible, formatPopupDateRange, coordsBelong
 import { ImageMapManager } from './image-map-manager';
 import {
 	DEFAULT_GEOGRAPHIC_BASEMAP,
+	GeographicBasemapCoordinateAdapter,
 	type GeographicBasemapDefinition
 } from '../v2/maps/basemaps';
+import {
+	CanonicalCoordinateService,
+	GcoordCoordinateTransformProvider
+} from '../v2/maps/coordinates';
 
 const logger = getLogger('MapController');
 
@@ -113,6 +118,7 @@ export class MapController {
 	private tileLayer: L.TileLayer | null = null;
 	private geographicBasemap: GeographicBasemapDefinition =
 		DEFAULT_GEOGRAPHIC_BASEMAP;
+	private basemapCoordinateAdapter: GeographicBasemapCoordinateAdapter;
 
 	// Unified cluster group for all event markers (birth, death, marriage, etc.)
 	private eventClusterGroup: L.MarkerClusterGroup | null = null;
@@ -203,6 +209,12 @@ export class MapController {
 		this.settings = settings;
 		this.plugin = plugin;
 		this.imageMapManager = new ImageMapManager(plugin.app, settings.customMapsFolder);
+		this.basemapCoordinateAdapter = new GeographicBasemapCoordinateAdapter(
+			new CanonicalCoordinateService(
+				new GcoordCoordinateTransformProvider()
+			),
+			this.geographicBasemap
+		);
 	}
 
 	/**
@@ -255,6 +267,42 @@ export class MapController {
 
 	getGeographicBasemapDefinition(): GeographicBasemapDefinition {
 		return { ...this.geographicBasemap };
+	}
+
+	/**
+	 * Convert canonical vault WGS84 into coordinates aligned with the active
+	 * Real-world raster basemap. Custom geographic image maps and pixel maps
+	 * keep their existing coordinate semantics.
+	 */
+	canonicalGeographicToMapLatLng(
+		lat: number,
+		lng: number
+	): { lat: number; lng: number } {
+		if (this.currentCRS !== 'geographic' || this.activeMapId !== 'openstreetmap') {
+			return { lat, lng };
+		}
+		return this.basemapCoordinateAdapter.toLeafletLatLng({
+			latitude: lat,
+			longitude: lng
+		});
+	}
+
+	/**
+	 * Convert a Real-world map interaction coordinate back to canonical WGS84.
+	 * Custom geographic image maps and pixel maps are intentionally untouched.
+	 */
+	mapLatLngToCanonicalGeographic(
+		lat: number,
+		lng: number
+	): { lat: number; lng: number } {
+		if (this.currentCRS !== 'geographic' || this.activeMapId !== 'openstreetmap') {
+			return { lat, lng };
+		}
+		const canonical = this.basemapCoordinateAdapter.fromLeafletLatLng({ lat, lng });
+		return {
+			lat: canonical.latitude,
+			lng: canonical.longitude
+		};
 	}
 
 	/**
@@ -493,7 +541,8 @@ export class MapController {
 			this.eventClusterGroup.eachLayer((layer) => {
 				const marker = layer as CRMarker;
 				if (marker.crData) {
-					const searchMarker = L.marker([marker.crData.lat, marker.crData.lng], {
+					const renderedLatLng = marker.getLatLng();
+					const searchMarker = L.marker(renderedLatLng, {
 						opacity: 0,
 						icon: L.divIcon({ className: 'cr-search-marker', iconSize: [1, 1] }),
 						// @ts-expect-error - custom property for search
@@ -614,7 +663,8 @@ export class MapController {
 		if (this.currentCRS === 'pixel' && data.pixelX !== undefined && data.pixelY !== undefined) {
 			coords = [data.pixelY, data.pixelX];
 		} else if (data.lat !== undefined && data.lng !== undefined) {
-			coords = [data.lat, data.lng];
+			const display = this.canonicalGeographicToMapLatLng(data.lat, data.lng);
+			coords = [display.lat, display.lng];
 		} else {
 			// No valid coordinates - skip
 			return L.marker([0, 0], { icon });
@@ -649,10 +699,10 @@ export class MapController {
 		// Add drag end handler
 		marker.on('dragend', (e: L.DragEndEvent) => {
 			const newLatLng = e.target.getLatLng();
-			const newCoords: { lat: number; lng: number; pixelX?: number; pixelY?: number } = {
-				lat: newLatLng.lat,
-				lng: newLatLng.lng
-			};
+			const newCoords: { lat: number; lng: number; pixelX?: number; pixelY?: number } =
+				this.currentCRS === 'pixel'
+					? { lat: newLatLng.lat, lng: newLatLng.lng }
+					: this.mapLatLngToCanonicalGeographic(newLatLng.lat, newLatLng.lng);
 
 			// For pixel maps, convert to pixel coordinates
 			if (this.currentCRS === 'pixel') {
@@ -736,7 +786,8 @@ export class MapController {
 			// For L.CRS.Simple: [y, x] where y=0 is at bottom
 			coords = [data.pixelY, data.pixelX];
 		} else {
-			coords = [data.lat, data.lng];
+			const display = this.canonicalGeographicToMapLatLng(data.lat, data.lng);
+			coords = [display.lat, display.lng];
 		}
 
 		const marker = L.marker(coords, { icon }) as CRMarker;
@@ -1131,9 +1182,17 @@ export class MapController {
 				[data.destination.pixelY, data.destination.pixelX]
 			];
 		} else {
+			const origin = this.canonicalGeographicToMapLatLng(
+				data.origin.lat,
+				data.origin.lng
+			);
+			const destination = this.canonicalGeographicToMapLatLng(
+				data.destination.lat,
+				data.destination.lng
+			);
 			latlngs = [
-				[data.origin.lat, data.origin.lng],
-				[data.destination.lat, data.destination.lng]
+				[origin.lat, origin.lng],
+				[destination.lat, destination.lng]
 			];
 		}
 
@@ -1260,7 +1319,8 @@ export class MapController {
 			if (this.currentCRS === 'pixel' && wp.pixelX !== undefined && wp.pixelY !== undefined) {
 				return [wp.pixelY, wp.pixelX] as L.LatLngTuple;
 			}
-			return [wp.lat, wp.lng] as L.LatLngTuple;
+			const display = this.canonicalGeographicToMapLatLng(wp.lat, wp.lng);
+			return [display.lat, display.lng] as L.LatLngTuple;
 		});
 
 		const polyline = L.polyline(latlngs, {
@@ -1308,7 +1368,8 @@ export class MapController {
 				if (this.currentCRS === 'pixel' && wp.pixelX !== undefined && wp.pixelY !== undefined) {
 					return L.latLng(wp.pixelY, wp.pixelX);
 				}
-				return L.latLng(wp.lat, wp.lng);
+				const display = this.canonicalGeographicToMapLatLng(wp.lat, wp.lng);
+				return L.latLng(display.lat, display.lng);
 			});
 
 			// Create decorator for arrows at each segment midpoint
@@ -1442,7 +1503,8 @@ export class MapController {
 				if (this.currentCRS === 'pixel') {
 					return [m.pixelY!, m.pixelX!, 1] as [number, number, number];
 				}
-				return [m.lat, m.lng, 1] as [number, number, number];
+				const display = this.canonicalGeographicToMapLatLng(m.lat, m.lng);
+				return [display.lat, display.lng, 1] as [number, number, number];
 			});
 
 		if (heatData.length === 0) return;
@@ -2086,7 +2148,10 @@ export class MapController {
 	 * Set the map view center and zoom
 	 */
 	setView(center: { lat: number; lng: number }, zoom: number): void {
-		this.map?.setView([center.lat, center.lng], zoom);
+		const display = this.currentCRS === 'pixel'
+			? center
+			: this.canonicalGeographicToMapLatLng(center.lat, center.lng);
+		this.map?.setView([display.lat, display.lng], zoom);
 	}
 
 	/**
@@ -2126,10 +2191,7 @@ export class MapController {
 			}
 
 			// Reset to default view
-			this.map.setView(
-				[this.settings.defaultCenter.lat, this.settings.defaultCenter.lng],
-				this.settings.defaultZoom
-			);
+			this.setView(this.settings.defaultCenter, this.settings.defaultZoom);
 		} else {
 			// Switch to custom image map (same CRS)
 			if (this.tileLayer && this.map.hasLayer(this.tileLayer)) {
@@ -2261,6 +2323,7 @@ export class MapController {
 
 		this.map = L.map(this.container, mapOptions);
 		this.currentCRS = targetCRS;
+		this.activeMapId = mapId;
 
 		// Set up layers based on new CRS
 		if (targetCRS === 'geographic') {
@@ -2268,10 +2331,7 @@ export class MapController {
 			if (mapId === 'openstreetmap') {
 				this.tileLayer = this.createGeographicTileLayer().addTo(this.map);
 
-				this.map.setView(
-					[this.settings.defaultCenter.lat, this.settings.defaultCenter.lng],
-					this.settings.defaultZoom
-				);
+				this.setView(this.settings.defaultCenter, this.settings.defaultZoom);
 			} else {
 				// Geographic mode custom map
 				const overlay = await this.imageMapManager.createImageOverlay(mapId);
@@ -2441,11 +2501,9 @@ export class MapController {
 			};
 		}
 
-		// Geographic map - return lat/lng
-		return {
-			lat: latlng.lat,
-			lng: latlng.lng
-		};
+		// Real-world geographic map interactions are normalized back to the
+		// canonical WGS84 storage datum before callers create/update Places.
+		return this.mapLatLngToCanonicalGeographic(latlng.lat, latlng.lng);
 	}
 
 	// ========================================================================
@@ -2879,7 +2937,8 @@ export class MapController {
 			if (this.currentCRS === 'pixel' && m.pixelX !== undefined && m.pixelY !== undefined) {
 				return [m.pixelY, m.pixelX] as L.LatLngTuple;
 			}
-			return [m.lat, m.lng] as L.LatLngTuple;
+			const display = this.canonicalGeographicToMapLatLng(m.lat, m.lng);
+			return [display.lat, display.lng] as L.LatLngTuple;
 		});
 
 		const bounds = L.latLngBounds(coords);
@@ -2890,11 +2949,15 @@ export class MapController {
 	 * Get current map state
 	 */
 	getState(): MapState {
-		const center = this.map?.getCenter() || L.latLng(this.settings.defaultCenter.lat, this.settings.defaultCenter.lng);
+		const center = this.map?.getCenter()
+			|| L.latLng(this.settings.defaultCenter.lat, this.settings.defaultCenter.lng);
+		const canonicalCenter = this.currentCRS === 'pixel'
+			? { lat: center.lat, lng: center.lng }
+			: this.mapLatLngToCanonicalGeographic(center.lat, center.lng);
 		const zoom = this.map?.getZoom() || this.settings.defaultZoom;
 
 		return {
-			center: { lat: center.lat, lng: center.lng },
+			center: canonicalCenter,
 			zoom,
 			filters: {},
 			layers: this.currentLayers,
