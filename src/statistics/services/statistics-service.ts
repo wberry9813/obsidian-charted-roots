@@ -83,6 +83,7 @@ export class StatisticsService {
 	private plugin?: CanvasRootsPlugin;
 	private cache: StatisticsCache;
 	private refreshTimeout: number | null = null;
+	private cacheScopeKey: string | null = null;
 
 	// Lazy-initialized services
 	private vaultStatsService: VaultStatsService | null = null;
@@ -115,9 +116,11 @@ export class StatisticsService {
 	 * Get or create VaultStatsService
 	 */
 	private getVaultStatsService(): VaultStatsService {
+		this.syncWorkspaceScope();
 		if (!this.vaultStatsService) {
 			this.vaultStatsService = new VaultStatsService(this.app);
 			this.vaultStatsService.setSettings(this.settings);
+			this.vaultStatsService.setFileProvider(() => this.getScopedMarkdownFiles());
 			const folderFilter = this.createFolderFilter();
 			if (folderFilter) {
 				this.vaultStatsService.setFolderFilter(folderFilter);
@@ -130,6 +133,7 @@ export class StatisticsService {
 	 * Get or create FamilyGraphService
 	 */
 	private getFamilyGraphService(): FamilyGraphService {
+		this.syncWorkspaceScope();
 		if (!this.familyGraphService) {
 			if (this.plugin) {
 				// Use the plugin's fully-configured graph so the date range is
@@ -164,9 +168,42 @@ export class StatisticsService {
 	}
 
 	/**
+	 * Dynamic Workspace boundary for direct note scans performed by this
+	 * service. Without a Workspace-enabled plugin, preserve legacy whole-vault
+	 * behavior for standalone/test callers.
+	 */
+	private getScopedMarkdownFiles(): TFile[] {
+		this.syncWorkspaceScope();
+		return this.plugin?.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
+	}
+
+	private getWorkspaceScopeKey(): string {
+		return this.plugin?.getWorkspaceService()?.getActiveId() ?? '__vault__';
+	}
+
+	/**
+	 * Statistics caches are valid only inside the Workspace in which they were
+	 * computed. Detect active Workspace changes lazily so existing Statistics
+	 * views/services do not need to be recreated on every switch.
+	 */
+	private syncWorkspaceScope(): void {
+		const current = this.getWorkspaceScopeKey();
+		if (this.cacheScopeKey === current) return;
+
+		this.cacheScopeKey = current;
+		this.cache.isValid = false;
+		this.familyGraphService?.clearCache();
+		this.organizationService = null;
+		this.universeService = null;
+		this.universeCurrentYearCache = null;
+	}
+
+	/**
 	 * Get all statistics (cached)
 	 */
 	getAllStatistics(): StatisticsData {
+		this.syncWorkspaceScope();
 		if (this.cache.isValid && this.cache.data) {
 			return this.cache.data;
 		}
@@ -286,7 +323,7 @@ export class StatisticsService {
 		let researchLogEntries = 0;
 
 		try {
-			const files = this.app.vault.getMarkdownFiles();
+			const files = this.getScopedMarkdownFiles();
 			for (const file of files) {
 				const cache = this.app.metadataCache.getFileCache(file);
 				const crType = cache?.frontmatter?.cr_type;
@@ -502,7 +539,7 @@ export class StatisticsService {
 	 * Count events without source citations
 	 */
 	private countUnsourcedEvents(): number {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedMarkdownFiles();
 		let count = 0;
 
 		for (const file of files) {
@@ -712,7 +749,7 @@ export class StatisticsService {
 			unknown: 0
 		};
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedMarkdownFiles();
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
 			if (!cache?.frontmatter) continue;
@@ -741,7 +778,7 @@ export class StatisticsService {
 	 */
 	private computeTopSources(limit: number = DEFAULT_TOP_LIST_LIMIT): TopListItem[] {
 		const sourceCitationCount = new Map<string, { count: number; file?: TFile }>();
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedMarkdownFiles();
 
 		// Build map of source cr_id to file
 		const sourceFiles = new Map<string, TFile>();
@@ -965,7 +1002,7 @@ export class StatisticsService {
 	 * Get the TFile for a person by their cr_id
 	 */
 	private getPersonFile(person: PersonNode): TFile | null {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedMarkdownFiles();
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
 			if (cache?.frontmatter?.cr_id === person.crId) {
@@ -1137,7 +1174,7 @@ export class StatisticsService {
 	 * Get unsourced events as file references
 	 */
 	getUnsourcedEvents(): TFile[] {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedMarkdownFiles();
 		const unsourced: TFile[] = [];
 
 		for (const file of files) {
@@ -1159,7 +1196,7 @@ export class StatisticsService {
 	 * Get places without coordinates
 	 */
 	getPlacesWithoutCoordinates(): TFile[] {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedMarkdownFiles();
 		const noCoords: TFile[] = [];
 
 		for (const file of files) {
@@ -1393,6 +1430,12 @@ export class StatisticsService {
 		const people = this.getFamilyGraphService().getAllPeople();
 		const eventService = this.plugin?.getEventService?.();
 		const placeGraph = new PlaceGraphService(this.app);
+		if (this.plugin?.getWorkspaceService()) {
+			placeGraph.setFileProvider(
+				() => this.plugin!.getWorkspaceService()!.getScope().getMarkdownFiles(),
+				() => this.plugin!.getWorkspaceService()!.getActiveId()
+			);
+		}
 		const sameLocation = (a: string, b: string): boolean =>
 			this.migrationSameLocation(a, b, placeGraph);
 
@@ -1673,7 +1716,7 @@ export class StatisticsService {
 
 		// Count events by decade from vault stats
 		// Parse event dates from all files
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedMarkdownFiles();
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
 			if (!cache?.frontmatter) continue;
@@ -2330,7 +2373,7 @@ export class StatisticsService {
 		let logEntryCount = 0;
 		let privateCount = 0;
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedMarkdownFiles();
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
 			const fm = cache?.frontmatter;
@@ -2394,7 +2437,7 @@ export class StatisticsService {
 	 */
 	getUniversesWithCounts(): UniverseWithEntityCounts[] {
 		const universes: UniverseWithEntityCounts[] = [];
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getScopedMarkdownFiles();
 
 		// First pass: find all universe notes
 		for (const file of files) {
@@ -2477,7 +2520,9 @@ export class StatisticsService {
 		qualityDistribution: Record<number, number>;
 		mostCitedSources: Array<{ name: string; count: number }>;
 	} {
-		const citationsFolder = this.settings.citationsFolder || 'Charted Roots/Citations';
+		const citationsFolder = this.plugin?.getWorkspaceService()?.getFolder('citations')
+			?? this.settings.citationsFolder
+			?? 'Charted Roots/Citations';
 		const citations: Array<{ sourceName: string; quality?: number }> = [];
 
 		// Count sourced facts across all people
@@ -2487,7 +2532,7 @@ export class StatisticsService {
 		const sourceCountMap = new Map<string, number>();
 		const qualityDist: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
 
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of this.getScopedMarkdownFiles()) {
 			if (!file.path.startsWith(citationsFolder)) continue;
 
 			const cache = this.app.metadataCache.getFileCache(file);
