@@ -887,7 +887,11 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			&& app.metadataCache.getCache('Workspace-E2E/Shushan/Sources/Fiction-Source.md')?.frontmatter?.cr_type === 'source'
 			&& app.metadataCache.getCache('Workspace-E2E/History/Universes/History-Universe.md')?.frontmatter?.cr_type === 'universe'
 			&& app.metadataCache.getCache('Workspace-E2E/Shushan/Universes/Fiction-Universe.md')?.frontmatter?.cr_type === 'universe'
-			&& app.metadataCache.getCache('Workspace-E2E/Shushan/Events/Fiction-Event.md')?.frontmatter?.cr_type === 'event'`
+			&& app.metadataCache.getCache('Workspace-E2E/Shushan/Events/Fiction-Event.md')?.frontmatter?.cr_type === 'event'
+			&& app.metadataCache.getCache('Workspace-E2E/History/Places/History-Place.md')?.frontmatter?.cr_type === 'place'
+			&& app.metadataCache.getCache('Workspace-E2E/Shushan/Places/Fiction-Place.md')?.frontmatter?.cr_type === 'place'
+			&& app.metadataCache.getCache('Workspace-E2E/History/Sources/Proofs/History-Proof.md')?.frontmatter?.cr_type === 'proof_summary'
+			&& app.metadataCache.getCache('Workspace-E2E/Shushan/Sources/Proofs/Fiction-Proof.md')?.frontmatter?.cr_type === 'proof_summary'`
 	);
 
 	const workspaceState = await session.evalInApp(`
@@ -939,6 +943,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const organizationService = plugin.getOrganizationService();
 		const universeService = plugin.getUniverseService();
 		const familyGraph = plugin.createFamilyGraphService();
+		const placeGraph = plugin.createPlaceGraphService();
+		const evidenceService = plugin.getEvidenceService();
+		const proofService = plugin.getProofSummaryService();
 
 		const historyCreated = [
 			await eventService.createEvent({
@@ -957,6 +964,14 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			await universeService.createUniverse({
 				name: 'History Created Universe E2E',
 				status: 'active'
+			}),
+			await proofService.createProof({
+				title: 'History Created Proof E2E',
+				subjectPerson: '[[Workspace-E2E/History/People/History-Person|History Person]]',
+				factType: 'birth_date',
+				conclusion: 'History created proof conclusion',
+				status: 'complete',
+				confidence: 'proven'
 			})
 		];
 
@@ -993,6 +1008,15 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				shushan: plugin.personIndex?.getFileByCrId('workspace-shushan-person')?.path ?? null
 			},
 			familyPeople: familyGraph.getAllPeople().map(person => person.name).sort(),
+			places: placeGraph.getAllPlaces().map(place => place.name).sort(),
+			evidence: {
+				history: evidenceService.getFactCoverage('workspace-history-person')?.filePath ?? null,
+				shushan: evidenceService.getFactCoverage('workspace-shushan-person')?.filePath ?? null
+			},
+			proofs: proofService.getAllProofs()
+				.filter(proof => !proof.title.includes('Created Proof E2E'))
+				.map(proof => proof.title)
+				.sort(),
 			createdPaths: historyCreated.map(file => file.path)
 		};
 
@@ -1020,6 +1044,14 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			await universeService.createUniverse({
 				name: 'Shushan Created Universe E2E',
 				status: 'active'
+			}),
+			await proofService.createProof({
+				title: 'Shushan Created Proof E2E',
+				subjectPerson: '[[Workspace-E2E/Shushan/People/Fiction-Person|Fiction Person]]',
+				factType: 'birth_date',
+				conclusion: 'Shushan created proof conclusion',
+				status: 'complete',
+				confidence: 'proven'
 			})
 		];
 
@@ -1054,6 +1086,15 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				shushan: plugin.personIndex?.getFileByCrId('workspace-shushan-person')?.path ?? null
 			},
 			familyPeople: familyGraph.getAllPeople().map(person => person.name).sort(),
+			places: placeGraph.getAllPlaces().map(place => place.name).sort(),
+			evidence: {
+				history: evidenceService.getFactCoverage('workspace-history-person')?.filePath ?? null,
+				shushan: evidenceService.getFactCoverage('workspace-shushan-person')?.filePath ?? null
+			},
+			proofs: proofService.getAllProofs()
+				.filter(proof => !proof.title.includes('Created Proof E2E'))
+				.map(proof => proof.title)
+				.sort(),
 			createdPaths: shushanCreated.map(file => file.path)
 		};
 
@@ -1116,7 +1157,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'Workspace-E2E/History/Events/History-Service-Event.md',
 		'Workspace-E2E/History/Organizations/History-Org.md',
 		'Workspace-E2E/History/People/History-Person.md',
+		'Workspace-E2E/History/Places/History-Place.md',
 		'Workspace-E2E/History/Sources/History-Source.md',
+		'Workspace-E2E/History/Sources/Proofs/History-Proof.md',
 		'Workspace-E2E/History/Universes/History-Universe.md'
 	]);
 	assert.equal(
@@ -1135,10 +1178,17 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		shushan: null
 	});
 	assert.deepEqual(workspaceState.history.familyPeople, ['History Person']);
+	assert.deepEqual(workspaceState.history.places, ['History Place']);
+	assert.deepEqual(workspaceState.history.evidence, {
+		history: 'Workspace-E2E/History/People/History-Person.md',
+		shushan: null
+	});
+	assert.deepEqual(workspaceState.history.proofs, ['History Proof']);
 	assert.deepEqual(workspaceState.history.createdPaths.sort(), [
 		'Workspace-E2E/History/Events/History Created Event E2E.md',
 		'Workspace-E2E/History/Organizations/History Created Organization E2E.md',
 		'Workspace-E2E/History/Sources/History Created Source E2E.md',
+		'Workspace-E2E/History/Sources/Proofs/History Created Proof E2E.md',
 		'Workspace-E2E/History/Universes/History Created Universe E2E.md'
 	]);
 
@@ -1148,7 +1198,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'Workspace-E2E/Shushan/Events/Fiction-Event.md',
 		'Workspace-E2E/Shushan/Organizations/Fiction-Org.md',
 		'Workspace-E2E/Shushan/People/Fiction-Person.md',
+		'Workspace-E2E/Shushan/Places/Fiction-Place.md',
 		'Workspace-E2E/Shushan/Sources/Fiction-Source.md',
+		'Workspace-E2E/Shushan/Sources/Proofs/Fiction-Proof.md',
 		'Workspace-E2E/Shushan/Universes/Fiction-Universe.md'
 	]);
 	assert.equal(
@@ -1167,10 +1219,17 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		shushan: 'Workspace-E2E/Shushan/People/Fiction-Person.md'
 	});
 	assert.deepEqual(workspaceState.shushan.familyPeople, ['Fiction Person']);
+	assert.deepEqual(workspaceState.shushan.places, ['Fiction Place']);
+	assert.deepEqual(workspaceState.shushan.evidence, {
+		history: null,
+		shushan: 'Workspace-E2E/Shushan/People/Fiction-Person.md'
+	});
+	assert.deepEqual(workspaceState.shushan.proofs, ['Fiction Proof']);
 	assert.deepEqual(workspaceState.shushan.createdPaths.sort(), [
 		'Workspace-E2E/Shushan/Events/Shushan Created Event E2E.md',
 		'Workspace-E2E/Shushan/Organizations/Shushan Created Organization E2E.md',
 		'Workspace-E2E/Shushan/Sources/Shushan Created Source E2E.md',
+		'Workspace-E2E/Shushan/Sources/Proofs/Shushan Created Proof E2E.md',
 		'Workspace-E2E/Shushan/Universes/Shushan Created Universe E2E.md'
 	]);
 
