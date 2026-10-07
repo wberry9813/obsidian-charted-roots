@@ -1,4 +1,5 @@
 import type { App, TFile } from 'obsidian';
+import type CanvasRootsPlugin from '../../../main';
 import type { CanvasRootsSettings } from '../../settings';
 import { FamilyGraphService, createConfiguredFamilyGraph } from '../../core/family-graph';
 import { EventService } from '../../events/services/event-service';
@@ -20,6 +21,27 @@ export interface ReportGenerationScope {
 	scopeKeyProvider?: () => string | null;
 	workspaceRootProvider?: () => string;
 	reportsFolderProvider?: () => string;
+}
+
+/** Build a dynamic report scope from the plugin's current Active Workspace. */
+export function createPluginReportScope(
+	plugin: CanvasRootsPlugin
+): ReportGenerationScope {
+	return {
+		markdownFileProvider: () =>
+			plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+				?? plugin.app.vault.getMarkdownFiles(),
+		allFileProvider: () =>
+			plugin.getWorkspaceService()?.getScope().getFiles()
+				?? plugin.app.vault.getFiles(),
+		scopeKeyProvider: () =>
+			plugin.getWorkspaceService()?.getActiveId() ?? null,
+		workspaceRootProvider: () =>
+			plugin.getWorkspaceService()?.getActive().rootFolder ?? '',
+		reportsFolderProvider: () =>
+			plugin.getWorkspaceService()?.getFolder('reports')
+				?? plugin.settings.reportsFolder
+	};
 }
 
 export function createReportFamilyGraph(
