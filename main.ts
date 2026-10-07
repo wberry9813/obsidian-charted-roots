@@ -606,7 +606,13 @@ export default class CanvasRootsPlugin extends Plugin {
 			this.v2Linter = new V2Linter(
 				this.app,
 				this.getV2OntologyRegistry(),
-				this.getAssertionService()
+				this.getAssertionService(),
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles(),
+					globalFileProvider: () => this.app.vault.getMarkdownFiles()
+				}
 			);
 		}
 		return this.v2Linter;
@@ -761,7 +767,17 @@ export default class CanvasRootsPlugin extends Plugin {
 					?? this.app.vault.getMarkdownFiles()
 			}
 		);
-		this.v2Linter = new V2Linter(this.app, this.v2OntologyRegistry, this.assertionService);
+		this.v2Linter = new V2Linter(
+			this.app,
+			this.v2OntologyRegistry,
+			this.assertionService,
+			{
+				fileProvider: () =>
+					this.workspaceService?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles(),
+				globalFileProvider: () => this.app.vault.getMarkdownFiles()
+			}
+		);
 		this.historicalDateService = new HistoricalDateService();
 
 		// Initialize logger with saved log level
