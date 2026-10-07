@@ -178,6 +178,8 @@ export class TemporalTimelineView extends ItemView {
 			focus => {
 				if (focus?.source !== 'timeline') {
 					this.refresh();
+				} else {
+					this.refreshTemporalContext();
 				}
 			}
 		);
@@ -382,6 +384,11 @@ export class TemporalTimelineView extends ItemView {
 			text: `${model.spans.length} plotted · ${model.windows.length} possible · ${model.review.length} review`,
 			cls: 'cr-v2-timeline__summary'
 		});
+
+		const context = container.createDiv({
+			cls: 'cr-v2-timeline__context'
+		});
+		this.renderTemporalContext(context);
 
 		if (items.length === 0) {
 			container.createDiv({
@@ -715,10 +722,88 @@ export class TemporalTimelineView extends ItemView {
 			}
 			focusService.setPoint(position, 'timeline');
 			renderFocus(activeScale);
+			this.refreshTemporalContext();
 		});
 		this.resetZoom = () => {
 			svg.call(zoomBehavior.transform, zoomIdentity);
 		};
+	}
+
+	private refreshTemporalContext(): void {
+		const context = this.contentEl.querySelector('.cr-v2-timeline__context');
+		if (context instanceof HTMLElement) {
+			this.renderTemporalContext(context);
+		}
+	}
+
+	private renderTemporalContext(container: HTMLElement): void {
+		container.empty();
+		const focus = this.plugin.getTemporalFocusService().get();
+		const service = this.plugin.getTemporalContextStateService();
+
+		const heading = container.createDiv({
+			cls: 'cr-v2-timeline__context-heading'
+		});
+		heading.createSpan({ text: 'Context', cls: 'cr-v2-timeline__context-title' });
+
+		if (!focus || !service) {
+			container.createDiv({
+				text: !service
+					? 'Temporal context service is unavailable.'
+					: 'Select a point or range to inspect active Periods and Processes.',
+				cls: 'cr-v2-timeline__context-empty'
+			});
+			return;
+		}
+
+		const snapshot = focus.kind === 'point'
+			? service.getAt(focus.position)
+			: service.getRange({
+				start: focus.start,
+				endExclusive: focus.endExclusive
+			});
+
+		heading.createSpan({
+			text: `${snapshot.active.length} active · ${snapshot.possible.length} possible`,
+			cls: 'cr-v2-timeline__context-summary'
+		});
+
+		if (snapshot.active.length === 0 && snapshot.possible.length === 0) {
+			container.createDiv({
+				text: 'No Period or Process context intersects the current focus.',
+				cls: 'cr-v2-timeline__context-empty'
+			});
+			return;
+		}
+
+		const list = container.createDiv({
+			cls: 'cr-v2-timeline__context-list'
+		});
+		for (const entry of [...snapshot.active, ...snapshot.possible]) {
+			const button = list.createEl('button', {
+				cls: 'cr-v2-timeline__context-item'
+			});
+			button.setAttribute('data-context-id', entry.id);
+			button.setAttribute('data-context-kind', entry.kind);
+			button.setAttribute('data-temporal-state', entry.state);
+			button.createSpan({
+				text: entry.kind === 'period' ? 'Period' : 'Process',
+				cls: 'cr-v2-timeline__context-kind'
+			});
+			button.createSpan({
+				text: entry.title,
+				cls: 'cr-v2-timeline__context-label'
+			});
+			if (entry.state === 'possible') {
+				button.createSpan({
+					text: 'possible',
+					cls: 'cr-v2-timeline__context-state'
+				});
+			}
+			button.addEventListener('click', () => {
+				void this.app.workspace.getLeaf(false).openFile(entry.item.file);
+			});
+		}
 	}
 
 	private renderReview(

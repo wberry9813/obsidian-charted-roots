@@ -184,3 +184,53 @@
 	stroke-opacity: 50%;
 	pointer-events: none;
 }
+
+
+.cr-v2-timeline__context {
+	display: flex;
+	flex: 0 0 auto;
+	flex-direction: column;
+	gap: var(--size-2-1);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	padding: var(--size-2-2) var(--size-4-2);
+	background: var(--background-secondary);
+}
+
+.cr-v2-timeline__context-heading {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--size-4-2);
+}
+
+.cr-v2-timeline__context-title {
+	font-weight: var(--font-semibold);
+}
+
+.cr-v2-timeline__context-summary,
+.cr-v2-timeline__context-empty,
+.cr-v2-timeline__context-kind,
+.cr-v2-timeline__context-state {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.cr-v2-timeline__context-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-2-1);
+}
+
+.cr-v2-timeline__context-item {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	max-width: 100%;
+}
+
+.cr-v2-timeline__context-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
