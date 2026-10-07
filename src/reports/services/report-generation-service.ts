@@ -47,6 +47,7 @@ import { ResearchReportExportGenerator } from './research-report-export-generato
 import { BrickWallReportGenerator } from './brick-wall-report-generator';
 import { UnconnectedPeopleGenerator } from './unconnected-people-generator';
 import { KinshipReportGenerator } from './kinship-report-generator';
+import { SourceService } from '../../sources/services/source-service';
 import {
 	createReportScopedSettings,
 	type ReportGenerationContext
@@ -110,9 +111,17 @@ export class ReportGenerationService {
 		this.registerReportGenerator = new RegisterReportGenerator(app, this.settings);
 		this.pedigreeChartGenerator = new PedigreeChartGenerator(app, this.settings);
 		this.descendantChartGenerator = new DescendantChartGenerator(app, this.settings);
-		this.sourceSummaryGenerator = new SourceSummaryGenerator(app, this.settings, undefined, context);
+		this.sourceSummaryGenerator = new SourceSummaryGenerator(
+			app,
+			this.settings,
+			new SourceService(app, this.settings, {
+				fileProvider: context.fileProvider,
+				defaultFolderProvider: () =>
+					context.folderProvider?.('sources') ?? this.settings.sourcesFolder
+			})
+		);
 		this.sourcesByRoleGenerator = new SourcesByRoleGenerator(app, this.settings);
-		this.timelineGenerator = new TimelineGenerator(app, this.settings, context);
+		this.timelineGenerator = new TimelineGenerator(app, this.settings);
 		this.placeSummaryGenerator = new PlaceSummaryGenerator(app, this.settings);
 		this.mediaInventoryGenerator = new MediaInventoryGenerator(app, this.settings);
 		this.universeOverviewGenerator = new UniverseOverviewGenerator(app, this.settings);
@@ -123,9 +132,7 @@ export class ReportGenerationService {
 		this.kinshipReportGenerator = new KinshipReportGenerator(app, this.settings);
 	}
 
-	/**
-	 * Generate a report based on type and options
-	 */
+	/** Generate a report based on type and options. */
 	async generateReport(
 		type: ReportType,
 		options: FamilyGroupSheetOptions | IndividualSummaryOptions | AhnentafelOptions | GapsReportOptions | RegisterReportOptions | PedigreeChartOptions | DescendantChartOptions | SourceSummaryOptions | SourcesByRoleOptions | TimelineReportOptions | PlaceSummaryOptions | MediaInventoryOptions | UniverseOverviewOptions | CollectionOverviewOptions | ResearchReportExportOptions | BrickWallReportOptions | UnconnectedPeopleOptions | KinshipReportOptions
@@ -133,62 +140,25 @@ export class ReportGenerationService {
 		logger.info('generate', `Generating ${type} report`);
 
 		let result: ReportResult;
-
 		switch (type) {
-			case 'family-group-sheet':
-				result = await this.familyGroupSheetGenerator.generate(options as FamilyGroupSheetOptions);
-				break;
-			case 'individual-summary':
-				result = await this.individualSummaryGenerator.generate(options as IndividualSummaryOptions);
-				break;
-			case 'ahnentafel':
-				result = await this.ahnentafelGenerator.generate(options as AhnentafelOptions);
-				break;
-			case 'gaps-report':
-				result = await this.gapsReportGenerator.generate(options as GapsReportOptions);
-				break;
-			case 'register-report':
-				result = await this.registerReportGenerator.generate(options as RegisterReportOptions);
-				break;
-			case 'pedigree-chart':
-				result = await this.pedigreeChartGenerator.generate(options as PedigreeChartOptions);
-				break;
-			case 'descendant-chart':
-				result = await this.descendantChartGenerator.generate(options as DescendantChartOptions);
-				break;
-			case 'source-summary':
-				result = await this.sourceSummaryGenerator.generate(options as SourceSummaryOptions);
-				break;
-			case 'sources-by-role':
-				result = await this.sourcesByRoleGenerator.generate(options as SourcesByRoleOptions);
-				break;
-			case 'timeline-report':
-				result = await this.timelineGenerator.generate(options as TimelineReportOptions);
-				break;
-			case 'place-summary':
-				result = await this.placeSummaryGenerator.generate(options as PlaceSummaryOptions);
-				break;
-			case 'media-inventory':
-				result = await this.mediaInventoryGenerator.generate(options as MediaInventoryOptions);
-				break;
-			case 'universe-overview':
-				result = await this.universeOverviewGenerator.generate(options as UniverseOverviewOptions);
-				break;
-			case 'collection-overview':
-				result = await this.collectionOverviewGenerator.generate(options as CollectionOverviewOptions);
-				break;
-			case 'research-report-export':
-				result = await this.researchReportExportGenerator.generate(options as ResearchReportExportOptions);
-				break;
-			case 'brick-wall-report':
-				result = await this.brickWallReportGenerator.generate(options as BrickWallReportOptions);
-				break;
-			case 'unconnected-people':
-				result = await this.unconnectedPeopleGenerator.generate(options as UnconnectedPeopleOptions);
-				break;
-			case 'kinship-report':
-				result = await this.kinshipReportGenerator.generate(options as KinshipReportOptions);
-				break;
+			case 'family-group-sheet': result = await this.familyGroupSheetGenerator.generate(options as FamilyGroupSheetOptions); break;
+			case 'individual-summary': result = await this.individualSummaryGenerator.generate(options as IndividualSummaryOptions); break;
+			case 'ahnentafel': result = await this.ahnentafelGenerator.generate(options as AhnentafelOptions); break;
+			case 'gaps-report': result = await this.gapsReportGenerator.generate(options as GapsReportOptions); break;
+			case 'register-report': result = await this.registerReportGenerator.generate(options as RegisterReportOptions); break;
+			case 'pedigree-chart': result = await this.pedigreeChartGenerator.generate(options as PedigreeChartOptions); break;
+			case 'descendant-chart': result = await this.descendantChartGenerator.generate(options as DescendantChartOptions); break;
+			case 'source-summary': result = await this.sourceSummaryGenerator.generate(options as SourceSummaryOptions); break;
+			case 'sources-by-role': result = await this.sourcesByRoleGenerator.generate(options as SourcesByRoleOptions); break;
+			case 'timeline-report': result = await this.timelineGenerator.generate(options as TimelineReportOptions); break;
+			case 'place-summary': result = await this.placeSummaryGenerator.generate(options as PlaceSummaryOptions); break;
+			case 'media-inventory': result = await this.mediaInventoryGenerator.generate(options as MediaInventoryOptions); break;
+			case 'universe-overview': result = await this.universeOverviewGenerator.generate(options as UniverseOverviewOptions); break;
+			case 'collection-overview': result = await this.collectionOverviewGenerator.generate(options as CollectionOverviewOptions); break;
+			case 'research-report-export': result = await this.researchReportExportGenerator.generate(options as ResearchReportExportOptions); break;
+			case 'brick-wall-report': result = await this.brickWallReportGenerator.generate(options as BrickWallReportOptions); break;
+			case 'unconnected-people': result = await this.unconnectedPeopleGenerator.generate(options as UnconnectedPeopleOptions); break;
+			case 'kinship-report': result = await this.kinshipReportGenerator.generate(options as KinshipReportOptions); break;
 			default:
 				return {
 					success: false,
@@ -207,7 +177,6 @@ export class ReportGenerationService {
 				options.outputFolder
 			);
 		}
-
 		return result;
 	}
 
@@ -223,15 +192,10 @@ export class ReportGenerationService {
 
 		const workspaceRoot = this.context.workspaceRootProvider?.();
 		if (workspaceRoot && !pathIsInsideRoot(selectedFolder, workspaceRoot)) {
-			throw new Error(
-				`Report output folder must stay inside the active Workspace: ${workspaceRoot}`
-			);
+			throw new Error(`Report output folder must stay inside the active Workspace: ${workspaceRoot}`);
 		}
 
-		if (selectedFolder) {
-			await this.ensureFolderExists(selectedFolder);
-		}
-
+		if (selectedFolder) await this.ensureFolderExists(selectedFolder);
 		let outputPath = selectedFolder
 			? normalizePath(`${selectedFolder}/${normalizedFilename}`)
 			: normalizePath(normalizedFilename);
@@ -243,9 +207,7 @@ export class ReportGenerationService {
 				selectedFolder
 					? normalizePath(`${selectedFolder}/${baseName}-${counter}.md`)
 					: normalizePath(`${baseName}-${counter}.md`)
-			)) {
-				counter++;
-			}
+			)) counter++;
 			outputPath = selectedFolder
 				? normalizePath(`${selectedFolder}/${baseName}-${counter}.md`)
 				: normalizePath(`${baseName}-${counter}.md`);
@@ -256,7 +218,6 @@ export class ReportGenerationService {
 		return outputPath;
 	}
 
-	/** Trigger download of report content as a file. */
 	downloadReport(content: string, filename: string): void {
 		const normalizedFilename = filename.endsWith('.md') ? filename : `${filename}.md`;
 		const blob = new Blob([content], { type: 'text/markdown' });
@@ -275,40 +236,27 @@ export class ReportGenerationService {
 		const normalizedPath = normalizePath(folderPath);
 		const existing = this.app.vault.getAbstractFileByPath(normalizedPath);
 		if (existing) {
-			if (!(existing instanceof TFolder)) {
-				throw new Error(`Path exists but is not a folder: ${normalizedPath}`);
-			}
+			if (!(existing instanceof TFolder)) throw new Error(`Path exists but is not a folder: ${normalizedPath}`);
 			return;
 		}
-
-		// Obsidian createFolder does not recursively create arbitrary parents on
-		// every supported app version, so build the path one segment at a time.
 		let current = '';
 		for (const segment of normalizedPath.split('/').filter(Boolean)) {
 			current = current ? `${current}/${segment}` : segment;
 			const item = this.app.vault.getAbstractFileByPath(current);
-			if (!item) {
-				await this.app.vault.createFolder(current);
-			} else if (!(item instanceof TFolder)) {
-				throw new Error(`Path exists but is not a folder: ${current}`);
-			}
+			if (!item) await this.app.vault.createFolder(current);
+			else if (!(item instanceof TFolder)) throw new Error(`Path exists but is not a folder: ${current}`);
 		}
 	}
 
-	/**
-	 * Get output folders. In Workspace mode only folders below that Workspace
-	 * root are exposed, preventing accidental cross-dataset report output.
-	 */
+	/** Workspace mode exposes only output folders below the active root. */
 	getAvailableFolders(): string[] {
 		const workspaceRoot = this.context.workspaceRootProvider?.();
 		if (workspaceRoot) {
 			const normalizedRoot = normalizePath(workspaceRoot);
 			const root = this.app.vault.getAbstractFileByPath(normalizedRoot);
 			if (!(root instanceof TFolder)) {
-				return [this.context.folderProvider?.('reports') ?? normalizedRoot]
-					.filter(Boolean);
+				return [this.context.folderProvider?.('reports') ?? normalizedRoot].filter(Boolean);
 			}
-
 			const folders: string[] = [normalizedRoot];
 			const collect = (folder: TFolder): void => {
 				for (const child of folder.children) {
@@ -336,21 +284,11 @@ export class ReportGenerationService {
 		return folders.sort();
 	}
 
-	async exportTimelineToCanvas(options: TimelineReportOptions): Promise<{
-		success: boolean;
-		path?: string;
-		error?: string;
-		warnings?: string[];
-	}> {
+	async exportTimelineToCanvas(options: TimelineReportOptions): Promise<{ success: boolean; path?: string; error?: string; warnings?: string[] }> {
 		return this.timelineGenerator.exportToCanvas(options);
 	}
 
-	async exportTimelineToExcalidraw(options: TimelineReportOptions): Promise<{
-		success: boolean;
-		path?: string;
-		error?: string;
-		warnings?: string[];
-	}> {
+	async exportTimelineToExcalidraw(options: TimelineReportOptions): Promise<{ success: boolean; path?: string; error?: string; warnings?: string[] }> {
 		return this.timelineGenerator.exportToExcalidraw(options);
 	}
 }
