@@ -125,7 +125,10 @@ export class FamilyCreationWizardModal extends Modal {
 	constructor(app: App, plugin: CanvasRootsPlugin, directory?: string, initialPerson?: PersonInfo) {
 		super(app);
 		this.plugin = plugin;
-		this.directory = directory || plugin.settings.peopleFolder || 'People';
+		this.directory = directory
+			?? plugin.getWorkspaceService()?.getFolder('people')
+			?? plugin.settings.peopleFolder
+			?? 'People';
 
 		// Initialize persistence
 		this.persistence = new ModalStatePersistence(plugin, 'family-wizard');
