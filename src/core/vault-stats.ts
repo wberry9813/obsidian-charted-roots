@@ -94,6 +94,7 @@ export class VaultStatsService {
 	private app: App;
 	private folderFilter: FolderFilterService | null = null;
 	private settings: CanvasRootsSettings | null = null;
+	private fileProvider: (() => TFile[]) | null = null;
 
 	constructor(app: App) {
 		this.app = app;
@@ -107,6 +108,15 @@ export class VaultStatsService {
 	}
 
 	/**
+	 * Override vault-wide discovery with a dynamic scoped provider.
+	 * The callback is evaluated on every collection so Workspace switches are
+	 * reflected without recreating this service.
+	 */
+	setFileProvider(fileProvider: () => TFile[]): void {
+		this.fileProvider = fileProvider;
+	}
+
+	/**
 	 * Set the full plugin settings for note type detection
 	 */
 	setSettings(settings: CanvasRootsSettings): void {
@@ -117,7 +127,7 @@ export class VaultStatsService {
 	 * Collect full vault statistics
 	 */
 	collectStats(): FullVaultStats {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.fileProvider?.() ?? this.app.vault.getMarkdownFiles();
 
 		// People stats
 		let totalPeople = 0;
