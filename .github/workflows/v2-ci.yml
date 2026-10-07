@@ -87,6 +87,8 @@ jobs:
           mkdir -p tests/e2e/artifacts
           xvfb-run -a node --test tests/e2e/v2-foundation-smoke.e2e.mjs \
             2>&1 | tee tests/e2e/artifacts/e2e.log
+          xvfb-run -a node --test tests/e2e/v2-workspace-ui.e2e.mjs \
+            2>&1 | tee -a tests/e2e/artifacts/e2e.log
 
       - name: Upload Obsidian E2E artifacts
         if: always()
