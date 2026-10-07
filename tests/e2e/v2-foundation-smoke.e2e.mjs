@@ -1187,8 +1187,8 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.deepEqual(workspaceState.history.createdPaths.sort(), [
 		'Workspace-E2E/History/Events/History Created Event E2E.md',
 		'Workspace-E2E/History/Organizations/History Created Organization E2E.md',
-		'Workspace-E2E/History/Sources/Proofs/History Created Proof E2E.md',
 		'Workspace-E2E/History/Sources/History Created Source E2E.md',
+		'Workspace-E2E/History/Sources/Proofs/History Created Proof E2E.md',
 		'Workspace-E2E/History/Universes/History Created Universe E2E.md'
 	]);
 
