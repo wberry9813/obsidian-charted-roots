@@ -182,6 +182,25 @@ function isFeatureCollection(
 		});
 }
 
+export function parseHistoricalControlFeatureCollection(
+	raw: string
+): HistoricalControlFeatureCollection {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch (error) {
+		throw new Error(
+			`Invalid GeoJSON JSON: ${error instanceof Error ? error.message : String(error)}`
+		);
+	}
+	if (!isFeatureCollection(parsed)) {
+		throw new Error(
+			'GeoJSON must be a valid FeatureCollection using supported geometry types.'
+		);
+	}
+	return parsed;
+}
+
 /**
  * Workspace-scoped manifest/GeoJSON loader for M6 historical control layers.
  *
@@ -252,13 +271,7 @@ export class HistoricalControlLayerRepository {
 			let collection: HistoricalControlFeatureCollection;
 			try {
 				const raw = await this.app.vault.read(abstractFile as TFile);
-				const parsed: unknown = JSON.parse(raw);
-				if (!isFeatureCollection(parsed)) {
-					throw new Error(
-						'GeoJSON must be a valid FeatureCollection using supported geometry types.'
-					);
-				}
-				collection = parsed;
+				collection = parseHistoricalControlFeatureCollection(raw);
 			} catch (error) {
 				issues.push({
 					code: 'invalid_geojson',
