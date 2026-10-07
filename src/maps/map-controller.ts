@@ -92,12 +92,13 @@ import type {
 } from './types/map-types';
 import { getMarkerColor, isMarkerTypeVisible, formatPopupDateRange, coordsBelongToCRS } from './types/map-types';
 import { ImageMapManager } from './image-map-manager';
+import {
+	DEFAULT_GEOGRAPHIC_BASEMAP,
+	type GeographicBasemapDefinition
+} from '../v2/maps/basemaps';
 
 const logger = getLogger('MapController');
 
-// Tile URLs — CartoDB Voyager (doesn't require referrer header, unlike tile.openstreetmap.org)
-const OSM_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
 /**
  * Controller for Leaflet map functionality
@@ -110,6 +111,8 @@ export class MapController {
 	// Leaflet instances
 	private map: L.Map | null = null;
 	private tileLayer: L.TileLayer | null = null;
+	private geographicBasemap: GeographicBasemapDefinition =
+		DEFAULT_GEOGRAPHIC_BASEMAP;
 
 	// Unified cluster group for all event markers (birth, death, marriage, etc.)
 	private eventClusterGroup: L.MarkerClusterGroup | null = null;
@@ -210,6 +213,51 @@ export class MapController {
 	}
 
 	/**
+	 * Create a geographic raster tile layer from the active basemap definition.
+	 *
+	 * All geographic basemaps must flow through this helper so the main map,
+	 * mini-map and CRS recreation cannot silently diverge in URL/attribution or
+	 * provider-specific request policy.
+	 */
+	private createGeographicTileLayer(options: { miniMap?: boolean } = {}): L.TileLayer {
+		const basemap = this.geographicBasemap;
+		const tileOptions: L.TileLayerOptions = {
+			attribution: options.miniMap ? '' : basemap.attribution,
+			maxZoom: options.miniMap
+				? (basemap.miniMapMaxZoom ?? basemap.maxZoom)
+				: basemap.maxZoom
+		};
+
+		if (!basemap.noReferrer) {
+			return L.tileLayer(basemap.tileUrl, tileOptions);
+		}
+
+		const TileLayerNoRef = L.TileLayer.extend({
+			createTile(
+				coords: unknown,
+				done: (err: Error | null, tile: HTMLImageElement) => void
+			): HTMLImageElement {
+				const tile = (
+					L.TileLayer.prototype as unknown as {
+						createTile(c: unknown, d: unknown): HTMLImageElement;
+					}
+				).createTile.call(this, coords, done) as HTMLImageElement;
+				tile.referrerPolicy = 'no-referrer';
+				return tile;
+			}
+		});
+
+		return new (TileLayerNoRef as unknown as typeof L.TileLayer)(
+			basemap.tileUrl,
+			tileOptions
+		);
+	}
+
+	getGeographicBasemapDefinition(): GeographicBasemapDefinition {
+		return { ...this.geographicBasemap };
+	}
+
+	/**
 	 * Initialize the Leaflet map
 	 */
 	async initialize(): Promise<void> {
@@ -225,19 +273,9 @@ export class MapController {
 			zoomControl: true
 		});
 
-		// Add tile layer with no-referrer policy to avoid OSM blocking
-		// (Obsidian's Electron sends app:// referrer which OSM rejects)
-		const TileLayerNoRef = L.TileLayer.extend({
-			createTile(coords: unknown, done: (err: Error | null, tile: HTMLImageElement) => void): HTMLImageElement {
-				const tile = (L.TileLayer.prototype as unknown as { createTile(c: unknown, d: unknown): HTMLImageElement }).createTile.call(this, coords, done) as HTMLImageElement;
-				tile.referrerPolicy = 'no-referrer';
-				return tile;
-			}
-		});
-		this.tileLayer = new (TileLayerNoRef as unknown as typeof L.TileLayer)(OSM_TILE_URL, {
-			attribution: OSM_ATTRIBUTION,
-			maxZoom: 19
-		}).addTo(this.map);
+		// Existing Real world basemap, now routed through the explicit provider
+		// definition so future GCJ-02/BD-09 basemaps share one tile path.
+		this.tileLayer = this.createGeographicTileLayer().addTo(this.map);
 
 		// Initialize cluster groups
 		this.initializeClusterGroups();
@@ -373,17 +411,7 @@ export class MapController {
 	private initializeMiniMap(): void {
 		if (!this.map) return;
 
-		const MiniTileLayer = L.TileLayer.extend({
-			createTile(coords: unknown, done: (err: Error | null, tile: HTMLImageElement) => void): HTMLImageElement {
-				const tile = (L.TileLayer.prototype as unknown as { createTile(c: unknown, d: unknown): HTMLImageElement }).createTile.call(this, coords, done) as HTMLImageElement;
-				tile.referrerPolicy = 'no-referrer';
-				return tile;
-			}
-		});
-		const miniMapTiles = new (MiniTileLayer as unknown as typeof L.TileLayer)(OSM_TILE_URL, {
-			attribution: '',
-			maxZoom: 13
-		});
+		const miniMapTiles = this.createGeographicTileLayer({ miniMap: true });
 
 		// @ts-expect-error - leaflet-minimap types not available
 		this.miniMap = new L.Control.MiniMap(miniMapTiles, {
@@ -2090,10 +2118,7 @@ export class MapController {
 			}
 
 			if (!this.tileLayer) {
-				this.tileLayer = L.tileLayer(OSM_TILE_URL, {
-					attribution: OSM_ATTRIBUTION,
-					maxZoom: 19
-				});
+				this.tileLayer = this.createGeographicTileLayer();
 			}
 
 			if (!this.map.hasLayer(this.tileLayer)) {
@@ -2241,10 +2266,7 @@ export class MapController {
 		if (targetCRS === 'geographic') {
 			// Geographic mode - add OSM tiles or custom image overlay
 			if (mapId === 'openstreetmap') {
-				this.tileLayer = L.tileLayer(OSM_TILE_URL, {
-					attribution: OSM_ATTRIBUTION,
-					maxZoom: 19
-				}).addTo(this.map);
+				this.tileLayer = this.createGeographicTileLayer().addTo(this.map);
 
 				this.map.setView(
 					[this.settings.defaultCenter.lat, this.settings.defaultCenter.lng],

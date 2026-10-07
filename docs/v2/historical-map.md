@@ -60,9 +60,11 @@ Supported first-stage geographic CRS:
 
 ### C2 — basemap adapters
 
-- [ ] declare each geographic basemap's expected CRS;
+- [x] define a project-owned `GeographicBasemapDefinition` contract;
+- [x] declare the existing Carto Voyager / OSM-backed Real world basemap as WGS84;
+- [x] route main-map, MiniMap, map-switch and CRS-recreation tile creation through one definition;
 - [ ] transform WGS84 canonical coordinates at render time only;
-- [ ] prove OpenStreetMap/WGS84 behavior remains unchanged;
+- [ ] prove current WGS84 marker/path/heat/GeoJSON rendering remains unchanged through the adapter;
 - [ ] add China-friendly GCJ-02/BD-09 basemap options only after adapter tests.
 
 ### C3 — historical place identity
