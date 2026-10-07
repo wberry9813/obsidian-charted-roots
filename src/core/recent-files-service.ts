@@ -86,9 +86,15 @@ export class RecentFilesService {
 	}
 
 	/**
-	 * Get recent files, filtering out any that no longer exist
+	 * Get recent files visible in the active Workspace, filtering out deleted
+	 * files. The persisted history remains vault-global so switching Workspace
+	 * does not erase another Workspace's recent history.
 	 */
 	getValidRecentFiles(): RecentFileEntry[] {
-		return this.getRecentFiles().filter(f => this.fileExists(f.path));
+		const scope = this.plugin.getWorkspaceService()?.getScope();
+		return this.getRecentFiles().filter(entry =>
+			this.fileExists(entry.path)
+			&& (!scope || scope.containsPath(entry.path))
+		);
 	}
 }
