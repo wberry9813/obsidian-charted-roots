@@ -144,13 +144,22 @@ export function createSmartWikilink(name: string, file: TFile | null, app: App, 
 /**
  * Service for managing event notes
  */
+export interface EventServiceOptions {
+	fileProvider?: () => TFile[];
+	defaultFolderProvider?: () => string;
+}
+
 export class EventService {
 	private app: App;
 	private settings: CanvasRootsSettings;
 	private eventCache: Map<string, EventNote> = new Map();
 	private cacheValid = false;
 
-	constructor(app: App, settings: CanvasRootsSettings) {
+	constructor(
+		app: App,
+		settings: CanvasRootsSettings,
+		private readonly options: EventServiceOptions = {}
+	) {
 		this.app = app;
 		this.settings = settings;
 	}
@@ -649,7 +658,9 @@ export class EventService {
 		// punctuation Obsidian permits) — see #509. Was previously slugified
 		// to `birth-of-padm-naberrie.md`-style ASCII-only forms.
 		const fileName = sanitizeFilename(data.title) + '.md';
-		const folder = this.settings.eventsFolder || 'Charted Roots/Events';
+		const folder = this.options.defaultFolderProvider?.()
+			?? this.settings.eventsFolder
+			?? 'Charted Roots/Events';
 		const filePath = normalizePath(`${folder}/${fileName}`);
 
 		// Ensure folder exists
@@ -968,7 +979,8 @@ export class EventService {
 	private loadEventCache(): void {
 		this.eventCache.clear();
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.options.fileProvider?.()
+			?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
