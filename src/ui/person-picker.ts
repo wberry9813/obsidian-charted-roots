@@ -98,6 +98,8 @@ export interface PersonPickerOptions {
 	subtitle?: string;
 	/** Optional folder filter service */
 	folderFilter?: FolderFilterService;
+	/** Primary dataset boundary (for example the Active Workspace). */
+	fileProvider?: () => TFile[];
 	/** Callback for inline person creation - if provided, shows "Create new" button */
 	onCreateNew?: (context: RelationshipContext) => void;
 	/** Context for inline creation (relationship type, suggested sex, etc.) */
@@ -134,6 +136,7 @@ export class PersonPickerModal extends Modal {
 	private activeComponentIndex: number | null = null; // null = show all, number = show specific component
 	private tabsContainer?: HTMLElement;
 	private folderFilter?: FolderFilterService;
+	private fileProvider?: () => TFile[];
 	private loadingEl?: HTMLElement;
 	private mainContainer?: HTMLElement;
 	private familyComponentsLoaded = false;
@@ -159,6 +162,7 @@ export class PersonPickerModal extends Modal {
 			this.customTitle = opts.title;
 			this.customSubtitle = opts.subtitle;
 			this.folderFilter = opts.folderFilter;
+			this.fileProvider = opts.fileProvider;
 			this.onCreateNew = opts.onCreateNew;
 			this.createContext = opts.createContext;
 			this.plugin = opts.plugin;
@@ -226,7 +230,8 @@ export class PersonPickerModal extends Modal {
 	 */
 	private loadPeople(): void {
 		this.allPeople = [];
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.fileProvider?.()
+			?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {
 			// Skip excluded files (e.g., current note to prevent self-referential links)
@@ -285,6 +290,9 @@ export class PersonPickerModal extends Modal {
 				graphService = this.plugin.createFamilyGraphService();
 			} else {
 				graphService = new FamilyGraphService(this.app);
+				if (this.fileProvider) {
+					graphService.setFileProvider(this.fileProvider);
+				}
 				if (this.folderFilter) {
 					graphService.setFolderFilter(this.folderFilter);
 				}
