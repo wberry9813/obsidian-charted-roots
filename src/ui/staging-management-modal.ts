@@ -42,7 +42,37 @@ export class StagingManagementModal extends Modal {
 	constructor(app: App, plugin: CanvasRootsPlugin, options?: StagingManagementOptions) {
 		super(app);
 		this.plugin = plugin;
-		this.stagingService = new StagingService(app, plugin.settings);
+		this.stagingService = new StagingService(
+			app,
+			plugin.settings,
+			{
+				stagingFolderProvider: () =>
+					plugin.getWorkspaceService()?.getFolder('staging')
+					?? plugin.settings.stagingFolder,
+				targetFolderProvider: noteType => {
+					const workspace = plugin.getWorkspaceService();
+					if (!workspace) return undefined;
+
+					switch (noteType) {
+						case 'person': return workspace.getFolder('people');
+						case 'place': return workspace.getFolder('places');
+						case 'event': return workspace.getFolder('events');
+						case 'process': return workspace.getFolder('processes');
+						case 'period': return workspace.getFolder('periods');
+						case 'organization': return workspace.getFolder('organizations');
+						case 'office': return workspace.getFolder('offices');
+						case 'source': return workspace.getFolder('sources');
+						case 'citation': return workspace.getFolder('citations');
+						case 'assertion': return workspace.getFolder('assertions');
+						case 'claim': return workspace.getFolder('claims');
+						case 'map': return workspace.getFolder('maps');
+						case 'universe': return workspace.getFolder('universes');
+						case 'schema': return workspace.getFolder('schemas');
+						default: return workspace.getFolder('people');
+					}
+				}
+			}
+		);
 		// Map old boolean to new enum for backward compatibility
 		if (options?.filterClipped) {
 			this.filterMode = 'clipped';
