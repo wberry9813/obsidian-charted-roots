@@ -11,13 +11,18 @@ const CLIPPER_PROPERTIES = ['clip_source_type', 'clipped_from', 'clipped_date'] 
  * Service for detecting and tracking Web Clipper integration.
  * Monitors staging folder for clipped notes and provides count tracking.
  */
+export interface WebClipperServiceOptions {
+	stagingFolderProvider?: () => string;
+}
+
 export class WebClipperService {
 	private unreadClipCount = 0;
 	private fileCreateRef: EventRef | null = null;
 
 	constructor(
 		private app: App,
-		private settings: CanvasRootsSettings
+		private settings: CanvasRootsSettings,
+		private readonly options: WebClipperServiceOptions = {}
 	) {}
 
 	/**
@@ -25,7 +30,7 @@ export class WebClipperService {
 	 */
 	startWatching(): void {
 		// Only watch if staging is configured
-		if (!this.settings.stagingFolder || !this.settings.enableStagingIsolation) {
+		if (!this.getStagingFolder() || !this.settings.enableStagingIsolation) {
 			return;
 		}
 
@@ -81,7 +86,7 @@ export class WebClipperService {
 	 * Get all clipped notes in the staging folder
 	 */
 	getClippedNotes(): TFile[] {
-		const stagingPath = this.settings.stagingFolder;
+		const stagingPath = this.getStagingFolder();
 		if (!stagingPath) return [];
 
 		return this.app.vault.getMarkdownFiles()
@@ -114,11 +119,16 @@ export class WebClipperService {
 		}
 	}
 
+	private getStagingFolder(): string {
+		return this.options.stagingFolderProvider?.()
+			?? this.settings.stagingFolder;
+	}
+
 	/**
 	 * Check if a file path is within the staging folder
 	 */
 	private isInStagingFolder(path: string): boolean {
-		const stagingPath = this.settings.stagingFolder;
+		const stagingPath = this.getStagingFolder();
 		if (!stagingPath) return false;
 
 		// Normalize paths for comparison
