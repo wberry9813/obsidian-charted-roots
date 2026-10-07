@@ -32,7 +32,7 @@ import { EvidenceService, ProofSummaryService, SourceService } from './src/sourc
 import { EventService } from './src/events/services/event-service';
 import { OrganizationService } from './src/organizations/services/organization-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, V2MigrationExecutor, WorkspaceCatalogService, WorkspaceService, bootstrapWorkspaceFoundation, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type LegacyWorkspaceDerivation, type MigrationExecutionOptions, type MigrationExecutionResult, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry, type WorkspaceCatalog } from './src/v2';
+import { AssertionService, HistoricalDateService, SemanticAssertionService, TemporalProjectionService, V2Linter, V2MigrationAnalyzer, V2MigrationExecutor, WorkspaceCatalogService, WorkspaceService, bootstrapWorkspaceFoundation, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type LegacyWorkspaceDerivation, type MigrationExecutionOptions, type MigrationExecutionResult, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry, type WorkspaceCatalog } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -121,6 +121,7 @@ export default class CanvasRootsPlugin extends Plugin {
 	private v2MigrationExecutor: V2MigrationExecutor | null = null;
 	private v2Linter: V2Linter | null = null;
 	private historicalDateService: HistoricalDateService | null = null;
+	private temporalProjectionService: TemporalProjectionService | null = null;
 	private workspaceCatalogService: WorkspaceCatalogService | null = null;
 	private workspaceService: WorkspaceService | null = null;
 	private workspaceSetupReview: LegacyWorkspaceDerivation | null = null;
@@ -628,6 +629,26 @@ export default class CanvasRootsPlugin extends Plugin {
 			this.historicalDateService = new HistoricalDateService();
 		}
 		return this.historicalDateService;
+	}
+
+	/**
+	 * Unified v2 temporal projection over Event, Process, Period and
+	 * time-bounded Assertion notes. The file provider is resolved lazily on
+	 * every read so the same service instance follows the Active Workspace.
+	 */
+	getTemporalProjectionService(): TemporalProjectionService {
+		if (!this.temporalProjectionService) {
+			this.temporalProjectionService = new TemporalProjectionService(
+				this.app,
+				this.getHistoricalDateService(),
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles()
+				}
+			);
+		}
+		return this.temporalProjectionService;
 	}
 
 	/**

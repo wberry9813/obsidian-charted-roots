@@ -6,6 +6,8 @@ assertion_type: relationship
 subject: "[[Workspace-E2E/History/People/History-Person|History Person]]"
 predicate: ally
 object: "[[Workspace-E2E/History/People/History-Person|History Person]]"
+time_start: "BCE 460"
+time_end: "BCE 455"
 ---
 
 # History Workspace Assertion

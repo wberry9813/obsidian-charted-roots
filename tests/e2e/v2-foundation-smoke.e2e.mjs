@@ -946,6 +946,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const placeGraph = plugin.createPlaceGraphService();
 		const evidenceService = plugin.getEvidenceService();
 		const proofService = plugin.getProofSummaryService();
+		const temporalProjectionService = plugin.getTemporalProjectionService();
 
 		const historyCreated = [
 			await eventService.createEvent({
@@ -1017,6 +1018,17 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				.filter(proof => !proof.title.includes('Created Proof E2E'))
 				.map(proof => proof.title)
 				.sort(),
+			temporalItems: temporalProjectionService.getAll()
+				.filter(item => !historyCreated.some(created => created.path === item.filePath))
+				.map(item => ({
+					id: item.id,
+					kind: item.kind,
+					status: item.status,
+					source: item.source,
+					start: item.start?.expression ?? null,
+					end: item.end?.expression ?? null
+				}))
+				.sort((a, b) => a.id.localeCompare(b.id)),
 			createdPaths: historyCreated.map(file => file.path)
 		};
 
@@ -1095,6 +1107,17 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				.filter(proof => !proof.title.includes('Created Proof E2E'))
 				.map(proof => proof.title)
 				.sort(),
+			temporalItems: temporalProjectionService.getAll()
+				.filter(item => !shushanCreated.some(created => created.path === item.filePath))
+				.map(item => ({
+					id: item.id,
+					kind: item.kind,
+					status: item.status,
+					source: item.source,
+					start: item.start?.expression ?? null,
+					end: item.end?.expression ?? null
+				}))
+				.sort((a, b) => a.id.localeCompare(b.id)),
 			createdPaths: shushanCreated.map(file => file.path)
 		};
 
@@ -1157,7 +1180,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'Workspace-E2E/History/Events/History-Service-Event.md',
 		'Workspace-E2E/History/Organizations/History-Org.md',
 		'Workspace-E2E/History/People/History-Person.md',
+		'Workspace-E2E/History/Periods/History-Period.md',
 		'Workspace-E2E/History/Places/History-Place.md',
+		'Workspace-E2E/History/Processes/History-Process.md',
 		'Workspace-E2E/History/Schemas/History-Schema.md',
 		'Workspace-E2E/History/Sources/History-Source.md',
 		'Workspace-E2E/History/Sources/Proofs/History-Proof.md',
@@ -1185,6 +1210,48 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		shushan: null
 	});
 	assert.deepEqual(workspaceState.history.proofs, ['History Proof']);
+	assert.deepEqual(workspaceState.history.temporalItems, [
+		{
+			id: 'history-event',
+			kind: 'event',
+			status: 'resolved',
+			source: 'v2',
+			start: 'BCE 453',
+			end: null
+		},
+		{
+			id: 'history-service-event',
+			kind: 'event',
+			status: 'resolved',
+			source: 'legacy_event',
+			start: 'BCE 450',
+			end: null
+		},
+		{
+			id: 'workspace-history-assertion',
+			kind: 'assertion',
+			status: 'resolved',
+			source: 'v2',
+			start: 'BCE 460',
+			end: 'BCE 455'
+		},
+		{
+			id: 'workspace-history-period',
+			kind: 'period',
+			status: 'resolved',
+			source: 'v2',
+			start: 'BCE 475',
+			end: 'BCE 221'
+		},
+		{
+			id: 'workspace-history-process',
+			kind: 'process',
+			status: 'resolved',
+			source: 'v2',
+			start: 'BCE 500',
+			end: 'BCE 450'
+		}
+	]);
 	assert.deepEqual(workspaceState.history.createdPaths.sort(), [
 		'Workspace-E2E/History/Events/History Created Event E2E.md',
 		'Workspace-E2E/History/Organizations/History Created Organization E2E.md',
@@ -1199,7 +1266,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'Workspace-E2E/Shushan/Events/Fiction-Event.md',
 		'Workspace-E2E/Shushan/Organizations/Fiction-Org.md',
 		'Workspace-E2E/Shushan/People/Fiction-Person.md',
+		'Workspace-E2E/Shushan/Periods/Fiction-Period.md',
 		'Workspace-E2E/Shushan/Places/Fiction-Place.md',
+		'Workspace-E2E/Shushan/Processes/Fiction-Process.md',
 		'Workspace-E2E/Shushan/Schemas/Fiction-Schema.md',
 		'Workspace-E2E/Shushan/Sources/Fiction-Source.md',
 		'Workspace-E2E/Shushan/Sources/Proofs/Fiction-Proof.md',
@@ -1227,6 +1296,40 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		shushan: 'Workspace-E2E/Shushan/People/Fiction-Person.md'
 	});
 	assert.deepEqual(workspaceState.shushan.proofs, ['Fiction Proof']);
+	assert.deepEqual(workspaceState.shushan.temporalItems, [
+		{
+			id: 'fiction-event',
+			kind: 'event',
+			status: 'resolved',
+			source: 'v2',
+			start: '100 CE',
+			end: null
+		},
+		{
+			id: 'workspace-shushan-assertion',
+			kind: 'assertion',
+			status: 'resolved',
+			source: 'v2',
+			start: '110 CE',
+			end: '120 CE'
+		},
+		{
+			id: 'workspace-shushan-period',
+			kind: 'period',
+			status: 'resolved',
+			source: 'v2',
+			start: '80 CE',
+			end: '200 CE'
+		},
+		{
+			id: 'workspace-shushan-process',
+			kind: 'process',
+			status: 'resolved',
+			source: 'v2',
+			start: '90 CE',
+			end: '140 CE'
+		}
+	]);
 	assert.deepEqual(workspaceState.shushan.createdPaths.sort(), [
 		'Workspace-E2E/Shushan/Events/Shushan Created Event E2E.md',
 		'Workspace-E2E/Shushan/Organizations/Shushan Created Organization E2E.md',
