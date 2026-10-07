@@ -12,6 +12,18 @@ describe('TymeCalendarProvider', () => {
 		expect(provider.julianDayToSolar(julianDay)).toEqual(source);
 	});
 
+	it('round-trips BCE astronomical years through Julian Day', () => {
+		for (const source of [
+			{ year: -549, month: 1, day: 1 },
+			{ year: -1, month: 1, day: 1 },
+			{ year: 0, month: 1, day: 1 },
+			{ year: 1, month: 1, day: 1 }
+		]) {
+			const julianDay = provider.solarToJulianDay(source);
+			expect(provider.julianDayToSolar(julianDay)).toEqual(source);
+		}
+	});
+
 	it('matches the upstream Tyme solar-to-lunar example', () => {
 		const lunar = provider.solarToLunar({
 			year: 1986,
