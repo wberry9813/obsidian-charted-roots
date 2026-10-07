@@ -150,10 +150,19 @@ WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
 ### C5 — full Timeline <-> Map synchronization
 
 - [x] retain M5 shared-focus -> Map state projection;
-- [ ] define bridge from legacy Map standard/fictional calendars into v2
-  chronology axes;
-- [ ] only then allow Map time controls to write shared TemporalFocus;
-- [ ] never coerce fictional epoch-relative canonical years into astronomical
+- [ ] bridge legacy Map calendars into v2 chronology axes:
+  - [x] unambiguous positive standard/CE years -> full-year JDN ranges;
+  - [x] fictional epoch-relative years are explicitly rejected instead of
+    being coerced into astronomical year/JDN;
+  - [x] legacy year 0 / negative standard years are explicitly rejected until
+    their BCE numbering contract is defined;
+  - [ ] map configured fictional calendars to explicit v2 chronology-local
+    axes where a trustworthy mapping exists;
+  - [ ] define reviewed BCE semantics/migration for legacy negative standard
+    years;
+- [x] Map time controls publish shared TemporalFocus only through the explicit
+  bridge; unsupported actions clear stale shared focus rather than mixing axes;
+- [x] never coerce fictional epoch-relative canonical years into astronomical
   year/JDN values.
 
 ## 4. Acceptance boundary

@@ -19,6 +19,7 @@ import { PersonPickerModal } from '../ui/person-picker';
 import { PlacePickerModal, SelectedPlaceInfo } from '../ui/place-picker';
 import { UniverseSyncModal } from './ui/universe-sync-modal';
 import { GeocodingService } from './services/geocoding-service';
+import { MapTemporalFocusBridge } from './services/map-temporal-focus-bridge';
 import { PlaceCategory, UNIVERSE_CATEGORIES } from '../models/place';
 import type {
 	MapFilters,
@@ -1427,7 +1428,7 @@ export class MapView extends ItemView {
 		slider.addEventListener('input', () => {
 			this.timeSlider.currentYear = parseInt(slider.value);
 			this.updateTimeSliderDisplay();
-			this.applyTimeFilter();
+			this.applyTimeFilter(undefined, undefined, true);
 		});
 
 		// Controls row
@@ -2193,14 +2194,21 @@ export class MapView extends ItemView {
 		}
 
 		if (this.timeSlider.enabled) {
-			// Update slider range from data
+			// Update slider range from data.
 			this.updateTimeSliderRange();
-			// Apply initial filter
-			this.applyTimeFilter();
+			// An explicit Map time action may publish shared focus when the
+			// legacy year has a safe chronology bridge.
+			this.applyTimeFilter(undefined, undefined, true);
 		} else {
-			// Stop animation if running
 			this.stopAnimation();
-			// Show all markers
+			const focusService = this.plugin.getTemporalFocusService();
+			if (focusService.get()?.source === 'map-time-slider') {
+				focusService.clear();
+			}
+			if (this.mapContainerEl) {
+				delete this.mapContainerEl.dataset.mapTemporalBridgeStatus;
+				delete this.mapContainerEl.dataset.mapTemporalBridgeReason;
+			}
 			this.showAllMarkers();
 		}
 	}
@@ -2312,7 +2320,8 @@ export class MapView extends ItemView {
 	 */
 	private applyTimeFilter(
 		focus: TemporalFocus | null = this.plugin.getTemporalFocusService().get(),
-		displayData?: MapData
+		displayData?: MapData,
+		syncSharedFocus = false
 	): void {
 		if (!this.mapController || !this.currentMapData) return;
 
@@ -2347,6 +2356,49 @@ export class MapView extends ItemView {
 
 		this.updateTimeSliderDisplay();
 		this.updateStatusBar(filteredMarkers.length, filteredPaths.length);
+		if (syncSharedFocus) {
+			this.syncMapTimeSliderToSharedFocus();
+		}
+	}
+
+	private syncMapTimeSliderToSharedFocus(): void {
+		const legacyDates = this.plugin.getDateService();
+		const focusService = this.plugin.getTemporalFocusService();
+		if (!legacyDates) {
+			focusService.clear();
+			if (this.mapContainerEl) {
+				this.mapContainerEl.dataset.mapTemporalBridgeStatus = 'unsupported';
+				this.mapContainerEl.dataset.mapTemporalBridgeReason =
+					'date_service_unavailable';
+			}
+			return;
+		}
+
+		const result = new MapTemporalFocusBridge(
+			legacyDates,
+			this.plugin.getHistoricalDateService()
+		).resolveYear(
+			this.timeSlider.currentYear,
+			this.filters.universe
+		);
+
+		if (this.mapContainerEl) {
+			this.mapContainerEl.dataset.mapTemporalBridgeStatus = result.status;
+			this.mapContainerEl.dataset.mapTemporalBridgeReason =
+				result.status === 'unsupported' ? result.reason : '';
+		}
+
+		if (result.status === 'resolved') {
+			focusService.setRange(
+				result.start,
+				result.endExclusive,
+				'map-time-slider'
+			);
+		} else {
+			// The Map time action now owns navigation but cannot safely map to
+			// the shared axis. Clear stale focus instead of mixing chronologies.
+			focusService.clear();
+		}
 	}
 
 	/**
@@ -2407,7 +2459,7 @@ export class MapView extends ItemView {
 				slider.value = String(this.timeSlider.currentYear);
 			}
 
-			this.applyTimeFilter();
+			this.applyTimeFilter(undefined, undefined, true);
 			this.animationInterval = window.setTimeout(tick, this.timeSlider.speed);
 		};
 		this.animationInterval = window.setTimeout(tick, this.timeSlider.speed);

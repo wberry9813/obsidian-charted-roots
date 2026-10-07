@@ -254,6 +254,33 @@ export class DateService {
 	}
 
 	/**
+	 * Return whether this universe is governed by a configured fictional date
+	 * system. Other subsystems use this explicit semantic check instead of
+	 * guessing from formatted labels or signed canonical numbers.
+	 */
+	hasFictionalDateSystemForUniverse(universe?: string): boolean {
+		if (!universe || !this.fictionalParser) return false;
+		const cleanUniverse = universe
+			.replace(/^\[\[/, '')
+			.replace(/\]\]$/, '')
+			.split('|', 1)[0]
+			.trim();
+		if (!cleanUniverse) return false;
+
+		const preferredSystemId = this.universeCalendarResolver
+			?.(cleanUniverse) ?? undefined;
+		if (
+			preferredSystemId
+			&& this.fictionalParser.getSystem(preferredSystemId)
+		) {
+			return true;
+		}
+		return Boolean(
+			this.fictionalParser.findSystemForUniverse(cleanUniverse)
+		);
+	}
+
+	/**
 	 * Get the canonical year for sorting purposes
 	 */
 	getCanonicalYear(dateStr: string | undefined, universe?: string): number | null {

@@ -1546,6 +1546,50 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			rendered: readTemporalMap()
 		};
 
+		// C5: user-facing Map Timeline control publishes an entire CE year as
+		// shared Julian Day focus when the bridge is unambiguous.
+		const timelineToggle = historyMapView.containerEl.querySelector(
+			'button[aria-label="Timeline"]'
+		);
+		if (!(timelineToggle instanceof HTMLButtonElement)) {
+			throw new Error('Map Timeline toggle is unavailable.');
+		}
+		timelineToggle.click();
+		await new Promise(resolve => window.setTimeout(resolve, 30));
+		const mapYearSlider = historyMapView.containerEl.querySelector(
+			'.cr-map-time-slider'
+		);
+		if (!(mapYearSlider instanceof HTMLInputElement)) {
+			throw new Error('Map time slider is unavailable.');
+		}
+		history.mapSliderFocus = {
+			sliderYear: Number(mapYearSlider.value),
+			focus: plugin.getTemporalFocusService().get(),
+			bridgeStatus: historyMapView.containerEl.querySelector(
+				'.cr-map-container'
+			)?.getAttribute('data-map-temporal-bridge-status') ?? null,
+			bridgeReason: historyMapView.containerEl.querySelector(
+				'.cr-map-container'
+			)?.getAttribute('data-map-temporal-bridge-reason') ?? null
+		};
+
+		timelineToggle.click();
+		await new Promise(resolve => window.setTimeout(resolve, 20));
+		history.mapSliderFocusAfterDisable =
+			plugin.getTemporalFocusService().get();
+
+		// Restore the historical BCE fixture focus used by the rest of this
+		// scenario so the new bridge check does not disturb older assertions.
+		plugin.getTemporalFocusService().setPoint(
+			historicalCalendar.solarToJulianDay({
+				year: -456,
+				month: 6,
+				day: 1
+			}),
+			'e2e-history'
+		);
+		await new Promise(resolve => window.setTimeout(resolve, 20));
+
 		history.mapTemporal = readTemporalMap();
 
 		// Exercise M6 C2 provider hot-switching on the already-open Map. Reuse
@@ -2003,6 +2047,15 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		workspaceState.history.controlImportAfterCleanup.ids,
 		['workspace-history-control-layer']
 	);
+	assert.equal(workspaceState.history.mapSliderFocus.sliderYear, 115);
+	assert.equal(workspaceState.history.mapSliderFocus.bridgeStatus, 'resolved');
+	assert.equal(workspaceState.history.mapSliderFocus.bridgeReason, '');
+	assert.equal(workspaceState.history.mapSliderFocus.focus.kind, 'range');
+	assert.equal(
+		workspaceState.history.mapSliderFocus.focus.source,
+		'map-time-slider'
+	);
+	assert.equal(workspaceState.history.mapSliderFocusAfterDisable, null);
 	assert.equal(
 		workspaceState.history.controlImportAfterCleanup.rendered.controlFeatureIds
 			.includes('imported-gcj-point'),
