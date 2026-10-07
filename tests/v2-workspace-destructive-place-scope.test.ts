@@ -5,6 +5,7 @@ import {
 	mergeDuplicatePlaces,
 	type PlaceDuplicateGroup
 } from '../src/ui/standardize-place-variants-modal';
+import { MergeService } from '../src/core/merge-service';
 
 type FakeFile = {
 	path: string;
@@ -159,5 +160,60 @@ describe('Workspace-scoped destructive place helpers', () => {
 		expect(frontmatter.get(fictionPerson.path)?.birth_place)
 			.toBe('[[History/Places/Old-Xian|Xi’an]]');
 		expect(trashed).toEqual([duplicate.path]);
+	});
+});
+
+
+describe('Workspace-scoped person merge rewrites', () => {
+	it('updates old cr_id references only in the supplied Workspace files', async () => {
+		const historyPerson = file('History/People/Child.md');
+		const fictionPerson = file('Fiction/People/Character.md');
+
+		const frontmatter = new Map<string, Record<string, unknown>>([
+			[historyPerson.path, {
+				cr_type: 'person',
+				cr_id: 'history-child',
+				father_id: 'old-person'
+			}],
+			[fictionPerson.path, {
+				cr_type: 'person',
+				cr_id: 'fiction-character',
+				father_id: 'old-person'
+			}]
+		]);
+		const contents = new Map<string, string>([
+			[historyPerson.path, '---\ncr_type: person\ncr_id: history-child\nfather_id: old-person\n---\n\nHistory body'],
+			[fictionPerson.path, '---\ncr_type: person\ncr_id: fiction-character\nfather_id: old-person\n---\n\nFiction body']
+		]);
+		const modified = new Map<string, string>();
+
+		const app = {
+			vault: {
+				getMarkdownFiles: () => [historyPerson, fictionPerson],
+				read: async (target: FakeFile) => contents.get(target.path) ?? '',
+				modify: async (target: FakeFile, value: string) => {
+					modified.set(target.path, value);
+					contents.set(target.path, value);
+				}
+			},
+			metadataCache: {
+				getFileCache: (target: FakeFile) => ({
+					frontmatter: frontmatter.get(target.path)
+				})
+			}
+		} as never;
+
+		const service = new MergeService(
+			app,
+			{} as never,
+			() => [historyPerson] as never
+		);
+		const count = await service.updateRelationships('old-person', 'new-person');
+
+		expect(count).toBe(1);
+		expect(modified.has(historyPerson.path)).toBe(true);
+		expect(modified.get(historyPerson.path)).toContain('father_id: new-person');
+		expect(modified.has(fictionPerson.path)).toBe(false);
+		expect(contents.get(fictionPerson.path)).toContain('father_id: old-person');
 	});
 });
