@@ -1169,7 +1169,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	);
 	assert.equal(workspaceState.history.outsideWorkspace, null);
 	assert.deepEqual(workspaceState.history.services, {
-		events: ['History Service Event'],
+		events: ['History Event', 'History Service Event'],
 		sources: ['History Source'],
 		organizations: ['History Organization'],
 		universes: ['History Universe']
