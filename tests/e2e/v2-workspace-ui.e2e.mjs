@@ -275,5 +275,59 @@ test('Workspace manager, Control Center selector and global identity work in rea
 	assert.equal(identity.fictionVisibleInActiveScope, false);
 	assert.equal(identity.paths.length, 1);
 
+	// Statistics View must keep the same service instance scoped to the active
+	// Workspace. History has two Event fixtures while Shushan has one, making
+	// stale cross-Workspace caches visible immediately.
+	await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		await plugin.setActiveWorkspace('history-cn');
+		await plugin.activateStatisticsView();
+		return true;
+	`);
+	await session.waitFor(`
+		document.querySelector('.cr-statistics-view')
+		&& [...document.querySelectorAll('.cr-sv-summary-card')]
+			.some(card => card.querySelector('.cr-sv-card-title')?.textContent === 'Events')
+	`);
+
+	const readSummaryCards = async () => session.evalInApp(`
+		return Object.fromEntries(
+			[...document.querySelectorAll('.cr-sv-summary-card')].map(card => [
+				card.querySelector('.cr-sv-card-title')?.textContent ?? '',
+				Number((card.querySelector('.cr-sv-card-value')?.textContent ?? '0').replace(/,/g, ''))
+			])
+		);
+	`);
+
+	let stats = await readSummaryCards();
+	assert.equal(stats.People, 1);
+	assert.equal(stats.Events, 2);
+	assert.equal(stats.Sources, 1);
+	assert.equal(stats.Places, 1);
+
+	await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		await plugin.setActiveWorkspace('shushan');
+		document.querySelector('button[aria-label="Refresh statistics"]')?.click();
+		return true;
+	`);
+	await session.waitFor(`
+		[...document.querySelectorAll('.cr-sv-summary-card')]
+			.find(card => card.querySelector('.cr-sv-card-title')?.textContent === 'Events')
+			?.querySelector('.cr-sv-card-value')?.textContent === '1'
+	`);
+
+	stats = await readSummaryCards();
+	assert.equal(stats.People, 1);
+	assert.equal(stats.Events, 1);
+	assert.equal(stats.Sources, 1);
+	assert.equal(stats.Places, 1);
+
+	// Leave the test vault in its original active Workspace.
+	await session.evalInApp(`
+		await app.plugins.plugins['charted-roots'].setActiveWorkspace('history-cn');
+		return true;
+	`);
+
 	await session.screenshot(path.join(ARTIFACTS, 'v2-workspace-ui.png'));
 });
