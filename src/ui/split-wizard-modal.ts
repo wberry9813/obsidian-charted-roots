@@ -7,6 +7,7 @@
 
 import { App, Modal, Notice, Setting, TFile, TFolder } from 'obsidian';
 import type { CanvasRootsSettings } from '../settings';
+import type CanvasRootsPlugin from '../../main';
 import { FamilyGraphService, type FamilyTree } from '../core/family-graph';
 import { FolderFilterService } from '../core/folder-filter';
 import { extractSurnames, extractAllSurnames, matchesSurname } from '../utils/name-utils';
@@ -57,7 +58,8 @@ type WizardStep = 'method' | 'configure' | 'preview' | 'complete';
  * Split Wizard Modal
  */
 export class SplitWizardModal extends Modal {
-	private settings: CanvasRootsSettings;
+		private settings: CanvasRootsSettings;
+	private plugin?: CanvasRootsPlugin;
 	private folderFilter?: FolderFilterService;
 	private familyGraph: FamilyGraphService;
 	private splitService: CanvasSplitService;
@@ -124,21 +126,27 @@ export class SplitWizardModal extends Modal {
 	constructor(
 		app: App,
 		settings: CanvasRootsSettings,
-		folderFilter?: FolderFilterService
+		folderFilter?: FolderFilterService,
+		plugin?: CanvasRootsPlugin
 	) {
 		super(app);
 		this.settings = settings;
 		this.folderFilter = folderFilter;
-		this.familyGraph = new FamilyGraphService(app);
-		if (folderFilter) {
+		this.plugin = plugin;
+		this.familyGraph = plugin
+			? plugin.createFamilyGraphService()
+			: new FamilyGraphService(app);
+		if (!plugin && folderFilter) {
 			this.familyGraph.setFolderFilter(folderFilter);
 		}
 		this.splitService = new CanvasSplitService();
 
-		// Default split exports to the canvases folder, not next to person notes
-		// (#673). Fall back to the People folder, then the vault root. The user
-		// can still override this in the wizard's Output folder field.
-		this.outputFolder = settings.canvasesFolder || settings.peopleFolder || '';
+		// Default split exports under the active Workspace. Explicit user edits
+		// to the output field remain an intentional override.
+		this.outputFolder = plugin?.getWorkspaceService()?.getFolder('canvases')
+			?? settings.canvasesFolder
+			?? settings.peopleFolder
+			?? '';
 	}
 
 	onOpen(): void {
