@@ -138,6 +138,13 @@ export class GrampsExporter {
 	}
 
 	/**
+	 * Replace the default family graph with a caller-scoped instance.
+	 */
+	setFamilyGraphService(service: FamilyGraphService): void {
+		this.graphService = service;
+	}
+
+	/**
 	 * Set event service for loading event notes
 	 */
 	setEventService(settingsOrService: CanvasRootsSettings | EventService): void {
