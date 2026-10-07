@@ -880,6 +880,16 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	// Multi-Workspace Foundation: verify the startup-derived Default Workspace,
 	// then replace it with two independent datasets and prove scope/path
 	// switching in the real Obsidian host.
+	await session.waitFor(
+		`app.metadataCache.getCache('Workspace-E2E/History/Organizations/History-Org.md')?.frontmatter?.cr_type === 'organization'
+			&& app.metadataCache.getCache('Workspace-E2E/Shushan/Organizations/Fiction-Org.md')?.frontmatter?.cr_type === 'organization'
+			&& app.metadataCache.getCache('Workspace-E2E/History/Sources/History-Source.md')?.frontmatter?.cr_type === 'source'
+			&& app.metadataCache.getCache('Workspace-E2E/Shushan/Sources/Fiction-Source.md')?.frontmatter?.cr_type === 'source'
+			&& app.metadataCache.getCache('Workspace-E2E/History/Universes/History-Universe.md')?.frontmatter?.cr_type === 'universe'
+			&& app.metadataCache.getCache('Workspace-E2E/Shushan/Universes/Fiction-Universe.md')?.frontmatter?.cr_type === 'universe'
+			&& app.metadataCache.getCache('Workspace-E2E/Shushan/Events/Fiction-Event.md')?.frontmatter?.cr_type === 'event'`
+	);
+
 	const workspaceState = await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
 		const adapter = app.vault.adapter;
@@ -923,23 +933,123 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const service = plugin.getWorkspaceService();
 		if (!service) throw new Error('Workspace service disappeared after catalog replacement.');
 
+		const eventService = plugin.getEventService();
+		if (!eventService) throw new Error('Event service is unavailable.');
+		const sourceService = plugin.getSourceService();
+		const organizationService = plugin.getOrganizationService();
+		const universeService = plugin.getUniverseService();
+
+		const historyCreated = [
+			await eventService.createEvent({
+				title: 'History Created Event E2E',
+				eventType: 'other',
+				datePrecision: 'unknown'
+			}),
+			await sourceService.createSource({
+				title: 'History Created Source E2E',
+				sourceType: 'document'
+			}),
+			await organizationService.createOrganization(
+				'History Created Organization E2E',
+				'custom'
+			),
+			await universeService.createUniverse({
+				name: 'History Created Universe E2E',
+				status: 'active'
+			})
+		];
+
 		const history = {
 			active: service.getActiveId(),
-			files: service.getScope().getMarkdownFiles().map(file => file.path).sort(),
+			files: service.getScope().getMarkdownFiles()
+				.filter(file => !historyCreated.some(created => created.path === file.path))
+				.map(file => file.path)
+				.sort(),
 			assertionPath: service.resolvePath('assertions', 'New.md'),
 			outsideWorkspace: service.getScope().getWorkspaceForPath(
 				'Charted Roots/Legacy/Broken-Membership.md'
-			) ?? null
+			) ?? null,
+			services: {
+				events: eventService.getAllEvents()
+					.filter(event => !event.title.includes('Created Event E2E'))
+					.map(event => event.title)
+					.sort(),
+				sources: sourceService.getAllSources()
+					.filter(source => !source.title.includes('Created Source E2E'))
+					.map(source => source.title)
+					.sort(),
+				organizations: organizationService.getAllOrganizations()
+					.filter(org => !org.name.includes('Created Organization E2E'))
+					.map(org => org.name)
+					.sort(),
+				universes: universeService.getAllUniverses()
+					.filter(universe => !universe.name.includes('Created Universe E2E'))
+					.map(universe => universe.name)
+					.sort()
+			},
+			createdPaths: historyCreated.map(file => file.path)
 		};
+
+		for (const file of historyCreated) {
+			const current = app.vault.getFileByPath(file.path);
+			if (current) await app.vault.delete(current);
+		}
 
 		await plugin.setActiveWorkspace('shushan');
 
+		const shushanCreated = [
+			await eventService.createEvent({
+				title: 'Shushan Created Event E2E',
+				eventType: 'other',
+				datePrecision: 'unknown'
+			}),
+			await sourceService.createSource({
+				title: 'Shushan Created Source E2E',
+				sourceType: 'document'
+			}),
+			await organizationService.createOrganization(
+				'Shushan Created Organization E2E',
+				'custom'
+			),
+			await universeService.createUniverse({
+				name: 'Shushan Created Universe E2E',
+				status: 'active'
+			})
+		];
+
 		const shushan = {
 			active: service.getActiveId(),
-			files: service.getScope().getMarkdownFiles().map(file => file.path).sort(),
+			files: service.getScope().getMarkdownFiles()
+				.filter(file => !shushanCreated.some(created => created.path === file.path))
+				.map(file => file.path)
+				.sort(),
 			personPath: service.resolvePath('people', 'Li-Yingqiong.md'),
-			localSetting: plugin.settings.activeWorkspaceId
+			localSetting: plugin.settings.activeWorkspaceId,
+			services: {
+				events: eventService.getAllEvents()
+					.filter(event => !event.title.includes('Created Event E2E'))
+					.map(event => event.title)
+					.sort(),
+				sources: sourceService.getAllSources()
+					.filter(source => !source.title.includes('Created Source E2E'))
+					.map(source => source.title)
+					.sort(),
+				organizations: organizationService.getAllOrganizations()
+					.filter(org => !org.name.includes('Created Organization E2E'))
+					.map(org => org.name)
+					.sort(),
+				universes: universeService.getAllUniverses()
+					.filter(universe => !universe.name.includes('Created Universe E2E'))
+					.map(universe => universe.name)
+					.sort()
+			},
+			createdPaths: shushanCreated.map(file => file.path)
 		};
+
+		for (const file of shushanCreated) {
+			const current = app.vault.getFileByPath(file.path);
+			if (current) await app.vault.delete(current);
+		}
 
 		const persisted = JSON.parse(
 			await adapter.read('.charted-roots/workspaces.json')
@@ -992,24 +1102,56 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.deepEqual(workspaceState.history.files, [
 		'Workspace-E2E/History/Assertions/History-Assertion.md',
 		'Workspace-E2E/History/Events/History-Event.md',
-		'Workspace-E2E/History/People/History-Person.md'
+		'Workspace-E2E/History/Events/History-Service-Event.md',
+		'Workspace-E2E/History/Organizations/History-Org.md',
+		'Workspace-E2E/History/People/History-Person.md',
+		'Workspace-E2E/History/Sources/History-Source.md',
+		'Workspace-E2E/History/Universes/History-Universe.md'
 	]);
 	assert.equal(
 		workspaceState.history.assertionPath,
 		'Workspace-E2E/History/Assertions/New.md'
 	);
 	assert.equal(workspaceState.history.outsideWorkspace, null);
+	assert.deepEqual(workspaceState.history.services, {
+		events: ['History Event', 'History Service Event'],
+		sources: ['History Source'],
+		organizations: ['History Organization'],
+		universes: ['History Universe']
+	});
+	assert.deepEqual(workspaceState.history.createdPaths.sort(), [
+		'Workspace-E2E/History/Events/History Created Event E2E.md',
+		'Workspace-E2E/History/Organizations/History Created Organization E2E.md',
+		'Workspace-E2E/History/Sources/History Created Source E2E.md',
+		'Workspace-E2E/History/Universes/History Created Universe E2E.md'
+	]);
 
 	assert.equal(workspaceState.shushan.active, 'shushan');
 	assert.deepEqual(workspaceState.shushan.files, [
 		'Workspace-E2E/Shushan/Assertions/Fiction-Assertion.md',
-		'Workspace-E2E/Shushan/People/Fiction-Person.md'
+		'Workspace-E2E/Shushan/Events/Fiction-Event.md',
+		'Workspace-E2E/Shushan/Organizations/Fiction-Org.md',
+		'Workspace-E2E/Shushan/People/Fiction-Person.md',
+		'Workspace-E2E/Shushan/Sources/Fiction-Source.md',
+		'Workspace-E2E/Shushan/Universes/Fiction-Universe.md'
 	]);
 	assert.equal(
 		workspaceState.shushan.personPath,
 		'Workspace-E2E/Shushan/People/Li-Yingqiong.md'
 	);
 	assert.equal(workspaceState.shushan.localSetting, 'shushan');
+	assert.deepEqual(workspaceState.shushan.services, {
+		events: ['Fiction Event'],
+		sources: ['Fiction Source'],
+		organizations: ['Fiction Organization'],
+		universes: ['Fiction Universe']
+	});
+	assert.deepEqual(workspaceState.shushan.createdPaths.sort(), [
+		'Workspace-E2E/Shushan/Events/Shushan Created Event E2E.md',
+		'Workspace-E2E/Shushan/Organizations/Shushan Created Organization E2E.md',
+		'Workspace-E2E/Shushan/Sources/Shushan Created Source E2E.md',
+		'Workspace-E2E/Shushan/Universes/Shushan Created Universe E2E.md'
+	]);
 
 	assert.equal(workspaceState.persisted.version, 1);
 	assert.equal(workspaceState.persisted.workspaces.length, 2);
