@@ -9,13 +9,19 @@ import type {
 	PlaceMarker,
 	JourneyPath
 } from '../src/maps/types/map-types';
-import type { PlaceDesignationPointSnapshot } from '../src/v2';
+import type {
+	PlaceDesignationEntry,
+	PlaceDesignationPointSnapshot
+} from '../src/v2';
 
 function snapshot(
 	activeNames: string[],
 	possibleNames: string[] = []
 ): PlaceDesignationPointSnapshot {
-	const make = (state: 'active' | 'possible', name: string) => ({
+	const make = (
+		state: 'active' | 'possible',
+		name: string
+	): PlaceDesignationEntry => ({
 		state,
 		id: `${state}-${name}`,
 		name,
