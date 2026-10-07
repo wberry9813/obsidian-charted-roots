@@ -9,6 +9,7 @@
 import { ItemView, WorkspaceLeaf, setIcon } from 'obsidian';
 import type CanvasRootsPlugin from '../../../main';
 import { astronomicalYearToHistorical } from '../../v2/time/historical-year';
+import { isJulianDayFocus } from '../../v2/temporal/temporal-focus-service';
 import { renderRelationshipsList, type RelationshipFilter, type RelationshipSort } from './relationships-tab';
 
 export const VIEW_TYPE_RELATIONSHIPS = 'canvas-roots-relationships';
@@ -112,7 +113,7 @@ export class RelationshipsView extends ItemView {
 
 	private renderTemporalState(container: HTMLElement): void {
 		const focus = this.plugin.getTemporalFocusService().get();
-		if (!focus) return;
+		if (!isJulianDayFocus(focus)) return;
 
 		const stateService = this.plugin.getTemporalAssertionStateService();
 		if (!stateService) return;
