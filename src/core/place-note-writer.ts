@@ -18,8 +18,39 @@ import {
 import { isPlaceNote } from '../utils/note-type-detection';
 import { getCanonicalLinktext } from '../utils/wikilink-resolver';
 import { findCrNoteByCrId } from '../utils/cr-id-resolver';
+import {
+	CanonicalCoordinateService,
+	GcoordCoordinateTransformProvider,
+	type GeographicCRS
+} from '../v2/maps/coordinates';
 
 const logger = getLogger('PlaceNoteWriter');
+
+const canonicalCoordinateService = new CanonicalCoordinateService(
+	new GcoordCoordinateTransformProvider()
+);
+
+/**
+ * Normalize transient input coordinates to the only persisted geographic CRS:
+ * WGS84. The source CRS is input metadata and is never written to Place
+ * frontmatter.
+ */
+export function normalizePlaceCoordinatesForStorage(
+	coordinates: GeoCoordinates,
+	sourceCRS: GeographicCRS = 'wgs84'
+): GeoCoordinates {
+	const canonical = canonicalCoordinateService.toCanonical(
+		{
+			longitude: coordinates.long,
+			latitude: coordinates.lat
+		},
+		sourceCRS
+	);
+	return {
+		lat: canonical.latitude,
+		long: canonical.longitude
+	};
+}
 
 /**
  * Get the property name to write, respecting aliases
@@ -47,6 +78,11 @@ export interface PlaceData {
 	parentPlace?: string;      // Wikilink or name for display
 	parentPlaceId?: string;    // Parent's cr_id for reliable resolution
 	coordinates?: GeoCoordinates;
+	/**
+	 * Transient CRS describing `coordinates` on input. It is never persisted;
+	 * writer output is always canonical WGS84.
+	 */
+	coordinateCRS?: GeographicCRS;
 	customCoordinates?: CustomCoordinates;
 	historicalNames?: HistoricalName[];
 	collection?: string;       // User-defined collection/grouping
@@ -149,10 +185,14 @@ export async function createPlaceNote(
 		frontmatter[prop('parent_place')] = createSmartWikilink(place.parentPlace, app, place.parentPlaceId);
 	}
 
-	// Coordinates (only for real/historical/disputed places) - flat properties
+	// Coordinates (only for real/historical/disputed places) - canonical WGS84
 	if (place.coordinates && isCoordinatesApplicable(place.placeCategory)) {
-		frontmatter.coordinates_lat = place.coordinates.lat;
-		frontmatter.coordinates_long = place.coordinates.long;
+		const canonicalCoordinates = normalizePlaceCoordinatesForStorage(
+			place.coordinates,
+			place.coordinateCRS
+		);
+		frontmatter.coordinates_lat = canonicalCoordinates.lat;
+		frontmatter.coordinates_long = canonicalCoordinates.long;
 	}
 
 	// Custom coordinates (applicable to all place types) - flat properties
@@ -281,6 +321,13 @@ export async function updatePlaceNote(
 	file: TFile,
 	updates: Partial<PlaceData>
 ): Promise<void> {
+	const canonicalCoordinates = updates.coordinates
+		? normalizePlaceCoordinatesForStorage(
+			updates.coordinates,
+			updates.coordinateCRS
+		)
+		: updates.coordinates;
+
 	await app.fileManager.processFrontMatter(file, (frontmatter) => {
 		if (updates.name !== undefined) {
 			frontmatter.name = updates.name;
@@ -313,9 +360,9 @@ export async function updatePlaceNote(
 		}
 		if (updates.coordinates !== undefined) {
 			delete frontmatter.coordinates; // Remove legacy nested
-			if (updates.coordinates) {
-				frontmatter.coordinates_lat = updates.coordinates.lat;
-				frontmatter.coordinates_long = updates.coordinates.long;
+			if (canonicalCoordinates) {
+				frontmatter.coordinates_lat = canonicalCoordinates.lat;
+				frontmatter.coordinates_long = canonicalCoordinates.long;
 			} else {
 				delete frontmatter.coordinates_lat;
 				delete frontmatter.coordinates_long;

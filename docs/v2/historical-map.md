@@ -48,7 +48,9 @@ Supported first-stage geographic CRS:
 
 ### C1 — storage and input boundaries
 
-- [ ] annotate/import source CRS without changing canonical storage;
+- [x] central Place writer canonicalizes transient source CRS to WGS84;
+- [x] transient `coordinateCRS` metadata is never persisted to Place notes;
+- [ ] expose source CRS selection at user/import input boundaries;
 - [ ] convert GCJ-02 / BD-09 user input to WGS84 before Place writes;
 - [ ] preserve existing DMS input support before CRS normalization;
 - [ ] migration/linter checks for any future non-canonical persisted CRS.
