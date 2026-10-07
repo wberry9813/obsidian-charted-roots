@@ -50,11 +50,11 @@
 .cr-v2-timeline__tick-mark,
 .cr-v2-timeline__grid-line {
 	stroke: var(--background-modifier-border);
-	shape-rendering: crispEdges;
+	shape-rendering: crispedges;
 }
 
 .cr-v2-timeline__grid-line {
-	stroke-opacity: 0.45;
+	stroke-opacity: 45%;
 }
 
 .cr-v2-timeline__tick-label,

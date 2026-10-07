@@ -1280,7 +1280,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			end: 'BCE 450'
 		}
 	]);
-	assert.equal(workspaceState.history.timeline.workspace, 'History');
+	assert.equal(workspaceState.history.timeline.workspace, '中国历史');
 	assert.equal(workspaceState.history.timeline.scale, 'julian-day');
 	assert.deepEqual(workspaceState.history.timeline.spanIds, [
 		'history-event',
