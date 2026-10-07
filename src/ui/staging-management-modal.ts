@@ -68,6 +68,14 @@ export class StagingManagementModal extends Modal {
 						case 'map': return workspace.getFolder('maps');
 						case 'universe': return workspace.getFolder('universes');
 						case 'schema': return workspace.getFolder('schemas');
+						case 'proof_summary': return workspace.getFolder('sources');
+						case 'research_project':
+						case 'research_report':
+						case 'individual_research_note':
+						case 'research_journal':
+						case 'research_log_entry':
+							return workspace.getFolder('research');
+						case 'timeline-export': return workspace.getFolder('timelines');
 						default: return workspace.getFolder('people');
 					}
 				}
