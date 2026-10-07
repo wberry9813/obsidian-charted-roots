@@ -212,6 +212,15 @@ export class ProfileView extends ItemView {
 
 	/** Navigate the profile view to a specific file */
 	navigateToFile(file: TFile): void {
+		// Explicit navigation must win over the debounced auto-sync scheduled by
+		// revealing/activating the Profile leaf. Without this cancellation a
+		// pending sync can re-read the editor's active Person note ~150ms later
+		// and immediately overwrite an explicit Office/Organization navigation.
+		if (this.syncDebounceTimeout) {
+			window.clearTimeout(this.syncDebounceTimeout);
+			this.syncDebounceTimeout = null;
+		}
+
 		const entityType = this.detectEntityType(file);
 		if (entityType) {
 			this.breadcrumbs = [];
