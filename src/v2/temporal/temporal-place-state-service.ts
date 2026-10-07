@@ -26,6 +26,7 @@ export interface TemporalPlaceLookupNode {
 
 export interface TemporalPlaceLookup {
 	getPlaceByCrId(crId: string): TemporalPlaceLookupNode | undefined;
+	reloadCache?: () => void | Promise<void>;
 }
 
 export interface TemporalAssertionStateReader {
@@ -140,6 +141,15 @@ export class TemporalPlaceStateService {
 		return this.project(
 			this.assertionState.getRange(range, filter)
 		);
+	}
+
+	/**
+	 * Refresh the underlying place lookup after place-note metadata changes.
+	 * Focus movement itself does not call this, so timeline scrubbing remains
+	 * a read-only in-memory projection.
+	 */
+	async refreshPlaces(): Promise<void> {
+		await this.places.reloadCache?.();
 	}
 
 	private project(

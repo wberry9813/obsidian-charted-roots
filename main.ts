@@ -377,10 +377,15 @@ export default class CanvasRootsPlugin extends Plugin {
 		};
 	}
 
-	private refreshTemporalTimelineViews(): void {
+	private refreshWorkspaceScopedViews(): void {
 		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_TEMPORAL_TIMELINE)) {
 			if (leaf.view instanceof TemporalTimelineView) {
 				leaf.view.refresh();
+			}
+		}
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_MAP)) {
+			if (leaf.view instanceof MapView) {
+				void leaf.view.refreshData();
 			}
 		}
 	}
@@ -397,7 +402,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.personIndex?.invalidateCache();
 		this.proofSummaryService?.invalidateCache();
 		this.webClipperService?.resetUnreadCount();
-		this.refreshTemporalTimelineViews();
+		this.refreshWorkspaceScopedViews();
 		this.temporalFocusService?.refresh();
 		await this.saveSettings();
 	}
@@ -432,7 +437,7 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.personIndex?.invalidateCache();
 		this.proofSummaryService?.invalidateCache();
 		this.webClipperService?.resetUnreadCount();
-		this.refreshTemporalTimelineViews();
+		this.refreshWorkspaceScopedViews();
 		this.temporalFocusService?.refresh();
 		await this.saveSettings();
 	}

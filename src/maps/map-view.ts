@@ -32,6 +32,11 @@ import type {
 	JourneyWaypoint
 } from './types/map-types';
 import { getJourneyWaypointEventLabel, parseYearFilterValue } from './types/map-types';
+import {
+	buildTemporalMapOverlay,
+	type TemporalMapOverlayMarker
+} from '../v2/temporal/temporal-map-overlay';
+import type { TemporalFocus } from '../v2/temporal/temporal-focus-service';
 
 const logger = getLogger('MapView');
 
@@ -66,6 +71,9 @@ export class MapView extends ItemView {
 	// Controllers and services
 	private mapController: MapController | null = null;
 	private dataService: MapDataService;
+	private temporalOverlayLayer: L.LayerGroup | null = null;
+	private temporalOverlayMap: L.Map | null = null;
+	private temporalFocusUnsubscribe: (() => void) | null = null;
 
 	// UI elements
 	private toolbarEl: HTMLElement | null = null;
@@ -172,6 +180,10 @@ export class MapView extends ItemView {
 		// Initialize map
 		await this.initializeMap();
 
+		// Shared Timeline/Relationships temporal focus drives a read-only
+		// place-state overlay without mutating the legacy Map data model.
+		this.bindTemporalFocus();
+
 		// Register event handlers
 		this.registerEventHandlers();
 	}
@@ -208,6 +220,8 @@ export class MapView extends ItemView {
 
 	async onClose(): Promise<void> {
 		logger.debug('view-close', 'Closing MapView');
+		this.unbindTemporalFocus();
+		this.clearTemporalOverlay();
 		this.destroyMap();
 	}
 
@@ -2300,6 +2314,166 @@ export class MapView extends ItemView {
 	}
 
 	// =========================================================================
+	// Temporal place-state overlay
+	// =========================================================================
+
+	private bindTemporalFocus(): void {
+		this.unbindTemporalFocus();
+		const focusService = this.plugin.getTemporalFocusService();
+		this.temporalFocusUnsubscribe = focusService.subscribe(focus => {
+			this.renderTemporalPlaceOverlay(focus);
+		});
+		this.renderTemporalPlaceOverlay(focusService.get());
+	}
+
+	private unbindTemporalFocus(): void {
+		this.temporalFocusUnsubscribe?.();
+		this.temporalFocusUnsubscribe = null;
+	}
+
+	private ensureTemporalOverlayLayer(): L.LayerGroup | null {
+		const map = this.mapController?.getLeafletMap() ?? null;
+		if (!map) return null;
+
+		if (
+			this.temporalOverlayLayer
+			&& this.temporalOverlayMap === map
+		) {
+			return this.temporalOverlayLayer;
+		}
+
+		if (
+			this.temporalOverlayLayer
+			&& this.temporalOverlayMap
+			&& this.temporalOverlayMap.hasLayer(this.temporalOverlayLayer)
+		) {
+			this.temporalOverlayMap.removeLayer(this.temporalOverlayLayer);
+		}
+
+		this.temporalOverlayMap = map;
+		this.temporalOverlayLayer = L.layerGroup().addTo(map);
+		return this.temporalOverlayLayer;
+	}
+
+	private clearTemporalOverlay(): void {
+		this.temporalOverlayLayer?.clearLayers();
+		if (
+			this.temporalOverlayLayer
+			&& this.temporalOverlayMap
+			&& this.temporalOverlayMap.hasLayer(this.temporalOverlayLayer)
+		) {
+			this.temporalOverlayMap.removeLayer(this.temporalOverlayLayer);
+		}
+		this.temporalOverlayLayer = null;
+		this.temporalOverlayMap = null;
+		if (this.mapContainerEl) {
+			delete this.mapContainerEl.dataset.temporalFocusKind;
+			this.mapContainerEl.dataset.temporalMarkerCount = '0';
+			this.mapContainerEl.dataset.temporalActiveCount = '0';
+			this.mapContainerEl.dataset.temporalPossibleCount = '0';
+		}
+	}
+
+	private renderTemporalPlaceOverlay(focus: TemporalFocus | null): void {
+		const layer = this.ensureTemporalOverlayLayer();
+		if (!layer) return;
+		layer.clearLayers();
+
+		if (this.mapContainerEl) {
+			this.mapContainerEl.dataset.temporalFocusKind = focus?.kind ?? '';
+			this.mapContainerEl.dataset.temporalMarkerCount = '0';
+			this.mapContainerEl.dataset.temporalActiveCount = '0';
+			this.mapContainerEl.dataset.temporalPossibleCount = '0';
+		}
+
+		if (!focus || !this.mapController) return;
+
+		const placeState = this.plugin.getTemporalPlaceStateService();
+		if (!placeState) return;
+
+		const snapshot = focus.kind === 'point'
+			? placeState.getAt(focus.position)
+			: placeState.getRange({
+				start: focus.start,
+				endExclusive: focus.endExclusive
+			});
+
+		const markers = buildTemporalMapOverlay(snapshot, {
+			crs: this.mapController.getCurrentCRS(),
+			activeMapId: this.mapController.getActiveMapId(),
+			...(this.filters.universe
+				? { universe: this.filters.universe }
+				: {})
+		});
+
+		for (const markerData of markers) {
+			layer.addLayer(this.createTemporalPlaceMarker(markerData));
+		}
+
+		if (this.mapContainerEl) {
+			this.mapContainerEl.dataset.temporalMarkerCount = String(markers.length);
+			this.mapContainerEl.dataset.temporalActiveCount = String(
+				markers.filter(marker => marker.state === 'active').length
+			);
+			this.mapContainerEl.dataset.temporalPossibleCount = String(
+				markers.filter(marker => marker.state === 'possible').length
+			);
+		}
+	}
+
+	private createTemporalPlaceMarker(
+		data: TemporalMapOverlayMarker
+	): L.Marker {
+		const coords: L.LatLngExpression = data.coordinate.kind === 'geographic'
+			? [data.coordinate.lat, data.coordinate.long]
+			: [data.coordinate.y, data.coordinate.x];
+
+		const icon = L.divIcon({
+			className: `cr-temporal-place-marker-icon cr-temporal-place-marker-icon--${data.state}`,
+			html: '<div class="cr-temporal-place-marker__dot"></div>',
+			iconSize: [18, 18],
+			iconAnchor: [9, 9]
+		});
+
+		const marker = L.marker(coords, {
+			icon,
+			zIndexOffset: 2200
+		});
+
+		marker.on('add', () => {
+			const element = marker.getElement();
+			element?.setAttribute('data-temporal-place-id', data.placeCrId);
+			element?.setAttribute('data-temporal-state', data.state);
+			element?.setAttribute('data-assertion-id', data.assertionId);
+		});
+
+		const popup = document.createElement('div');
+		popup.className = 'cr-temporal-place-popup';
+		const title = document.createElement('strong');
+		title.textContent = data.placeName;
+		popup.appendChild(title);
+		const detail = document.createElement('div');
+		detail.textContent = `${data.state === 'active' ? 'Active' : 'Possible'} · ${data.predicate}`;
+		popup.appendChild(detail);
+		const subject = document.createElement('div');
+		subject.textContent = data.subject;
+		popup.appendChild(subject);
+		const openButton = document.createElement('button');
+		openButton.type = 'button';
+		openButton.textContent = 'Open place';
+		openButton.addEventListener('click', () => {
+			const file = this.app.vault.getFileByPath(data.placeFilePath);
+			if (file) {
+				void this.app.workspace.getLeaf(false).openFile(file);
+			}
+		});
+		popup.appendChild(openButton);
+		marker.bindPopup(popup);
+
+		return marker;
+	}
+
+	// =========================================================================
 	// Map Initialization Methods
 	// =========================================================================
 
@@ -2362,6 +2536,9 @@ export class MapView extends ItemView {
 
 				// Refresh data with new universe filter
 				void this.refreshData();
+				this.renderTemporalPlaceOverlay(
+					this.plugin.getTemporalFocusService().get()
+				);
 			});
 
 			// Register edit mode change callback
@@ -2445,6 +2622,10 @@ export class MapView extends ItemView {
 
 			// Update collection dropdown
 			this.updateCollectionDropdown(data.collections);
+
+			this.renderTemporalPlaceOverlay(
+				this.plugin.getTemporalFocusService().get()
+			);
 
 			logger.debug('refresh-complete', 'Map data refreshed', {
 				markers: data.markers.length,
@@ -2615,6 +2796,24 @@ export class MapView extends ItemView {
 		this.registerEvent(
 			this.plugin.app.metadataCache.on('changed', (file) => {
 				// Only refresh if a person or place note changed
+				const frontmatter = this.plugin.app.metadataCache
+					.getFileCache(file)?.frontmatter;
+				const crType = frontmatter?.cr_type;
+
+				if (crType === 'place') {
+					void this.plugin.getTemporalPlaceStateService()
+						?.refreshPlaces()
+						.then(() => {
+							this.renderTemporalPlaceOverlay(
+								this.plugin.getTemporalFocusService().get()
+							);
+						});
+				} else if (crType === 'assertion') {
+					this.renderTemporalPlaceOverlay(
+						this.plugin.getTemporalFocusService().get()
+					);
+				}
+
 				if (this.isRelevantFile(file.path)) {
 					logger.debug('metadata-changed', `Refreshing map due to change in ${file.path}`);
 					this.syncMapConfigOnChange(file);
