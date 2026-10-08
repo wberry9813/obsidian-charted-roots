@@ -1591,8 +1591,8 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				'cr_type: person',
 				'cr_id: workspace-history-bce-bridge-person',
 				'name: M6 BCE Bridge Person',
-				'birth_date: "-456"',
-				'death_date: "-455"',
+				'born: "-456"',
+				'died: "-455"',
 				'---',
 				''
 			].join('\\n')

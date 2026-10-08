@@ -13,7 +13,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: v2-ci-${{ github.head_ref || github.ref_name }}
+  # A push to a branch with an open PR triggers both push and pull_request.
+  # Keep those event streams independent so they cannot cancel each other's
+  # prerequisite jobs and leave the PR run in a false failed/skipped state.
+  group: v2-ci-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
