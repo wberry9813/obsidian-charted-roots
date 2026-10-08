@@ -6,6 +6,7 @@ import {
 	TemporalFocusService
 } from '../src/v2';
 
+// Axis-aware staging regression coverage: keep chronology-local focus distinct from JDN focus.
 describe('TemporalFocusService', () => {
 	it('stores point focus as a defensive copy', () => {
 		const service = new TemporalFocusService();
