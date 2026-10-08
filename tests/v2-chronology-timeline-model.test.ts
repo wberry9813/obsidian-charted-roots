@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DateService } from '../src/dates/services/date-service';
 import {
 	buildChronologyTimelineModel,
+	generateChronologyYearTicks,
 	type TemporalBoundaryProjection,
 	type TemporalItem
 } from '../src/v2';
@@ -155,5 +156,37 @@ describe('chronology-local timeline model', () => {
 		expect(model.review[0]?.reasons).toEqual(
 			expect.arrayContaining(['partial', 'unprojectable'])
 		);
+	});
+});
+
+
+describe('chronology-local timeline ticks', () => {
+	it('formats canonical ticks through the exact fictional calendar id', () => {
+		const ticks = generateChronologyYearTicks(
+			{ start: -82, endExclusive: 21 },
+			dates(),
+			'galactic-standard',
+			6
+		);
+
+		expect(ticks.map(tick => tick.label)).toEqual([
+			'80 BBY',
+			'60 BBY',
+			'40 BBY',
+			'20 BBY',
+			'0 BBY',
+			'20 ABY'
+		]);
+	});
+
+	it('falls back to canonical numbers for an unavailable chronology id', () => {
+		const ticks = generateChronologyYearTicks(
+			{ start: 0, endExclusive: 3 },
+			dates(),
+			'missing-calendar',
+			4
+		);
+
+		expect(ticks.map(tick => tick.label)).toEqual(['0', '1', '2']);
 	});
 });

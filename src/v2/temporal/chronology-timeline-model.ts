@@ -209,3 +209,68 @@ export function buildChronologyTimelineModel(
 		domain: coordinateDomain(spans, windows)
 	};
 }
+
+
+export interface ChronologyYearTick {
+	canonicalYear: number;
+	position: number;
+	label: string;
+}
+
+function niceChronologyYearStep(
+	yearSpan: number,
+	maxTicks: number
+): number {
+	const safeMaxTicks = Math.max(2, Math.floor(maxTicks));
+	const raw = Math.max(1, yearSpan / safeMaxTicks);
+	const magnitude = 10 ** Math.floor(Math.log10(raw));
+	const normalized = raw / magnitude;
+	const factor = normalized <= 1
+		? 1
+		: normalized <= 2
+			? 2
+			: normalized <= 5
+				? 5
+				: 10;
+	return Math.max(1, factor * magnitude);
+}
+
+/**
+ * Generate stable integer canonical-year ticks for a fictional chronology.
+ */
+export function generateChronologyYearTicks(
+	domain: NonNullable<TimelineModel['domain']>,
+	dateService: DateService,
+	chronologyId: string,
+	maxTicks = 12
+): ChronologyYearTick[] {
+	if (
+		!Number.isFinite(domain.start)
+		|| !Number.isFinite(domain.endExclusive)
+		|| domain.endExclusive <= domain.start
+	) {
+		return [];
+	}
+
+	const step = niceChronologyYearStep(
+		domain.endExclusive - domain.start,
+		maxTicks
+	);
+	const first = Math.ceil(domain.start / step) * step;
+	const ticks: ChronologyYearTick[] = [];
+	for (
+		let year = first;
+		year < domain.endExclusive;
+		year += step
+	) {
+		ticks.push({
+			canonicalYear: year,
+			position: year,
+			label: dateService.formatCanonicalYearForSystem(
+				year,
+				chronologyId
+			)
+		});
+	}
+	return ticks;
+}
