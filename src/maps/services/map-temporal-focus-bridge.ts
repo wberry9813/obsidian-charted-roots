@@ -1,5 +1,6 @@
 import type { DateService } from '../../dates/services/date-service';
 import type { HistoricalDateService } from '../../v2/time/historical-date-service';
+import type { TemporalAxis } from '../../v2/temporal/temporal-focus-service';
 import type { LegacyNegativeYearSemantics } from '../types/map-types';
 
 export type MapTemporalBridgeFailureReason =
@@ -13,15 +14,17 @@ export type MapTemporalBridgeFailureReason =
 export type MapTemporalBridgeResolvedSource =
 	| 'standard-ce-year'
 	| 'legacy-bce-display-year'
-	| 'legacy-astronomical-year';
+	| 'legacy-astronomical-year'
+	| 'fictional-canonical-year';
 
 export type MapTemporalBridgeResult =
 	| {
 		status: 'resolved';
 		legacyYear: number;
-		astronomicalYear: number;
+		astronomicalYear?: number;
 		start: number;
 		endExclusive: number;
+		axis: TemporalAxis;
 		source: MapTemporalBridgeResolvedSource;
 	}
 	| {
@@ -59,13 +62,21 @@ export class MapTemporalFocusBridge {
 			};
 		}
 
-		if (this.legacyDates.hasFictionalDateSystemForUniverse(universe)) {
+		const fictionalSystem =
+			this.legacyDates.getFictionalDateSystemForUniverse(universe);
+		if (fictionalSystem) {
 			return {
-				status: 'unsupported',
+				status: 'resolved',
 				legacyYear,
-				reason: 'fictional_calendar_bridge_required',
-				message:
-					'This universe uses a fictional calendar whose canonical year is not a real astronomical year.'
+				start: legacyYear,
+				endExclusive: legacyYear + 1,
+				axis: {
+					kind: 'chronology_year',
+					chronologyId: fictionalSystem.id,
+					label: fictionalSystem.name,
+					...(universe ? { universe } : {})
+				},
+				source: 'fictional-canonical-year'
 			};
 		}
 
@@ -97,6 +108,7 @@ export class MapTemporalFocusBridge {
 					month: 1,
 					day: 1
 				}),
+				axis: { kind: 'julian_day' },
 				source: resolved.source
 			};
 		} catch (error) {

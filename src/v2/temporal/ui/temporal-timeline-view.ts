@@ -26,6 +26,7 @@ import {
 	type TimelineModel,
 	type TimelineSpan
 } from '../index';
+import { isJulianDayFocus } from '../temporal-focus-service';
 
 export const VIEW_TYPE_TEMPORAL_TIMELINE = 'charted-roots-temporal-timeline';
 
@@ -570,7 +571,7 @@ export class TemporalTimelineView extends ItemView {
 		const renderFocus = (xScale: typeof baseScale): void => {
 			focusGroup.selectAll('*').remove();
 			const focus = focusService.get();
-			if (!focus) return;
+			if (!isJulianDayFocus(focus)) return;
 
 			if (focus.kind === 'point') {
 				if (
@@ -751,6 +752,14 @@ export class TemporalTimelineView extends ItemView {
 				text: !service
 					? 'Temporal context service is unavailable.'
 					: 'Select a point or range to inspect active Periods and Processes.',
+				cls: 'cr-v2-timeline__context-empty'
+			});
+			return;
+		}
+
+		if (!isJulianDayFocus(focus)) {
+			container.createDiv({
+				text: 'Current focus uses a chronology-local axis. This historical Timeline evaluates Julian Day context only.',
 				cls: 'cr-v2-timeline__context-empty'
 			});
 			return;
