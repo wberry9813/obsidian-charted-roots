@@ -1795,7 +1795,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			'died: "BBY 78"',
 			'---',
 			''
-		].join('\n'));
+		].join('\\n'));
 		await app.vault.create(chronologyPaths[1], [
 			'---',
 			'cr_schema: 2',
@@ -1807,7 +1807,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			'time_start: "BBY 82"',
 			'---',
 			''
-		].join('\n'));
+		].join('\\n'));
 		await app.vault.create(chronologyPaths[2], [
 			'---',
 			'cr_schema: 2',
@@ -1819,7 +1819,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			'time_start: "BBY 79"',
 			'---',
 			''
-		].join('\n'));
+		].join('\\n'));
 
 		for (let i = 0; i < 80; i++) {
 			const ready = chronologyPaths.every(path =>
