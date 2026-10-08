@@ -737,7 +737,7 @@ export class TemporalTimelineView extends ItemView {
 
 			gridGroup
 				.selectAll<SVGLineElement, typeof ticks[number]>('line')
-				.data(ticks, tick => `${tick.era}-${tick.historicalYear}`)
+				.data(ticks, tick => tick.key)
 				.join('line')
 				.attr('class', 'cr-v2-timeline__grid-line')
 				.attr('x1', tick => xScale(tick.position))
