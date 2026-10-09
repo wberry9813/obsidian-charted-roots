@@ -157,7 +157,6 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 			start: app.vault.getAbstractFileByPath('00-开始这里.md') !== null
 		};
 	`);
-	console.log('DEMO_MAP_DIAGNOSTICS', JSON.stringify(showcase));
 	assert.equal(showcase.files[0]?.exists, true);
 	assert.equal(showcase.files[1]?.exists, true);
 	assert.equal(showcase.files[0]?.frontmatter?.cr_type, 'map');

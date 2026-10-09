@@ -1,0 +1,219 @@
+{
+  "lang": "zh-CN",
+  "persons": [
+    {
+      "id": "P1",
+      "principal": true,
+      "names": [
+        {
+          "type": "http://gedcomx.org/BirthName",
+          "preferred": true,
+          "nameForms": [
+            {
+              "fullText": "林测试父",
+              "parts": [
+                {
+                  "type": "http://gedcomx.org/Given",
+                  "value": "测试父"
+                },
+                {
+                  "type": "http://gedcomx.org/Surname",
+                  "value": "林"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "gender": {
+        "type": "http://gedcomx.org/Male"
+      },
+      "facts": [
+        {
+          "type": "http://gedcomx.org/Birth",
+          "date": {
+            "original": "1 JAN 1970",
+            "formal": "+1970-01-01"
+          },
+          "place": {
+            "original": "西安市"
+          },
+          "sources": [
+            {
+              "description": "#SD1"
+            }
+          ]
+        },
+        {
+          "type": "http://gedcomx.org/Occupation",
+          "value": "工程师"
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "names": [
+        {
+          "type": "http://gedcomx.org/BirthName",
+          "preferred": true,
+          "nameForms": [
+            {
+              "fullText": "张测试母",
+              "parts": [
+                {
+                  "type": "http://gedcomx.org/Given",
+                  "value": "测试母"
+                },
+                {
+                  "type": "http://gedcomx.org/Surname",
+                  "value": "张"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "gender": {
+        "type": "http://gedcomx.org/Female"
+      },
+      "facts": [
+        {
+          "type": "http://gedcomx.org/Birth",
+          "date": {
+            "original": "2 FEB 1972",
+            "formal": "+1972-02-02"
+          },
+          "place": {
+            "original": "西安市"
+          }
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "names": [
+        {
+          "type": "http://gedcomx.org/BirthName",
+          "preferred": true,
+          "nameForms": [
+            {
+              "fullText": "林测试子",
+              "parts": [
+                {
+                  "type": "http://gedcomx.org/Given",
+                  "value": "测试子"
+                },
+                {
+                  "type": "http://gedcomx.org/Surname",
+                  "value": "林"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "gender": {
+        "type": "http://gedcomx.org/Male"
+      },
+      "living": true,
+      "facts": [
+        {
+          "type": "http://gedcomx.org/Birth",
+          "date": {
+            "original": "3 MAR 2000",
+            "formal": "+2000-03-03"
+          },
+          "place": {
+            "original": "北京市"
+          }
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "R1",
+      "type": "http://gedcomx.org/Couple",
+      "person1": {
+        "resource": "#P1"
+      },
+      "person2": {
+        "resource": "#P2"
+      },
+      "facts": [
+        {
+          "type": "http://gedcomx.org/Marriage",
+          "date": {
+            "original": "1 OCT 1995",
+            "formal": "+1995-10-01"
+          },
+          "place": {
+            "original": "西安市"
+          }
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "type": "http://gedcomx.org/ParentChild",
+      "person1": {
+        "resource": "#P1"
+      },
+      "person2": {
+        "resource": "#P3"
+      }
+    },
+    {
+      "id": "R3",
+      "type": "http://gedcomx.org/ParentChild",
+      "person1": {
+        "resource": "#P2"
+      },
+      "person2": {
+        "resource": "#P3"
+      }
+    }
+  ],
+  "sourceDescriptions": [
+    {
+      "id": "SD1",
+      "resourceType": "http://gedcomx.org/PhysicalArtifact",
+      "titles": [
+        {
+          "lang": "zh-CN",
+          "value": "GEDCOM X Demo 出生记录"
+        }
+      ],
+      "citations": [
+        {
+          "lang": "zh-CN",
+          "value": "Charted Roots Showcase GEDCOM X sample"
+        }
+      ]
+    }
+  ],
+  "places": [
+    {
+      "id": "PL1",
+      "names": [
+        {
+          "lang": "zh-CN",
+          "value": "西安市"
+        }
+      ],
+      "latitude": 34.3416,
+      "longitude": 108.9398
+    },
+    {
+      "id": "PL2",
+      "names": [
+        {
+          "lang": "zh-CN",
+          "value": "北京市"
+        }
+      ],
+      "latitude": 39.9042,
+      "longitude": 116.4074
+    }
+  ]
+}

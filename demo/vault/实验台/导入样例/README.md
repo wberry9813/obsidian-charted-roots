@@ -26,6 +26,22 @@
 - conflict handling
 - cleanup wizard
 
+## GEDCOM X
+
+### GEDCOM-X-三代家庭.json
+
+可直接选择 Import Wizard → **GEDCOM X (JSON)**。
+
+覆盖：
+
+- 3 人小家庭；
+- Couple relationship；
+- ParentChild relationships；
+- Birth / Marriage facts；
+- Places；
+- Source Description；
+- living person。
+
 ## Gramps
 
 ### Gramps-小型样例.gpkg
