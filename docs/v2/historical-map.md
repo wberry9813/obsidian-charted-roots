@@ -55,8 +55,11 @@ Supported first-stage geographic CRS:
 - [x] Nominatim/Place Lookup geographic results reset the input CRS to WGS84;
 - [x] GCJ-02 / BD-09 user input is normalized to WGS84 by the Place writer;
 - [x] existing DMS parsing remains before CRS normalization;
-- [ ] expose source CRS metadata to bulk/import pipelines where source CRS is known;
-- [ ] migration/linter checks for any future non-canonical persisted CRS.
+- [x] expose source CRS metadata at the implemented geographic import boundary:
+  historical control-layer import records `source_coordinate_crs` when the
+  incoming datum is non-WGS84 while persisted geometry remains canonical WGS84;
+- [x] migration/linter/storage checks report non-canonical persisted
+  control-layer CRS and safely canonicalize legacy geometry at runtime.
 
 ### C2 — basemap adapters
 
@@ -71,7 +74,8 @@ Supported first-stage geographic CRS:
 - [x] current WGS84 rendering/integration remains green in real Obsidian smoke (#513, `9aba2162`);
 - [x] keep GeoJSON export canonical WGS84;
 - [x] route SVG current-view marker/path projection through the basemap adapter;
-- [ ] add GeoJSON import/render adapter coverage (tracked with C4 historical control layers);
+- [x] add GeoJSON import/render adapter coverage through C4 historical control
+  layers, including GCJ-02 / BD-09 import normalization and basemap projection;
 - [x] define an XYZ/WebMercator provider registry with runtime validation and safe fallback;
 - [x] persist global selected provider ID and user-defined XYZ provider configs through plugin settings;
 - [x] Controller validates saved provider configs and falls back to Carto for missing/invalid IDs without logging tile URL secrets;
@@ -79,8 +83,10 @@ Supported first-stage geographic CRS:
 - [x] expose validated user-defined XYZ providers with WGS84 / GCJ-02 / BD-09 datum metadata;
 - [x] hot-switch already-open Map views while preserving the visible center in canonical WGS84;
 - [x] real Obsidian smoke covers WGS84 -> GCJ-02 provider hot-switch and restoration;
-- [ ] add China-friendly provider templates only through documented/authorized APIs or user-supplied endpoints;
-- [ ] add dedicated WMTS / EPSG:4490 support before treating Tianditu CGCS2000 services as compatible.
+- [ ] post-M6: add China-friendly provider templates only through
+  documented/authorized APIs or user-supplied endpoints;
+- [ ] post-M6: add dedicated WMTS / EPSG:4490 support before treating Tianditu
+  CGCS2000 services as compatible.
 
 #### C2 provider scope
 
@@ -167,8 +173,8 @@ WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
     JDN-only consumers continue to ignore chronology-local focus safely;
   - [x] define explicit runtime BCE interpretation policies for legacy
     negative standard years while keeping source data untouched;
-  - [ ] optional migration assistant to rewrite ambiguous legacy negative
-    standard years into explicit v2 BCE expressions;
+  - [ ] post-M6 optional migration assistant to rewrite ambiguous legacy
+    negative standard years into explicit v2 BCE expressions;
 - [x] Map time controls publish shared TemporalFocus only through the explicit
   bridge and attach the correct axis;
 - [x] complete bidirectional chronology-local Timeline <-> Map interaction:
