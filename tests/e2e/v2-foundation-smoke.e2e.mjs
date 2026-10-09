@@ -1851,6 +1851,12 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		const chronologyFocusFromMap = plugin.getTemporalFocusService().get();
 		const chronologyTimelineFromMap = readTimelineView();
 
+		// The Timeline leaf may be hidden after Profile/Map interactions. Reveal it
+		// before pointer-based clicking so getBoundingClientRect() reflects the
+		// real interactive viewport instead of a zero-width hidden leaf.
+		await plugin.activateTemporalTimelineView();
+		await new Promise(resolve => window.setTimeout(resolve, 60));
+
 		const chronologySvg = app.workspace
 			.getLeavesOfType('charted-roots-temporal-timeline')[0]
 			?.view?.containerEl?.querySelector('.cr-v2-timeline__svg');
