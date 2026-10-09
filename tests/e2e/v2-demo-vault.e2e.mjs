@@ -101,6 +101,22 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 		await plugin.activateMapView();
 		return true;
 	`);
+	await session.waitFor(`
+		(() => {
+			const a = app.vault.getAbstractFileByPath('示例/蜀山/Maps/蜀山全图.md');
+			const b = app.vault.getAbstractFileByPath('示例/蜀山/Maps/峨眉山区域.md');
+			return a?.extension === 'md'
+				&& b?.extension === 'md'
+				&& app.metadataCache.getFileCache(a)?.frontmatter?.cr_type === 'map'
+				&& app.metadataCache.getFileCache(b)?.frontmatter?.cr_type === 'map';
+		})()
+	`);
+	await session.waitFor(`
+		[...document.querySelectorAll('select.cr-map-select[aria-label="Select map"] option')]
+			.some(option => option.value === 'shushan-world-map')
+		&& [...document.querySelectorAll('select.cr-map-select[aria-label="Select map"] option')]
+			.some(option => option.value === 'emei-region-map')
+	`);
 	const showcase = await session.evalInApp(`
 		const mapPaths = [
 			'示例/蜀山/Maps/蜀山全图.md',

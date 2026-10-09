@@ -3354,7 +3354,10 @@ export class MapView extends ItemView {
 		const crType = cache?.frontmatter?.cr_type;
 		if (crType !== 'map') return;
 
-		this.mapController.reloadMapConfigs();
+		// Rebuild both the in-memory config cache and the visible selector.
+		// On a fresh vault, map frontmatter can arrive after the Map view opens;
+		// reloading only the controller would leave the dropdown stale.
+		this.loadCustomMaps();
 		const refreshed = this.mapController.getActiveMapUniverse();
 		this.filters.universe = this.resolveUniverseFilterValue(refreshed) ?? undefined;
 	}
