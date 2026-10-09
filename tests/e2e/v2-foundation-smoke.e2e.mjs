@@ -2878,7 +2878,10 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			});
 			acceptanceTimelineLeaf?.view?.refresh?.();
 			await new Promise(resolve => window.setTimeout(resolve, 40));
-			const timelineAfterMap = readTimelineView();
+			const timelineFocusKindAfterMap =
+				acceptanceTimelineLeaf?.view?.containerEl?.querySelector(
+					'.cr-v2-timeline__focus [data-focus-kind]'
+				)?.getAttribute('data-focus-kind') ?? null;
 
 			const acceptanceTimelineSvg = acceptanceTimelineLeaf?.view?.containerEl
 				?.querySelector('.cr-v2-timeline__svg');
@@ -2893,7 +2896,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			}));
 			await new Promise(resolve => window.setTimeout(resolve, 50));
 			const focusFromTimeline = focusService.get();
-			const mapAfterTimeline = readTemporalMap();
+			const mapFocusKindAfterTimeline =
+				acceptanceMapView.containerEl.querySelector('.cr-map-container')
+					?.getAttribute('data-temporal-focus-kind') ?? null;
 
 			const sourcesAfterSharedFocus = {
 				minister: await app.vault.read(minister),
@@ -2907,11 +2912,11 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 						'.cr-map-container'
 					)?.getAttribute('data-map-temporal-bridge-status') ?? null,
 					focus: focusFromMap,
-					timelineFocusKind: timelineAfterMap.focusKind
+					timelineFocusKind: timelineFocusKindAfterMap
 				},
 				fromTimeline: {
 					focus: focusFromTimeline,
-					mapFocusKind: mapAfterTimeline.focusKind
+					mapFocusKind: mapFocusKindAfterTimeline
 				},
 				sourceUnchanged:
 					JSON.stringify(sourcesBeforeSharedFocus)
