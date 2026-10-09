@@ -2682,7 +2682,11 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			const migratedReview = await app.vault.read(review);
 			const migratedEvent = await app.vault.read(event);
 
-			const assertions = plugin.getAssertionService().getAll()
+			const allAssertions = plugin.getAssertionService().getAll();
+			const assertions = allAssertions
+				.filter(record => record.filePath.startsWith(
+					'Workspace-E2E/Acceptance-History/Assertions/Migrated/'
+				))
 				.map(record => ({
 					crId: record.assertion.cr_id,
 					predicate: record.assertion.predicate,
@@ -2696,6 +2700,19 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					a.predicate.localeCompare(b.predicate)
 					|| String(a.timeStart).localeCompare(String(b.timeStart))
 				);
+			const officeHoldingRecord = allAssertions.find(record =>
+				record.filePath
+					=== 'Workspace-E2E/Acceptance-History/Assertions/Office-Holding.md'
+			);
+			if (!officeHoldingRecord) {
+				throw new Error('Acceptance office-holding Assertion is missing.');
+			}
+			const officeHolding = {
+				crId: officeHoldingRecord.assertion.cr_id,
+				predicate: officeHoldingRecord.assertion.predicate,
+				timeStart: officeHoldingRecord.assertion.time_start ?? null,
+				timeEnd: officeHoldingRecord.assertion.time_end ?? null
+			};
 
 			const byPredicate = Object.fromEntries(
 				assertions.map(assertion => [assertion.predicate, assertion.crId])
@@ -2714,6 +2731,8 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			// rendered span per migrated temporal item.
 			await timelineLeaf?.view?.setState?.({
 				...timelineLeaf?.view?.getState?.(),
+				search: '',
+				kind: 'all',
 				groupBy: 'none'
 			});
 			timelineLeaf?.view?.refresh?.();
@@ -2763,6 +2782,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				) ?? [])]
 					.map(element => ({
 						id: element.getAttribute('data-assertion-id'),
+						kind: element.getAttribute('data-relation-kind'),
 						text: element.textContent ?? ''
 					}))
 					.sort((a, b) => String(a.id).localeCompare(String(b.id)));
@@ -2795,7 +2815,8 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				ids: {
 					ally: byPredicate.ally,
 					rival: byPredicate.rival,
-					memberships: membershipIds
+					memberships: membershipIds,
+					office: officeHolding.crId
 				},
 				relationships675,
 				relationships665,
@@ -2836,6 +2857,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					hasLegacyDateEnd: /^date_end:/m.test(migratedEvent)
 				},
 				assertions,
+				officeHolding,
 				crossViews
 			};
 		} finally {
@@ -2929,6 +2951,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		architectureAcceptance.crossViews.timeline.spanIds,
 		[
 			'acceptance-alliance',
+			'acceptance-hegemony-process',
+			'acceptance-spring-autumn',
+			architectureAcceptance.officeHolding.crId,
 			...architectureAcceptance.assertions.map(item => item.crId)
 		].sort()
 	);
@@ -2954,13 +2979,26 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		false
 	);
 
+	const officeId = architectureAcceptance.crossViews.ids.office;
+	assert.ok(officeId);
+	const institutionIds = [...membershipIds, officeId].sort();
 	assert.deepEqual(
 		architectureAcceptance.crossViews.profile675.map(item => item.id).sort(),
-		membershipIds
+		institutionIds
 	);
 	assert.deepEqual(
 		architectureAcceptance.crossViews.profile665.map(item => item.id).sort(),
-		membershipIds
+		institutionIds
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.profile675
+			.filter(item => item.kind === 'affiliation').length,
+		2
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.profile675
+			.filter(item => item.kind === 'office_holding').length,
+		1
 	);
 	assert.ok(
 		architectureAcceptance.crossViews.profile675
@@ -2973,6 +3011,12 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			.map(item => item.text)
 			.join(' ')
 			.includes('齐国朝廷')
+	);
+	assert.ok(
+		architectureAcceptance.crossViews.profile675
+			.map(item => item.text)
+			.join(' ')
+			.includes('齐卿')
 	);
 
 	assert.equal(architectureAcceptance.restoredActive, 'history-cn');
