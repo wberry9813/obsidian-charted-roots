@@ -191,6 +191,65 @@ describe('v2 legacy migration analyzer', () => {
 			]);
 	});
 
+	it('surfaces legacy Place historical names for review without auto-migration', () => {
+		const result = analyzeLegacyFrontmatter('Places/Chang-An.md', {
+			cr_schema: 2,
+			cr_type: 'place',
+			cr_id: 'place-changan',
+			historical_names: ['长安', '京兆'],
+			historical_name_periods: ['汉唐', '唐末以后']
+		});
+
+		const finding = result.findings.find(
+			item => item.code === 'historical_name_review'
+		);
+		expect(finding).toMatchObject({
+			severity: 'review',
+			autoMigrate: false,
+			count: 2,
+			fields: ['historical_names', 'historical_name_periods']
+		});
+		expect(finding?.details?.records).toEqual([
+			{ name: '长安', period: '汉唐' },
+			{ name: '京兆', period: '唐末以后' }
+		]);
+
+		const preview = buildMigrationPreview({
+			filesScanned: 1,
+			filesWithLegacyData: 1,
+			safeConversions: 0,
+			reviewItems: 1,
+			blockers: 0,
+			files: [result]
+		});
+		expect(preview.files[0]).toMatchObject({
+			status: 'review',
+			actions: [{
+				kind: 'review',
+				code: 'historical_name_review',
+				count: 2
+			}]
+		});
+	});
+
+	it('also freezes legacy nested historical-name records for review', () => {
+		const result = analyzeLegacyFrontmatter('Places/Old.md', {
+			cr_type: 'place',
+			historical_names: [
+				{ name: 'Old Name', period: 'Medieval' },
+				{ name: 'Older Name' }
+			]
+		});
+
+		expect(
+			result.findings.find(item => item.code === 'historical_name_review')
+				?.details?.records
+		).toEqual([
+			{ name: 'Old Name', period: 'Medieval' },
+			{ name: 'Older Name', period: undefined }
+		]);
+	});
+
 	it('does not mistake a v2 Assertion qualifier for legacy membership', () => {
 		const result = analyzeLegacyFrontmatter('Assertions/Office.md', {
 			cr_schema: 2,
@@ -273,6 +332,48 @@ describe('migration snapshot safety', () => {
 		const details = analysis.findings.find(item => item.code === 'membership_parallel_arrays')?.details;
 		if (details) details.records = [];
 		expect((action?.details?.records as unknown[])).toHaveLength(1);
+	});
+});
+
+
+describe('V2MigrationAnalyzer Workspace scope', () => {
+	it('analyzes only files supplied by the active Workspace file provider', () => {
+		const historyFile = { path: 'Workspace-E2E/History/People/Legacy-History.md' };
+		const fictionFile = { path: 'Workspace-E2E/Shushan/People/Legacy-Fiction.md' };
+		const frontmatterByPath = new Map([
+			[historyFile.path, {
+				cr_type: 'person',
+				cr_id: 'legacy-history',
+				membership_orgs: ['[[History Org]]']
+			}],
+			[fictionFile.path, {
+				cr_type: 'person',
+				cr_id: 'legacy-fiction',
+				membership_orgs: ['[[Fiction Org]]']
+			}]
+		]);
+
+		const app = {
+			vault: {
+				getMarkdownFiles: () => [historyFile, fictionFile]
+			},
+			metadataCache: {
+				getFileCache: (file: { path: string }) => ({
+					frontmatter: frontmatterByPath.get(file.path)
+				})
+			}
+		} as never;
+
+		const analyzer = new V2MigrationAnalyzer(app, {
+			fileProvider: () => [historyFile] as never
+		});
+		const report = analyzer.analyze();
+
+		expect(report.filesScanned).toBe(1);
+		expect(report.filesWithLegacyData).toBe(1);
+		expect(report.files.map(file => file.filePath)).toEqual([
+			'Workspace-E2E/History/People/Legacy-History.md'
+		]);
 	});
 });
 

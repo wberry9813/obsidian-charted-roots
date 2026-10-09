@@ -1074,7 +1074,7 @@ function buildPersonContextMenu(
 							const crId = cache?.frontmatter?.cr_id;
 							const personName = cache?.frontmatter?.name || file.basename;
 							if (crId) {
-								const modal = new RelationshipCalculatorModal(plugin.app, plugin.settings);
+								const modal = new RelationshipCalculatorModal(plugin.app, plugin.settings, plugin);
 								modal.openWithPersonA({
 									name: personName,
 									crId: crId,
@@ -1342,7 +1342,7 @@ function buildPersonContextMenu(
 							const crId = cache?.frontmatter?.cr_id;
 							const personName = cache?.frontmatter?.name || file.basename;
 							if (crId) {
-								new FindOnCanvasModal(plugin.app, personName, crId).open();
+								new FindOnCanvasModal(plugin.app, personName, crId, plugin).open();
 							}
 						});
 				});
@@ -1543,7 +1543,7 @@ function buildPersonContextMenu(
 								);
 							}
 						})();
-					});
+					}, { plugin });
 					picker.open();
 				});
 		});
@@ -1558,7 +1558,7 @@ function buildPersonContextMenu(
 							const relationshipMgr = new RelationshipManager(plugin.app, plugin.getRelationshipHistory(), promptOnConflict(plugin.app));
 							await relationshipMgr.addSpouseRelationship(file, selectedPerson.file, selectedPerson.crId);
 						})();
-					});
+					}, { plugin });
 					picker.open();
 				});
 		});
@@ -1573,7 +1573,7 @@ function buildPersonContextMenu(
 							const relationshipMgr = new RelationshipManager(plugin.app, plugin.getRelationshipHistory(), promptOnConflict(plugin.app));
 							await relationshipMgr.addChildRelationship(file, selectedPerson.file, selectedPerson.crId);
 						})();
-					});
+					}, { plugin });
 					picker.open();
 				});
 		});
@@ -1605,7 +1605,7 @@ function buildPersonContextMenu(
 					const crId = cache?.frontmatter?.cr_id;
 					const personName = cache?.frontmatter?.name || file.basename;
 					if (crId) {
-						new FindOnCanvasModal(plugin.app, personName, crId).open();
+						new FindOnCanvasModal(plugin.app, personName, crId, plugin).open();
 					}
 				});
 		});
@@ -1643,7 +1643,7 @@ function buildPersonContextMenu(
 					const crId = cache?.frontmatter?.cr_id;
 					const personName = cache?.frontmatter?.name || file.basename;
 					if (crId) {
-						const modal = new RelationshipCalculatorModal(plugin.app, plugin.settings);
+						const modal = new RelationshipCalculatorModal(plugin.app, plugin.settings, plugin);
 						modal.openWithPersonA({
 							name: personName,
 							crId: crId,

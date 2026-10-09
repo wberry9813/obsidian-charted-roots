@@ -101,7 +101,10 @@ export class CreateMapWizardModal extends Modal {
 	}) {
 		super(app);
 		this.plugin = plugin;
-		this.directory = options?.directory || plugin.settings.mapsFolder || 'Maps';
+		this.directory = options?.directory
+			?? plugin.getWorkspaceService()?.getFolder('maps')
+			?? plugin.settings.mapsFolder
+			?? 'Maps';
 		this.persistence = new ModalStatePersistence(plugin, 'map-wizard');
 
 		// Initialize map config
@@ -1380,7 +1383,9 @@ export class CreateMapWizardModal extends Modal {
 	}
 
 	private async createPlaceNotes(): Promise<void> {
-		const placesFolder = this.plugin.settings.placesFolder || 'Places';
+		const placesFolder = this.plugin.getWorkspaceService()?.getFolder('places')
+			?? this.plugin.settings.placesFolder
+			?? 'Places';
 
 		// Ensure places folder exists
 		const normalizedPlacesDir = normalizePath(placesFolder);

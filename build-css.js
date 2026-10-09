@@ -56,6 +56,7 @@ const CONFIG = {
     'leaflet-distortable.css', // Leaflet toolbar/distortable image plugins (vendored)
     'date-systems.css',  // Date systems card
     'events.css',        // Events and timeline components
+    'temporal-timeline.css', // v2 historical temporal timeline view
     'timeline-callouts.css', // Timeline callout styles for markdown export
     'organizations.css', // Organizations tab
     'sources.css',       // Sources tab

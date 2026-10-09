@@ -27,6 +27,8 @@ interface DuplicatePlaceGroup {
 
 interface MergeDuplicatePlacesOptions {
 	onComplete?: (merged: number, deleted: number) => void;
+	/** Primary dataset boundary for discovery and destructive reference rewrites. */
+	fileProvider?: () => TFile[];
 }
 
 /**
@@ -52,6 +54,7 @@ export class MergeDuplicatePlacesModal extends Modal {
 	private currentFilter: FilterOption = 'all';
 	private searchQuery = '';
 	private onComplete?: (merged: number, deleted: number) => void;
+	private fileProvider?: () => TFile[];
 	private totalMerged = 0;
 	private totalDeleted = 0;
 
@@ -72,6 +75,10 @@ export class MergeDuplicatePlacesModal extends Modal {
 		this.groupApplyButtons = new Map();
 		this.groupFilenameElements = new Map();
 		this.onComplete = options.onComplete;
+		this.fileProvider = options.fileProvider;
+		if (this.fileProvider) {
+			this.placeService.setFileProvider(this.fileProvider);
+		}
 
 		// Pre-select the suggested canonical for each group
 		for (const group of duplicateGroups) {
@@ -1087,7 +1094,8 @@ export class MergeDuplicatePlacesModal extends Modal {
 	 */
 	private async updatePersonReferences(duplicate: PlaceNode, canonical: PlaceNode): Promise<number> {
 		let updated = 0;
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.fileProvider?.()
+			?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -1330,6 +1338,8 @@ export class MergeDuplicatePlacesModal extends Modal {
 interface FindDuplicatesOptions {
 	settings?: CanvasRootsSettings;
 	folderFilter?: FolderFilterService | null;
+	/** Primary dataset boundary; FolderFilter remains secondary. */
+	fileProvider?: () => TFile[];
 }
 
 /**
@@ -1392,6 +1402,9 @@ export function findDuplicatePlaceNotes(app: App, options: FindDuplicatesOptions
 	// Configure the service with settings and folder filter
 	if (options.settings) {
 		placeService.setSettings(options.settings);
+	}
+	if (options.fileProvider) {
+		placeService.setFileProvider(options.fileProvider);
 	}
 	if (options.folderFilter) {
 		placeService.setFolderFilter(options.folderFilter);

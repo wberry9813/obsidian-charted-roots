@@ -45,6 +45,9 @@ export class PlaceGraphService {
 	private valueAliases: ValueAliasSettings = { eventType: {}, sex: {}, gender_identity: {}, placeCategory: {}, noteType: {} };
 	private settings: CanvasRootsSettings | null = null;
 	private isLoading = false; // Prevents re-entrant cache loading
+	private fileProvider: (() => TFile[]) | null = null;
+	private scopeKeyProvider: (() => string | null) | null = null;
+	private loadedScopeKey: string | null = null;
 
 	constructor(app: App) {
 		this.app = app;
@@ -64,6 +67,15 @@ export class PlaceGraphService {
 	 */
 	setFolderFilter(folderFilter: FolderFilterService): void {
 		this.folderFilter = folderFilter;
+	}
+
+	setFileProvider(
+		fileProvider: () => TFile[],
+		scopeKeyProvider?: () => string | null
+	): void {
+		this.fileProvider = fileProvider;
+		this.scopeKeyProvider = scopeKeyProvider ?? null;
+		this.clearCache();
 	}
 
 	/**
@@ -167,7 +179,11 @@ export class PlaceGraphService {
 			return;
 		}
 
-		if (this.placeCache.size === 0) {
+		const currentScopeKey = this.scopeKeyProvider?.() ?? null;
+		if (
+			this.placeCache.size === 0
+			|| this.loadedScopeKey !== currentScopeKey
+		) {
 			this.isLoading = true;
 			try {
 				this.loadPlaceCache();
@@ -733,7 +749,7 @@ export class PlaceGraphService {
 		}> = [];
 
 		// Build a map of person data from frontmatter
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.fileProvider?.() ?? this.app.vault.getMarkdownFiles();
 		const personData = new Map<string, {
 			birthPlace?: string;
 			deathPlace?: string;
@@ -895,6 +911,7 @@ export class PlaceGraphService {
 	clearCache(): void {
 		this.placeCache.clear();
 		this.placeReferenceCache = [];
+		this.loadedScopeKey = null;
 	}
 
 	/**
@@ -903,7 +920,7 @@ export class PlaceGraphService {
 	private loadPlaceCache(): void {
 		this.placeCache.clear();
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.fileProvider?.() ?? this.app.vault.getMarkdownFiles();
 
 		// Track unresolved parent wikilinks for second pass
 		const unresolvedParents = new Map<string, string>(); // placeId -> parent wikilink name
@@ -954,6 +971,7 @@ export class PlaceGraphService {
 			}
 		}
 
+		this.loadedScopeKey = this.scopeKeyProvider?.() ?? null;
 		logger.info('loadPlaceCache', `Loaded ${this.placeCache.size} place notes`);
 	}
 
@@ -963,7 +981,7 @@ export class PlaceGraphService {
 	private loadPlaceReferences(): void {
 		this.placeReferenceCache = [];
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.fileProvider?.() ?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {
 			if (this.folderFilter && !this.folderFilter.shouldIncludeFile(file)) {

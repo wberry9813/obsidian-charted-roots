@@ -58,6 +58,8 @@ export class CitationSyncService {
 	 * sourced_* frontmatter properties.
 	 */
 	async syncSourcedFieldsForPerson(personFile: TFile): Promise<number> {
+		if (!this.isInActiveWorkspace(personFile)) return 0;
+
 		const cache = this.app.metadataCache.getFileCache(personFile);
 		const crId = cache?.frontmatter?.cr_id as string;
 		if (!crId) return 0;
@@ -103,11 +105,12 @@ export class CitationSyncService {
 	 * Sync sourced_* fields from citation notes for all people in the vault.
 	 */
 	async syncSourcedFieldsVaultWide(): Promise<{ peopleUpdated: number; fieldsUpdated: number }> {
-		const peopleFolder = this.plugin.settings.peopleFolder;
+		const peopleFolder = this.plugin.getWorkspaceService()?.getFolder('people')
+			?? this.plugin.settings.peopleFolder;
 		let peopleUpdated = 0;
 		let totalFields = 0;
 
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of this.getScopedFiles()) {
 			if (!file.path.startsWith(peopleFolder)) continue;
 
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -128,6 +131,8 @@ export class CitationSyncService {
 	 * Creates citation notes for source-fact pairs that don't already have one.
 	 */
 	async generateCitationsFromSourcedFields(personFile: TFile): Promise<number> {
+		if (!this.isInActiveWorkspace(personFile)) return 0;
+
 		const cache = this.app.metadataCache.getFileCache(personFile);
 		const fm = cache?.frontmatter;
 		const crId = fm?.cr_id as string;
@@ -160,7 +165,7 @@ export class CitationSyncService {
 
 				// Resolve source cr_id
 				const sourceFile = this.app.metadataCache.getFirstLinkpathDest(sourceName, '');
-				const sourceCrId = sourceFile
+				const sourceCrId = sourceFile && this.isInActiveWorkspace(sourceFile)
 					? (this.app.metadataCache.getFileCache(sourceFile)?.frontmatter?.cr_id as string)
 					: undefined;
 
@@ -191,6 +196,15 @@ export class CitationSyncService {
 		logger.info('generate', `Created ${files.length} citation notes from sourced fields for ${personFile.basename}`);
 		return files.length;
 	}
+	private getScopedFiles(): TFile[] {
+		return this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
+	}
+
+	private isInActiveWorkspace(file: TFile): boolean {
+		return this.plugin.getWorkspaceService()?.getScope().contains(file) ?? true;
+	}
+
 }
 
 /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Match scope of file-level disable at top. */

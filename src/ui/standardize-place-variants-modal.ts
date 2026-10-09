@@ -125,6 +125,7 @@ export interface PlaceVariantMatch {
 
 interface StandardizePlaceVariantsOptions {
 	onComplete?: (updated: number) => void;
+	fileProvider?: () => TFile[];
 }
 
 /**
@@ -144,6 +145,9 @@ export class StandardizePlaceVariantsModal extends Modal {
 	) {
 		super(app);
 		this.placeService = new PlaceGraphService(app);
+		if (options.fileProvider) {
+			this.placeService.setFileProvider(options.fileProvider);
+		}
 		this.matches = matches;
 		this.selectedMatches = new Set(matches); // All selected by default
 		this.canonicalOverrides = new Map();
@@ -519,8 +523,11 @@ export interface PlaceDuplicateGroup {
  * Find duplicate Place notes (notes with the same full_name)
  * This should be run AFTER variant standardization to catch newly-created duplicates
  */
-export function findDuplicatePlacesByFullName(app: App): PlaceDuplicateGroup[] {
-	const files = app.vault.getMarkdownFiles();
+export function findDuplicatePlacesByFullName(
+	app: App,
+	fileProvider?: () => TFile[]
+): PlaceDuplicateGroup[] {
+	const files = fileProvider?.() ?? app.vault.getMarkdownFiles();
 
 	// Group Place notes by their full_name
 	const placesByFullName = new Map<string, TFile[]>();
@@ -627,7 +634,8 @@ export function findDuplicatePlacesByFullName(app: App): PlaceDuplicateGroup[] {
 export async function mergeDuplicatePlaces(
 	app: App,
 	group: PlaceDuplicateGroup,
-	canonicalFile: TFile
+	canonicalFile: TFile,
+	fileProvider?: () => TFile[]
 ): Promise<{ updatedLinks: number; deletedFiles: number }> {
 	const duplicateFiles = group.files.filter(f => f.path !== canonicalFile.path);
 	let updatedLinks = 0;
@@ -636,7 +644,7 @@ export async function mergeDuplicatePlaces(
 	const canonicalBasename = canonicalFile.basename;
 
 	// Update all Person notes that link to duplicate Place notes
-	const allFiles = app.vault.getMarkdownFiles();
+	const allFiles = fileProvider?.() ?? app.vault.getMarkdownFiles();
 
 	for (const file of allFiles) {
 		const cache = app.metadataCache.getFileCache(file);
@@ -711,8 +719,11 @@ export async function mergeDuplicatePlaces(
  * Find place name variants in the vault
  * Scans both Place notes (full_name field) and Person notes (place fields)
  */
-export function findPlaceNameVariants(app: App): PlaceVariantMatch[] {
-	const files = app.vault.getMarkdownFiles();
+export function findPlaceNameVariants(
+	app: App,
+	fileProvider?: () => TFile[]
+): PlaceVariantMatch[] {
+	const files = fileProvider?.() ?? app.vault.getMarkdownFiles();
 
 	// Track which variants we've found and their files
 	const variantFiles: Map<string, { files: TFile[]; count: number }> = new Map();

@@ -256,7 +256,9 @@ export class ReportGeneratorModal extends Modal {
 		this.odtGenerator = new OdtGenerator();
 
 		// Initialize output folder from settings
-		this.outputFolder = plugin.settings.reportsFolder || '';
+		this.outputFolder = plugin.getWorkspaceService()?.getFolder('reports')
+			?? plugin.settings.reportsFolder
+			?? '';
 
 		// Apply pre-selected options
 		if (options.reportType) {
@@ -829,7 +831,13 @@ export class ReportGeneratorModal extends Modal {
 									this.personPickerSetting.setDesc(`Selected: ${person.name}`);
 								}
 							},
-							folderFilter
+							{
+								folderFilter,
+								plugin: this.plugin,
+								fileProvider: () =>
+									this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+									?? this.app.vault.getMarkdownFiles()
+							}
 						);
 						picker.open();
 					});

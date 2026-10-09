@@ -7,10 +7,23 @@ import type { TemplateFilterService } from './template-filter';
  * Used to control which folders are scanned for person notes.
  * Also integrates with TemplateFilterService to exclude template folders.
  */
+export interface FolderFilterOptions {
+	/** Dynamic active-Workspace staging folder. */
+	stagingFolderProvider?: () => string | undefined;
+}
+
 export class FolderFilterService {
 	private templateFilter: TemplateFilterService | null = null;
 
-	constructor(private settings: CanvasRootsSettings) {}
+	constructor(
+		private settings: CanvasRootsSettings,
+		private readonly options: FolderFilterOptions = {}
+	) {}
+
+	private resolveStagingFolder(): string {
+		return this.options.stagingFolderProvider?.()
+			?? this.settings.stagingFolder;
+	}
 
 	/**
 	 * Set the template filter service for template folder exclusion.
@@ -90,7 +103,7 @@ export class FolderFilterService {
 		}
 
 		// Skip if no staging folder is configured
-		const stagingFolder = this.settings.stagingFolder;
+		const stagingFolder = this.resolveStagingFolder();
 		if (!stagingFolder) {
 			return false;
 		}
@@ -103,7 +116,7 @@ export class FolderFilterService {
 	 * Check if a file is in the staging folder
 	 */
 	isInStagingFolder(filePath: string): boolean {
-		const stagingFolder = this.settings.stagingFolder;
+		const stagingFolder = this.resolveStagingFolder();
 		if (!stagingFolder) {
 			return false;
 		}
@@ -152,8 +165,8 @@ export class FolderFilterService {
 				: this.settings.folderFilterMode === 'include'
 					? this.settings.includedFolders
 					: [],
-			stagingFolder: this.settings.enableStagingIsolation && this.settings.stagingFolder
-				? this.settings.stagingFolder
+			stagingFolder: this.settings.enableStagingIsolation && this.resolveStagingFolder()
+				? this.resolveStagingFolder()
 				: null,
 			templateFolders: this.templateFilter?.getAllTemplateFolders() || []
 		};
@@ -167,7 +180,7 @@ export class FolderFilterService {
 			this.templateFilter.getAllTemplateFolders().length > 0;
 
 		return this.settings.folderFilterMode !== 'disabled' ||
-			(this.settings.enableStagingIsolation && !!this.settings.stagingFolder) ||
+			(this.settings.enableStagingIsolation && !!this.resolveStagingFolder()) ||
 			hasTemplateFiltering;
 	}
 
@@ -182,13 +195,13 @@ export class FolderFilterService {
 	 * Check if staging isolation is active
 	 */
 	isStagingIsolationActive(): boolean {
-		return this.settings.enableStagingIsolation && !!this.settings.stagingFolder;
+		return this.settings.enableStagingIsolation && !!this.resolveStagingFolder();
 	}
 
 	/**
 	 * Get the configured staging folder path
 	 */
 	getStagingFolder(): string {
-		return this.settings.stagingFolder;
+		return this.resolveStagingFolder();
 	}
 }

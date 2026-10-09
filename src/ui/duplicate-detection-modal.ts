@@ -34,7 +34,14 @@ export class DuplicateDetectionModal extends Modal {
 		private plugin?: CanvasRootsPlugin
 	) {
 		super(app);
-		this.service = new DuplicateDetectionService(app);
+		this.service = new DuplicateDetectionService(
+			app,
+			undefined,
+			plugin
+				? () => plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+					?? app.vault.getMarkdownFiles()
+				: undefined
+		);
 	}
 
 	/** Settings, when the modal was opened with a plugin reference. */
@@ -378,7 +385,11 @@ export class DuplicateDetectionModal extends Modal {
 				// After merge, remove the item from the list
 				itemEl.remove();
 				this.matches = this.matches.filter(m => m !== match);
-			}
+			},
+			this.plugin
+				? () => this.plugin!.getWorkspaceService()?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles()
+				: undefined
 		);
 		mergeModal.open();
 	}

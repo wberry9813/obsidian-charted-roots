@@ -26,7 +26,7 @@ function makeApp(entries: Array<{ path: string; frontmatter?: Record<string, unk
 				return item?.frontmatter ? { frontmatter: item.frontmatter } : null;
 			}
 		}
-	} as never;
+	};
 }
 
 describe('v2 foundation linter', () => {
@@ -64,8 +64,8 @@ describe('v2 foundation linter', () => {
 			}
 		]);
 
-		const assertions = new AssertionService(app);
-		const linter = new V2Linter(app, createV2OntologyRegistry(), assertions);
+		const assertions = new AssertionService(app as never);
+		const linter = new V2Linter(app as never, createV2OntologyRegistry(), assertions);
 
 		expect(linter.lint()).toEqual([]);
 	});
@@ -94,12 +94,108 @@ describe('v2 foundation linter', () => {
 			}
 		]);
 
-		const assertions = new AssertionService(app);
-		const issues = new V2Linter(app, createV2OntologyRegistry(), assertions).lint();
+		const assertions = new AssertionService(app as never);
+		const issues = new V2Linter(app as never, createV2OntologyRegistry(), assertions).lint();
 
 		expect(issues).toEqual(expect.arrayContaining([
 			expect.objectContaining({ code: 'duplicate_cr_id' }),
 			expect.objectContaining({ code: 'unknown_predicate' })
 		]));
 	});
+
+	it('reports non-canonical persisted control-layer CRS', () => {
+		const app = makeApp([{
+			path: 'History/Layers/Legacy.md',
+			frontmatter: {
+				cr_schema: 2,
+				cr_type: 'control_layer',
+				cr_id: 'legacy-boundary',
+				name: 'Legacy boundary',
+				geojson_file: 'legacy.geojson',
+				coordinate_crs: 'gcj02'
+			}
+		}]);
+
+		const assertions = new AssertionService(app as never);
+		const issues = new V2Linter(
+			app as never,
+			createV2OntologyRegistry(),
+			assertions
+		).lint();
+
+		expect(issues).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				severity: 'warning',
+				code: 'non_canonical_control_layer_crs',
+				filePath: 'History/Layers/Legacy.md'
+			})
+		]));
+	});
+
+	it('keeps content lint Workspace-scoped while enforcing cr_id globally', () => {
+		const app = makeApp([
+			{
+				path: 'History/People/A.md',
+				frontmatter: {
+					cr_schema: 2,
+					cr_type: 'person',
+					cr_id: 'dup-global',
+					name: 'History A'
+				}
+			},
+			{
+				path: 'Fiction/Assertions/Bad.md',
+				frontmatter: {
+					cr_schema: 2,
+					cr_type: 'assertion',
+					cr_id: 'dup-global',
+					assertion_type: 'relationship',
+					subject: '[[Fiction/People/X]]',
+					predicate: 'invented_relation',
+					object: '[[Fiction/People/Y]]'
+				}
+			},
+			{
+				path: 'Fiction/People/Missing-Id.md',
+				frontmatter: {
+					cr_schema: 2,
+					cr_type: 'person'
+				}
+			}
+		]);
+
+		const historyFiles = () => app.vault.getMarkdownFiles()
+			.filter((file: { path: string }) => file.path.startsWith('History/'));
+		const assertions = new AssertionService(
+			app as never,
+			undefined,
+			{ fileProvider: historyFiles as never }
+		);
+		const issues = new V2Linter(
+			app as never,
+			createV2OntologyRegistry(),
+			assertions,
+			{
+				fileProvider: historyFiles as never,
+				globalFileProvider: () => app.vault.getMarkdownFiles()
+			}
+		).lint();
+
+		expect(issues).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				code: 'duplicate_cr_id',
+				crId: 'dup-global',
+				filePath: 'Fiction/Assertions/Bad.md'
+			})
+		]));
+		expect(issues.some(issue =>
+			issue.code === 'unknown_predicate'
+			&& issue.filePath === 'Fiction/Assertions/Bad.md'
+		)).toBe(false);
+		expect(issues.some(issue =>
+			issue.code === 'missing_cr_id'
+			&& issue.filePath === 'Fiction/People/Missing-Id.md'
+		)).toBe(false);
+	});
+
 });

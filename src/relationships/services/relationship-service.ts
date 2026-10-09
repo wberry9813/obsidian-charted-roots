@@ -33,6 +33,7 @@ export class RelationshipService {
 	private relationshipCache: Map<string, ParsedRelationship[]> = new Map();
 	private personCrIdToFilePath: Map<string, string> = new Map();
 	private lastCacheRefresh: Date | null = null;
+	private cacheWorkspaceId: string | null = null;
 
 	constructor(plugin: CanvasRootsPlugin) {
 		this.plugin = plugin;
@@ -137,10 +138,10 @@ export class RelationshipService {
 	}
 
 	/**
-	 * Get all relationships in the vault
+	 * Get all relationships in the active Workspace.
 	 */
 	getAllRelationships(forceRefresh = false): ParsedRelationship[] {
-		if (forceRefresh || this.relationshipCache.size === 0) {
+		if (forceRefresh || this.cacheNeedsRefresh()) {
 			this.refreshCache();
 		}
 
@@ -156,7 +157,7 @@ export class RelationshipService {
 	 * Get relationships for a specific person (by cr_id)
 	 */
 	getRelationshipsForPerson(crId: string): ParsedRelationship[] {
-		if (this.relationshipCache.size === 0) {
+		if (this.cacheNeedsRefresh()) {
 			this.refreshCache();
 		}
 
@@ -280,7 +281,7 @@ export class RelationshipService {
 	 * so they suppress equivalent inferred relationships (parents, step_parent, etc.).
 	 */
 	private addFamilyPropertyKeys(definedKeys: Set<string>): void {
-		for (const file of this.plugin.app.vault.getMarkdownFiles()) {
+		for (const file of this.getScopedFiles()) {
 			const cache = this.plugin.app.metadataCache.getFileCache(file);
 			if (!cache?.frontmatter) continue;
 
@@ -324,7 +325,7 @@ export class RelationshipService {
 	}
 
 	/**
-	 * Get statistics about relationships in the vault
+	 * Get statistics about relationships in the active Workspace.
 	 */
 	getStats(): RelationshipStats {
 		const relationships = this.getAllRelationships();
@@ -409,13 +410,13 @@ export class RelationshipService {
 	}
 
 	/**
-	 * Refresh the relationship cache from vault
+	 * Refresh the relationship cache from the active Workspace.
 	 */
 	refreshCache(): void {
 		this.relationshipCache.clear();
 		this.personCrIdToFilePath.clear();
 
-		const files = this.plugin.app.vault.getMarkdownFiles();
+		const files = this.getScopedFiles();
 
 		// First pass: build cr_id → file path map
 		for (const file of files) {
@@ -441,7 +442,9 @@ export class RelationshipService {
 		}
 
 		this.lastCacheRefresh = new Date();
+		this.cacheWorkspaceId = this.getActiveWorkspaceId();
 		logger.debug('cache', 'Relationship cache refreshed', {
+			workspaceId: this.cacheWorkspaceId,
 			relationships: Array.from(this.relationshipCache.values()).flat().length,
 			people: this.relationshipCache.size
 		});
@@ -643,10 +646,27 @@ export class RelationshipService {
 	}
 
 	/**
-	 * Get the file path for a person by cr_id
+	 * Get the file path for a person by cr_id in the active Workspace.
 	 */
 	getFilePathByCrId(crId: string): string | undefined {
+		if (this.cacheNeedsRefresh()) {
+			this.refreshCache();
+		}
 		return this.personCrIdToFilePath.get(crId);
+	}
+
+	private cacheNeedsRefresh(): boolean {
+		return this.lastCacheRefresh === null
+			|| this.cacheWorkspaceId !== this.getActiveWorkspaceId();
+	}
+
+	private getActiveWorkspaceId(): string | null {
+		return this.plugin.getWorkspaceService()?.getActiveId() ?? null;
+	}
+
+	private getScopedFiles(): TFile[] {
+		return this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.plugin.app.vault.getMarkdownFiles();
 	}
 
 	/**

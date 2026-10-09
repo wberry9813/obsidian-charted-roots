@@ -57,9 +57,13 @@ export class LineageTrackingService {
 	private app: App;
 	private graphService: FamilyGraphService;
 
-	constructor(app: App, folderFilter?: FolderFilterService) {
+	constructor(
+		app: App,
+		folderFilter?: FolderFilterService,
+		graphService?: FamilyGraphService
+	) {
 		this.app = app;
-		this.graphService = new FamilyGraphService(app);
+		this.graphService = graphService ?? new FamilyGraphService(app);
 		if (folderFilter) {
 			this.graphService.setFolderFilter(folderFilter);
 		}

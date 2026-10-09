@@ -32,6 +32,39 @@ function solarParts(day: SolarDay): SolarCalendarDate {
 }
 
 /**
+ * Tyme4TS can calculate BCE Julian Days, but its JulianDay -> SolarTime path
+ * eventually constructs SolarTime/SolarDay objects that reject year <= 0.
+ *
+ * This mirrors Tyme4TS JulianDay.getSolarTime()'s Gregorian/Julian conversion
+ * arithmetic up to the plain year/month/day parts, before that positive-year
+ * object validation is applied.
+ */
+function julianDayToSolarParts(julianDay: number): SolarCalendarDate {
+	let d = Math.trunc(julianDay + 0.5);
+
+	if (d >= 2299161) {
+		const c = Math.trunc((d - 1867216.25) / 36524.25);
+		d += 1 + c - Math.trunc(c * 0.25);
+	}
+
+	d += 1524;
+	let y = Math.trunc((d - 122.1) / 365.25);
+	d -= Math.trunc(365.25 * y);
+	let m = Math.trunc(d / 30.601);
+	d -= Math.trunc(30.601 * m);
+
+	if (m > 13) {
+		m -= 12;
+	} else {
+		y -= 1;
+	}
+	m -= 1;
+	y -= 4715;
+
+	return { year: y, month: m, day: d };
+}
+
+/**
  * Thin adapter around Tyme4TS.
  *
  * No Tyme object escapes this provider. This keeps the v2 semantic/time model
@@ -56,9 +89,15 @@ export class TymeCalendarProvider implements CalendarProvider {
 	}
 
 	julianDayToSolar(julianDay: number): SolarCalendarDate {
-		return solarParts(
-			JulianDay.fromJulianDay(julianDay).getSolarDay()
-		);
+		try {
+			return solarParts(
+				JulianDay.fromJulianDay(julianDay).getSolarDay()
+			);
+		} catch {
+			// BCE support boundary: Tyme's conversion arithmetic itself supports
+			// astronomical year numbering, while SolarDay validation does not.
+			return julianDayToSolarParts(julianDay);
+		}
 	}
 
 	solarToLunar(date: SolarCalendarDate): LunarCalendarDate {

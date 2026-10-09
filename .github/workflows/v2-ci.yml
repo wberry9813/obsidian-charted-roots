@@ -13,7 +13,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: v2-ci-${{ github.head_ref || github.ref_name }}
+  # A push to a branch with an open PR triggers both push and pull_request.
+  # Keep those event streams independent so they cannot cancel each other's
+  # prerequisite jobs and leave the PR run in a false failed/skipped state.
+  group: v2-ci-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -80,6 +83,17 @@ jobs:
       - name: Build plugin
         run: npm run build
 
+      - name: Upload manual-test plugin bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: charted-roots-v2-${{ github.sha }}
+          path: |
+            main.js
+            manifest.json
+            styles.css
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Run real Obsidian smoke test
         shell: bash
         run: |
@@ -87,6 +101,8 @@ jobs:
           mkdir -p tests/e2e/artifacts
           xvfb-run -a node --test tests/e2e/v2-foundation-smoke.e2e.mjs \
             2>&1 | tee tests/e2e/artifacts/e2e.log
+          xvfb-run -a node --test tests/e2e/v2-workspace-ui.e2e.mjs \
+            2>&1 | tee -a tests/e2e/artifacts/e2e.log
 
       - name: Upload Obsidian E2E artifacts
         if: always()

@@ -23,6 +23,8 @@ interface PlaceVariationGroup {
 
 interface StandardizePlacesOptions {
 	onComplete?: (updated: number) => void;
+	/** Primary dataset boundary for discovery and destructive rewrites. */
+	fileProvider?: () => TFile[];
 }
 
 /**
@@ -38,6 +40,7 @@ export class StandardizePlacesModal extends Modal {
 	private groupImpactElements: Map<PlaceVariationGroup, HTMLElement>; // group -> impact display element
 	private groupApplyButtons: Map<PlaceVariationGroup, HTMLButtonElement>; // group -> apply button
 	private onComplete?: (updated: number) => void;
+	private fileProvider?: () => TFile[];
 	private totalUpdated = 0;
 
 	constructor(
@@ -48,6 +51,11 @@ export class StandardizePlacesModal extends Modal {
 		super(app);
 		this.placeService = new PlaceGraphService(app);
 		this.familyGraph = new FamilyGraphService(app);
+		this.fileProvider = options.fileProvider;
+		if (this.fileProvider) {
+			this.placeService.setFileProvider(this.fileProvider);
+			this.familyGraph.setFileProvider(this.fileProvider);
+		}
 		this.variationGroups = variationGroups;
 		this.selectedGroups = new Map();
 		this.appliedGroups = new Set();
@@ -633,7 +641,8 @@ export class StandardizePlacesModal extends Modal {
 	 */
 	private async updatePlaceReferences(oldValue: string, newValue: string): Promise<number> {
 		let updated = 0;
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.fileProvider?.()
+			?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -724,8 +733,14 @@ export class StandardizePlacesModal extends Modal {
 /**
  * Find groups of similar place names that might be variations
  */
-export function findPlaceNameVariations(app: App): PlaceVariationGroup[] {
+export function findPlaceNameVariations(
+	app: App,
+	fileProvider?: () => TFile[]
+): PlaceVariationGroup[] {
 	const placeService = new PlaceGraphService(app);
+	if (fileProvider) {
+		placeService.setFileProvider(fileProvider);
+	}
 	void placeService.reloadCache();
 
 	const references = placeService.getReferencedPlaces();

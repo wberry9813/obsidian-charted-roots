@@ -744,11 +744,14 @@ export async function normalizeNames(plugin: CanvasRootsPlugin, app: App, showTa
 export function previewRemoveOrphanedRefs(plugin: CanvasRootsPlugin, app: App, showTab: (tabId: string) => void): void {
 	const changes: Array<{ person: { name: string; file: TFile }; field: string; orphanedId: string }> = [];
 
-	// Build a map of all valid cr_ids
+	// cr_id identity is vault-global, so targets in another Workspace are still
+	// valid. Only the notes being inspected belong to the active Workspace.
 	const validCrIds = new Set<string>();
-	const files = app.vault.getMarkdownFiles();
+	const globalFiles = app.vault.getMarkdownFiles();
+	const files = plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+		?? globalFiles;
 
-	for (const file of files) {
+	for (const file of globalFiles) {
 		const cache = app.metadataCache.getFileCache(file);
 		const crId = cache?.frontmatter?.cr_id;
 		if (crId && typeof crId === 'string') {
@@ -856,11 +859,14 @@ export async function removeOrphanedRefs(plugin: CanvasRootsPlugin, app: App, sh
 
 	new Notice('Removing orphaned cr_id references...');
 
-	// Build a map of all valid cr_ids
+	// Preserve vault-global identity while restricting destructive edits to the
+	// active Workspace.
 	const validCrIds = new Set<string>();
-	const files = app.vault.getMarkdownFiles();
+	const globalFiles = app.vault.getMarkdownFiles();
+	const files = plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+		?? globalFiles;
 
-	for (const file of files) {
+	for (const file of globalFiles) {
 		const cache = app.metadataCache.getFileCache(file);
 		const crId = cache?.frontmatter?.cr_id;
 		if (crId && typeof crId === 'string') {
@@ -1319,7 +1325,8 @@ export function previewValidateDates(plugin: CanvasRootsPlugin, app: App): void 
 
 	new Notice('Analyzing date formats...');
 
-	const files = app.vault.getMarkdownFiles();
+	const files = plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+		?? app.vault.getMarkdownFiles();
 
 	for (const file of files) {
 		const cache = app.metadataCache.getFileCache(file);

@@ -3,7 +3,7 @@
  * Research Timeline Processor
  *
  * Handles the `charted-roots-research-timeline` code block.
- * Surfaces all research activity across the vault from two formats:
+ * Surfaces research activity from the active Workspace from two formats:
  *
  * 1. Frontmatter on research_log_entry notes (all results: positive, negative, inconclusive)
  * 2. Markdown entries within research_journal notes matching `→ result` pattern
@@ -104,7 +104,8 @@ export class ResearchTimelineProcessor {
 	}
 
 	/**
-	 * Gather all research activities from the vault
+	 * Gather all research activities from the active Workspace. Falls back to
+	 * whole-vault discovery only when Workspace Foundation is unavailable.
 	 */
 	private async gatherResearchActivities(config: DynamicBlockConfig): Promise<ResearchActivity[]> {
 		const activities: ResearchActivity[] = [];
@@ -117,10 +118,10 @@ export class ResearchTimelineProcessor {
 			: undefined;
 
 		const app = this.plugin.app;
+		const files = this.plugin.getWorkspaceService?.()?.getScope().getMarkdownFiles()
+			?? app.vault.getMarkdownFiles();
 
-		for (const file of app.vault.getFiles()) {
-			if (file.extension !== 'md') continue;
-
+		for (const file of files) {
 			const cache = app.metadataCache.getFileCache(file);
 			const fm = cache?.frontmatter;
 			if (!fm) continue;

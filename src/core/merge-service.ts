@@ -105,7 +105,8 @@ const MERGEABLE_FIELDS: { field: string; label: string; isArray: boolean }[] = [
 export class MergeService {
 	constructor(
 		private app: App,
-		private settings: CanvasRootsSettings
+		private settings: CanvasRootsSettings,
+		private readonly fileProvider?: () => TFile[]
 	) {}
 
 	/**
@@ -446,7 +447,8 @@ export class MergeService {
 	async updateRelationships(oldCrId: string, newCrId: string): Promise<number> {
 		let updatedCount = 0;
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.fileProvider?.()
+			?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);

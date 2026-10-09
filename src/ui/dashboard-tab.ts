@@ -5,7 +5,7 @@
  * Provides quick-action tiles for common operations and vault overview.
  */
 
-import { App, Menu, TFile } from 'obsidian';
+import { App, Menu, Notice, TFile } from 'obsidian';
 import CanvasRootsPlugin from '../../main';
 import { LucideIconName, setLucideIcon } from './lucide-icons';
 import { VaultStatsService, FullVaultStats } from '../core/vault-stats';
@@ -20,7 +20,6 @@ import { MediaManagerModal } from '../core/ui/media-manager-modal';
 import { ImportExportHubModal } from './import-export-hub-modal';
 import { FamilyCreationWizardModal } from './family-creation-wizard';
 import { CommandMenuModal } from './command-menu-modal';
-import { EventService } from '../events/services/event-service';
 import { StagingService } from '../core/staging-service';
 import type { RecentFileEntry } from '../settings';
 
@@ -181,7 +180,11 @@ function renderQuickActionsSection(
 	// Helper to open create event modal
 	const openCreateEvent = () => {
 		closeModal();
-		const eventService = new EventService(app, plugin.settings);
+		const eventService = plugin.getEventService();
+		if (!eventService) {
+			new Notice('Event service is not ready yet. Please try again.');
+			return;
+		}
 		new CreateEventModal(app, eventService, plugin.settings, {
 			plugin,
 			onCreated: (file) => {
@@ -856,6 +859,10 @@ function renderVaultHealthContent(
 	let stats: FullVaultStats;
 	try {
 		const statsService = new VaultStatsService(app);
+		statsService.setFileProvider(() =>
+			plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? app.vault.getMarkdownFiles()
+		);
 		const folderFilter = plugin.getFolderFilter();
 		if (folderFilter) {
 			statsService.setFolderFilter(folderFilter);

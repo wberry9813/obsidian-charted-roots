@@ -18,7 +18,6 @@ import type CanvasRootsPlugin from '../../../main';
 import { MediaService, type MediaEntityType } from '../media-service';
 import { BulkMediaLinkProgressModal } from './bulk-media-link-progress-modal';
 import { type PersonNode } from '../family-graph';
-import { EventService } from '../../events/services/event-service';
 import type { EventNote } from '../../events/types/event-types';
 import { OrganizationService } from '../../organizations/services/organization-service';
 import { getOrganizationType } from '../../organizations/constants/organization-type-defaults';
@@ -291,7 +290,11 @@ export class EntityPickerModal extends Modal {
 	 * Load all events
 	 */
 	private loadEvents(): void {
-		const eventService = new EventService(this.app, this.plugin.settings);
+		const eventService = this.plugin.getEventService();
+		if (!eventService) {
+			this.entities = [];
+			return;
+		}
 
 		const events = eventService.getAllEvents();
 

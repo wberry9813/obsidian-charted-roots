@@ -171,12 +171,22 @@ export class CleanupWizardModal extends Modal {
 		return this.geocodingService;
 	}
 
+	/** Active Workspace is the primary safety boundary for destructive cleanup. */
+	private getWorkspaceFiles(): TFile[] {
+		return this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
+	}
+
 	/**
 	 * Initialize the SourceMigrationService (lazy initialization)
 	 */
 	private getSourceMigrationService(): SourceMigrationService {
 		if (!this.sourceMigrationService) {
-			this.sourceMigrationService = new SourceMigrationService(this.app, this.plugin.settings);
+			this.sourceMigrationService = new SourceMigrationService(
+				this.app,
+				this.plugin.settings,
+				() => this.getWorkspaceFiles()
+			);
 		}
 		return this.sourceMigrationService;
 	}
@@ -186,7 +196,11 @@ export class CleanupWizardModal extends Modal {
 	 */
 	private getEventPersonMigrationService(): EventPersonMigrationService {
 		if (!this.eventPersonMigrationService) {
-			this.eventPersonMigrationService = new EventPersonMigrationService(this.app, this.plugin.settings);
+			this.eventPersonMigrationService = new EventPersonMigrationService(
+				this.app,
+				this.plugin.settings,
+				() => this.getWorkspaceFiles()
+			);
 		}
 		return this.eventPersonMigrationService;
 	}
@@ -196,7 +210,11 @@ export class CleanupWizardModal extends Modal {
 	 */
 	private getSourcedFactsMigrationService(): SourcedFactsMigrationService {
 		if (!this.sourcedFactsMigrationService) {
-			this.sourcedFactsMigrationService = new SourcedFactsMigrationService(this.app, this.plugin.settings);
+			this.sourcedFactsMigrationService = new SourcedFactsMigrationService(
+				this.app,
+				this.plugin.settings,
+				() => this.getWorkspaceFiles()
+			);
 		}
 		return this.sourcedFactsMigrationService;
 	}
@@ -206,7 +224,13 @@ export class CleanupWizardModal extends Modal {
 	 */
 	private getLifeEventsMigrationService(): LifeEventsMigrationService {
 		if (!this.lifeEventsMigrationService) {
-			this.lifeEventsMigrationService = new LifeEventsMigrationService(this.app, this.plugin.settings);
+			this.lifeEventsMigrationService = new LifeEventsMigrationService(
+				this.app,
+				this.plugin.settings,
+				() => this.getWorkspaceFiles(),
+				() => this.plugin.getWorkspaceService()?.getFolder('events')
+					?? this.plugin.settings.eventsFolder
+			);
 		}
 		return this.lifeEventsMigrationService;
 	}
@@ -1909,7 +1933,7 @@ export class CleanupWizardModal extends Modal {
 
 		if (this.placeVariantMatches.length === 0 && this.state.preScanComplete) {
 			// No variants found - check for duplicates instead
-			this.placeDuplicateGroups = findDuplicatePlacesByFullName(this.app);
+			this.placeDuplicateGroups = findDuplicatePlacesByFullName(this.app, () => this.getWorkspaceFiles());
 			if (this.placeDuplicateGroups.length > 0) {
 				this.showDeduplicationStep = true;
 				this.renderPlaceDeduplicationStep(container, stepState);
@@ -2100,7 +2124,7 @@ export class CleanupWizardModal extends Modal {
 		}
 
 		// Check for duplicates after variant standardization
-		this.placeDuplicateGroups = findDuplicatePlacesByFullName(this.app);
+		this.placeDuplicateGroups = findDuplicatePlacesByFullName(this.app, () => this.getWorkspaceFiles());
 		if (this.placeDuplicateGroups.length > 0) {
 			// Show deduplication step instead of marking complete
 			this.showDeduplicationStep = true;
@@ -2256,7 +2280,7 @@ export class CleanupWizardModal extends Modal {
 
 		for (const [group, canonicalFile] of canonicalSelections.entries()) {
 			try {
-				const result = await mergeDuplicatePlaces(this.app, group, canonicalFile);
+				const result = await mergeDuplicatePlaces(this.app, group, canonicalFile, () => this.getWorkspaceFiles());
 				totalUpdatedLinks += result.updatedLinks;
 				totalDeletedFiles += result.deletedFiles;
 			} catch (error) {
@@ -3628,7 +3652,7 @@ export class CleanupWizardModal extends Modal {
 			logger.debug('runPreScan', `Step 10 (Nested): ${this.state.steps[10].issueCount} issues`);
 
 			// Step 7: Place variants
-			this.placeVariantMatches = findPlaceNameVariants(this.app);
+			this.placeVariantMatches = findPlaceNameVariants(this.app, () => this.getWorkspaceFiles());
 			this.state.steps[7].issueCount = this.placeVariantMatches.length;
 			logger.debug('runPreScan', `Step 7 (Place Variants): ${this.placeVariantMatches.length} issues`);
 
@@ -3776,7 +3800,7 @@ export class CleanupWizardModal extends Modal {
 	 */
 	private detectLegacyChildProperty(): TFile[] {
 		const files: TFile[] = [];
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of this.getWorkspaceFiles()) {
 			const cache = this.app.metadataCache.getFileCache(file);
 			if (!cache?.frontmatter) continue;
 
@@ -3858,7 +3882,7 @@ export class CleanupWizardModal extends Modal {
 	private detectPlacesWithoutCrId(): TFile[] {
 		const files: TFile[] = [];
 		const settings = this.plugin.settings.noteTypeDetection;
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of this.getWorkspaceFiles()) {
 			const cache = this.app.metadataCache.getFileCache(file);
 			if (!cache?.frontmatter) continue;
 

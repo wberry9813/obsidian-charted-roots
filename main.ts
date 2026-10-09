@@ -15,6 +15,7 @@ import { FamilyChartView, VIEW_TYPE_FAMILY_CHART } from './src/ui/views/family-c
 import { MapView, VIEW_TYPE_MAP } from './src/maps/map-view';
 import { StatisticsView, VIEW_TYPE_STATISTICS } from './src/statistics';
 import { CalendarView, VIEW_TYPE_CALENDAR } from './src/calendar/calendar-view';
+import { TemporalTimelineView, VIEW_TYPE_TEMPORAL_TIMELINE } from './src/v2/temporal/ui/temporal-timeline-view';
 import { RelationshipsView, VIEW_TYPE_RELATIONSHIPS } from './src/relationships/ui/relationships-view';
 import { PeopleView, VIEW_TYPE_PEOPLE } from './src/ui/views/people-view';
 import { EventsView, VIEW_TYPE_EVENTS } from './src/dates/ui/events-view';
@@ -30,8 +31,9 @@ import { PersonIndexService } from './src/core/person-index-service';
 import { PlaceGraphService } from './src/core/place-graph';
 import { EvidenceService, ProofSummaryService, SourceService } from './src/sources';
 import { EventService } from './src/events/services/event-service';
+import { OrganizationService } from './src/organizations/services/organization-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, V2MigrationExecutor, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type MigrationExecutionOptions, type MigrationExecutionResult, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry } from './src/v2';
+import { AssertionService, HistoricalControlLayerRepository, HistoricalDateService, SemanticAssertionService, TemporalAssertionStateService, TemporalContextStateService, TemporalFocusService, TemporalInstitutionStateService, TemporalPlaceStateService, TemporalProjectionService, V2Linter, V2MigrationAnalyzer, V2MigrationExecutor, WorkspaceCatalogService, WorkspaceService, bootstrapWorkspaceFoundation, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type LegacyWorkspaceDerivation, type MigrationExecutionOptions, type MigrationExecutionResult, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry, type WorkspaceCatalog } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -39,7 +41,7 @@ import { MediaService } from './src/core/media-service';
 import { MigrationNoticeView, VIEW_TYPE_MIGRATION_NOTICE } from './src/ui/views/migration-notice-view';
 import { ProfileView, VIEW_TYPE_ENTITY_PROFILE } from './src/profile-view/profile-view';
 import { WebClipperService } from './src/core/web-clipper-service';
-import { createUniverseService } from './src/universes/services/universe-service';
+import { UniverseService } from './src/universes/services/universe-service';
 import { PluginRenameMigrationService, showMigrationNotice } from './src/migration/plugin-rename-migration-service';
 
 import { registerContextMenus } from './src/plugin/context-menus';
@@ -48,6 +50,7 @@ import {
 	activateMapView as _activateMapView,
 	activateStatisticsView as _activateStatisticsView,
 	activateCalendarView as _activateCalendarView,
+	activateTemporalTimelineView as _activateTemporalTimelineView,
 	activateRelationshipsView as _activateRelationshipsView,
 	activatePeopleView as _activatePeopleView,
 	activateEventsView as _activateEventsView,
@@ -105,6 +108,9 @@ export default class CanvasRootsPlugin extends Plugin {
 	public personIndex: PersonIndexService | null = null;
 	private eventService: EventService | null = null;
 	private sourceService: SourceService | null = null;
+	private evidenceService: EvidenceService | null = null;
+	private organizationService: OrganizationService | null = null;
+	private universeService: UniverseService | null = null;
 	private proofSummaryService: ProofSummaryService | null = null;
 	private recentFilesService: RecentFilesService | null = null;
 	private mediaService: MediaService | null = null;
@@ -117,6 +123,17 @@ export default class CanvasRootsPlugin extends Plugin {
 	private v2MigrationExecutor: V2MigrationExecutor | null = null;
 	private v2Linter: V2Linter | null = null;
 	private historicalDateService: HistoricalDateService | null = null;
+	private historicalControlLayerRepository: HistoricalControlLayerRepository | null = null;
+	private temporalProjectionService: TemporalProjectionService | null = null;
+	private temporalAssertionStateService: TemporalAssertionStateService | null = null;
+	private temporalContextStateService: TemporalContextStateService | null = null;
+	private temporalFocusService: TemporalFocusService | null = null;
+	private temporalInstitutionStateService: TemporalInstitutionStateService | null = null;
+	private temporalPlaceStateService: TemporalPlaceStateService | null = null;
+	private workspaceCatalogService: WorkspaceCatalogService | null = null;
+	private workspaceService: WorkspaceService | null = null;
+	private workspaceSetupReview: LegacyWorkspaceDerivation | null = null;
+	private workspaceSetupError: string | null = null;
 
 	/**
 	 * Flag to temporarily disable bidirectional sync during bulk operations (e.g., import)
@@ -232,10 +249,58 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	getSourceService(): SourceService {
 		if (!this.sourceService) {
-			this.sourceService = new SourceService(this.app, this.settings);
+			this.sourceService = new SourceService(
+				this.app,
+				this.settings,
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles(),
+					defaultFolderProvider: () =>
+						this.workspaceService?.getFolder('sources')
+						?? this.settings.sourcesFolder
+				}
+			);
 			this.sourceService.setupVaultListeners(this);
 		}
 		return this.sourceService;
+	}
+
+	getEvidenceService(): EvidenceService {
+		if (!this.evidenceService) {
+			this.evidenceService = new EvidenceService(
+				this.app,
+				this.settings,
+				this.getSourceService(),
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles()
+				}
+			);
+		}
+		return this.evidenceService;
+	}
+
+	/**
+	 * Shared Organization service. The service itself resolves Workspace scope
+	 * dynamically from the plugin so one instance survives Workspace switches.
+	 */
+	getOrganizationService(): OrganizationService {
+		if (!this.organizationService) {
+			this.organizationService = new OrganizationService(this);
+		}
+		return this.organizationService;
+	}
+
+	/**
+	 * Shared Universe service with dynamic Workspace scope.
+	 */
+	getUniverseService(): UniverseService {
+		if (!this.universeService) {
+			this.universeService = new UniverseService(this);
+		}
+		return this.universeService;
 	}
 
 	/**
@@ -246,7 +311,19 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	getProofSummaryService(): ProofSummaryService {
 		if (!this.proofSummaryService) {
-			this.proofSummaryService = new ProofSummaryService(this.app, this.settings);
+			this.proofSummaryService = new ProofSummaryService(
+				this.app,
+				this.settings,
+				this.getSourceService(),
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles(),
+					defaultSourcesFolderProvider: () =>
+						this.workspaceService?.getFolder('sources')
+						?? this.settings.sourcesFolder
+				}
+			);
 			if (this.personIndex) {
 				this.proofSummaryService.setPersonIndex(this.personIndex);
 			}
@@ -281,6 +358,126 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	getDateService(): DateService | null {
 		return this.dateService;
+	}
+
+	/**
+	 * Active Workspace runtime service. Null means the legacy folder layout
+	 * could not be inferred safely and needs explicit Workspace setup.
+	 */
+	getWorkspaceService(): WorkspaceService | null {
+		return this.workspaceService;
+	}
+
+	getWorkspaceSetupStatus(): {
+		configured: boolean;
+		review: LegacyWorkspaceDerivation | null;
+		error: string | null;
+	} {
+		return {
+			configured: this.workspaceService !== null,
+			review: this.workspaceSetupReview,
+			error: this.workspaceSetupError
+		};
+	}
+
+	private refreshWorkspaceScopedViews(): void {
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_TEMPORAL_TIMELINE)) {
+			if (leaf.view instanceof TemporalTimelineView) {
+				leaf.view.refresh();
+			}
+		}
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_MAP)) {
+			if (leaf.view instanceof MapView) {
+				void leaf.view.refreshWorkspaceScopedData();
+			}
+		}
+	}
+
+	async setActiveWorkspace(id: string): Promise<void> {
+		if (!this.workspaceService) {
+			throw new Error('Workspace setup is required before selecting an active Workspace.');
+		}
+		this.workspaceService.setActive(id);
+		this.settings.activeWorkspaceId = this.workspaceService.getActiveId();
+		this.assertionService?.invalidateCache();
+		this.eventService?.invalidateCache();
+		this.sourceService?.invalidateCache();
+		this.personIndex?.invalidateCache();
+		this.proofSummaryService?.invalidateCache();
+		this.webClipperService?.resetUnreadCount();
+		this.refreshWorkspaceScopedViews();
+		this.temporalFocusService?.refresh();
+		await this.saveSettings();
+	}
+
+	async replaceWorkspaceCatalog(catalog: WorkspaceCatalog): Promise<void> {
+		if (!this.workspaceCatalogService) {
+			this.workspaceCatalogService = new WorkspaceCatalogService(this.app);
+		}
+
+		// Persist only after catalog validation succeeds inside the service.
+		await this.workspaceCatalogService.write(catalog);
+
+		if (this.workspaceService) {
+			this.workspaceService.replaceCatalog(
+				catalog,
+				this.settings.activeWorkspaceId || undefined
+			);
+		} else {
+			this.workspaceService = new WorkspaceService(
+				this.app,
+				catalog,
+				this.settings.activeWorkspaceId || undefined
+			);
+		}
+
+		this.settings.activeWorkspaceId = this.workspaceService.getActiveId();
+		this.workspaceSetupReview = null;
+		this.workspaceSetupError = null;
+		this.assertionService?.invalidateCache();
+		this.eventService?.invalidateCache();
+		this.sourceService?.invalidateCache();
+		this.personIndex?.invalidateCache();
+		this.proofSummaryService?.invalidateCache();
+		this.webClipperService?.resetUnreadCount();
+		this.refreshWorkspaceScopedViews();
+		this.temporalFocusService?.refresh();
+		await this.saveSettings();
+	}
+
+	private async initializeWorkspaceFoundation(): Promise<void> {
+		this.workspaceCatalogService = new WorkspaceCatalogService(this.app);
+		try {
+			const result = await bootstrapWorkspaceFoundation(
+				this.app,
+				this.settings,
+				this.settings.activeWorkspaceId || undefined,
+				this.workspaceCatalogService
+			);
+
+			this.workspaceService = result.service;
+			this.workspaceSetupReview = result.status === 'review'
+				? result.derivation ?? null
+				: null;
+			this.workspaceSetupError = null;
+
+			if (
+				this.workspaceService
+				&& this.settings.activeWorkspaceId !== this.workspaceService.getActiveId()
+			) {
+				this.settings.activeWorkspaceId = this.workspaceService.getActiveId();
+				await this.saveSettings();
+			}
+		} catch (error) {
+			this.workspaceService = null;
+			this.workspaceSetupReview = null;
+			this.workspaceSetupError = getErrorMessage(error);
+			logger.error(
+				'workspace-bootstrap',
+				'Failed to initialize Workspace foundation; keeping legacy folder behavior',
+				error
+			);
+		}
 	}
 
 	/**
@@ -319,7 +516,18 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	getAssertionService(): AssertionService {
 		if (!this.assertionService) {
-			this.assertionService = new AssertionService(this.app, this.getV2OntologyRegistry());
+			this.assertionService = new AssertionService(
+				this.app,
+				this.getV2OntologyRegistry(),
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles(),
+					defaultFolderProvider: () =>
+						this.workspaceService?.getFolder('assertions')
+						?? 'Assertions'
+				}
+			);
 			this.assertionService.setupVaultListeners(this);
 		}
 		return this.assertionService;
@@ -333,7 +541,12 @@ export default class CanvasRootsPlugin extends Plugin {
 		if (!this.semanticAssertionService) {
 			this.semanticAssertionService = new SemanticAssertionService(
 				this.app,
-				this.getAssertionService()
+				this.getAssertionService(),
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles()
+				}
 			);
 		}
 		return this.semanticAssertionService;
@@ -350,7 +563,10 @@ export default class CanvasRootsPlugin extends Plugin {
 			const relationshipService = new RelationshipService(this);
 			this.v2MigrationAnalyzer = new V2MigrationAnalyzer(this.app, {
 				relationshipTypeIdProvider: () =>
-					relationshipService.getAllRelationshipTypes().map(type => type.id)
+					relationshipService.getAllRelationshipTypes().map(type => type.id),
+				fileProvider: () =>
+					this.workspaceService?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles()
 			});
 		}
 		return this.v2MigrationAnalyzer;
@@ -400,7 +616,12 @@ export default class CanvasRootsPlugin extends Plugin {
 				this.getAssertionService()
 			);
 		}
-		return this.v2MigrationExecutor.executeReady(plan, options);
+		return this.v2MigrationExecutor.executeReady(plan, {
+			...options,
+			assertionFolder: options.assertionFolder
+				?? this.workspaceService?.getFolder('assertions')
+				?? 'Assertions'
+		});
 	}
 
 	/**
@@ -411,7 +632,13 @@ export default class CanvasRootsPlugin extends Plugin {
 			this.v2Linter = new V2Linter(
 				this.app,
 				this.getV2OntologyRegistry(),
-				this.getAssertionService()
+				this.getAssertionService(),
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles(),
+					globalFileProvider: () => this.app.vault.getMarkdownFiles()
+				}
 			);
 		}
 		return this.v2Linter;
@@ -430,6 +657,126 @@ export default class CanvasRootsPlugin extends Plugin {
 	}
 
 	/**
+	 * Workspace-scoped v2 historical control-layer storage repository.
+	 * The dynamic provider follows Active Workspace changes without rebuilding
+	 * the service instance.
+	 */
+	getHistoricalControlLayerRepository(): HistoricalControlLayerRepository {
+		if (!this.historicalControlLayerRepository) {
+			this.historicalControlLayerRepository =
+				new HistoricalControlLayerRepository(
+					this.app,
+					{
+						fileProvider: () =>
+							this.workspaceService?.getScope().getMarkdownFiles()
+							?? this.app.vault.getMarkdownFiles()
+					}
+				);
+		}
+		return this.historicalControlLayerRepository;
+	}
+
+	/**
+	 * Unified v2 temporal projection over Event, Process, Period and
+	 * time-bounded Assertion notes. The file provider is resolved lazily on
+	 * every read so the same service instance follows the Active Workspace.
+	 */
+	getTemporalProjectionService(): TemporalProjectionService {
+		if (!this.temporalProjectionService) {
+			this.temporalProjectionService = new TemporalProjectionService(
+				this.app,
+				this.getHistoricalDateService(),
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles()
+				}
+			);
+		}
+		return this.temporalProjectionService;
+	}
+
+	/**
+	 * Time-sliced v2 Assertion state for graph/map consumers. The underlying
+	 * projection is Workspace-dynamic, so one service instance follows Active
+	 * Workspace switches without owning another cache.
+	 */
+	getTemporalAssertionStateService(): TemporalAssertionStateService | null {
+		if (!this.temporalAssertionStateService) {
+			const calendar = this.getHistoricalDateService()
+				.getCalendarProvider('tyme');
+			if (!calendar) return null;
+			this.temporalAssertionStateService = new TemporalAssertionStateService(
+				this.getTemporalProjectionService(),
+				calendar
+			);
+		}
+		return this.temporalAssertionStateService;
+	}
+
+	/**
+	 * Active/possible Period and Process context at the shared temporal focus.
+	 * The projection remains Workspace-dynamic through TemporalProjectionService.
+	 */
+	getTemporalContextStateService(): TemporalContextStateService | null {
+		if (!this.temporalContextStateService) {
+			const calendar = this.getHistoricalDateService()
+				.getCalendarProvider('tyme');
+			if (!calendar) return null;
+			this.temporalContextStateService = new TemporalContextStateService(
+				this.getTemporalProjectionService(),
+				calendar
+			);
+		}
+		return this.temporalContextStateService;
+	}
+
+	/**
+	 * Runtime temporal navigation focus shared by Timeline, Relationships and
+	 * future Map integration. This state is intentionally not persisted.
+	 */
+	getTemporalFocusService(): TemporalFocusService {
+		if (!this.temporalFocusService) {
+			this.temporalFocusService = new TemporalFocusService();
+		}
+		return this.temporalFocusService;
+	}
+
+	/**
+	 * Ontology-safe organization/office/affiliation state for graph/profile
+	 * consumers. Classification follows resolved entity types rather than
+	 * hard-coded predicate ids.
+	 */
+	getTemporalInstitutionStateService(): TemporalInstitutionStateService | null {
+		if (!this.temporalInstitutionStateService) {
+			const assertionState = this.getTemporalAssertionStateService();
+			if (!assertionState) return null;
+			this.temporalInstitutionStateService = new TemporalInstitutionStateService(
+				assertionState,
+				this.getV2OntologyRegistry()
+			);
+		}
+		return this.temporalInstitutionStateService;
+	}
+
+	/**
+	 * Ontology-safe place projection for the shared temporal focus. The
+	 * PlaceGraph carries a dynamic Workspace provider and scope key.
+	 */
+	getTemporalPlaceStateService(): TemporalPlaceStateService | null {
+		if (!this.temporalPlaceStateService) {
+			const assertionState = this.getTemporalAssertionStateService();
+			if (!assertionState) return null;
+			this.temporalPlaceStateService = new TemporalPlaceStateService(
+				assertionState,
+				this.getV2OntologyRegistry(),
+				this.createPlaceGraphService()
+			);
+		}
+		return this.temporalPlaceStateService;
+	}
+
+	/**
 	 * Track a file access for the Dashboard recent files list
 	 */
 	async trackRecentFile(file: TFile, type: RecentEntityType): Promise<void> {
@@ -444,6 +791,12 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	createFamilyGraphService(): FamilyGraphService {
 		const graphService = new FamilyGraphService(this.app);
+		graphService.setFileProvider(
+			() =>
+				this.workspaceService?.getScope().getMarkdownFiles()
+				?? this.app.vault.getMarkdownFiles(),
+			() => this.workspaceService?.getActiveId() ?? null
+		);
 		if (this.folderFilter) {
 			graphService.setFolderFilter(this.folderFilter);
 		}
@@ -469,7 +822,7 @@ export default class CanvasRootsPlugin extends Plugin {
 	 * Populate research coverage percentages for all people in the graph
 	 */
 	private populateResearchCoverage(graphService: FamilyGraphService): void {
-		const evidenceService = new EvidenceService(this.app, this.settings);
+		const evidenceService = this.getEvidenceService();
 		const people = graphService.getAllPeople();
 
 		for (const person of people) {
@@ -512,6 +865,12 @@ export default class CanvasRootsPlugin extends Plugin {
 	 */
 	createPlaceGraphService(): PlaceGraphService {
 		const placeGraph = new PlaceGraphService(this.app);
+		placeGraph.setFileProvider(
+			() =>
+				this.workspaceService?.getScope().getMarkdownFiles()
+				?? this.app.vault.getMarkdownFiles(),
+			() => this.workspaceService?.getActiveId() ?? null
+		);
 		if (this.folderFilter) {
 			placeGraph.setFolderFilter(this.folderFilter);
 		}
@@ -527,32 +886,87 @@ export default class CanvasRootsPlugin extends Plugin {
 		registerCustomIcons();
 
 		await this.loadSettings();
+		await this.initializeWorkspaceFoundation();
 
 		// Initialize v2 foundation services. These are additive in M0: legacy
 		// readers/writers remain unchanged until the migration path is ready.
 		this.v2OntologyRegistry = createV2OntologyRegistry();
-		this.assertionService = new AssertionService(this.app, this.v2OntologyRegistry);
+		this.assertionService = new AssertionService(
+			this.app,
+			this.v2OntologyRegistry,
+			{
+				fileProvider: () =>
+					this.workspaceService?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles(),
+				defaultFolderProvider: () =>
+					this.workspaceService?.getFolder('assertions')
+					?? 'Assertions'
+			}
+		);
 		this.assertionService.setupVaultListeners(this);
-		this.semanticAssertionService = new SemanticAssertionService(this.app, this.assertionService);
-		this.v2Linter = new V2Linter(this.app, this.v2OntologyRegistry, this.assertionService);
+		this.semanticAssertionService = new SemanticAssertionService(
+			this.app,
+			this.assertionService,
+			{
+				fileProvider: () =>
+					this.workspaceService?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles()
+			}
+		);
+		this.v2Linter = new V2Linter(
+			this.app,
+			this.v2OntologyRegistry,
+			this.assertionService,
+			{
+				fileProvider: () =>
+					this.workspaceService?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles(),
+				globalFileProvider: () => this.app.vault.getMarkdownFiles()
+			}
+		);
 		this.historicalDateService = new HistoricalDateService();
 
 		// Initialize logger with saved log level
 		LoggerFactory.setLogLevel(this.settings.logLevel);
 
 		// Initialize folder filter service
-		this.folderFilter = new FolderFilterService(this.settings);
+		this.folderFilter = new FolderFilterService(this.settings, {
+			stagingFolderProvider: () =>
+				this.workspaceService?.getFolder('staging')
+				?? this.settings.stagingFolder
+		});
 
 		// Initialize template filter service (connects to folder filter)
 		this.templateFilter = new TemplateFilterService(this.app, this.settings);
 		this.folderFilter.setTemplateFilter(this.templateFilter);
 
 		// Initialize person index service (for wikilink resolution)
-		this.personIndex = new PersonIndexService(this.app, this.settings);
+		this.personIndex = new PersonIndexService(
+			this.app,
+			this.settings,
+			{
+				fileProvider: () =>
+					this.workspaceService?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles(),
+				fileInScope: file =>
+					this.workspaceService?.getScope().contains(file) ?? true
+			}
+		);
 		this.personIndex.setFolderFilter(this.folderFilter);
 
 		// Initialize event service
-		this.eventService = new EventService(this.app, this.settings);
+		this.eventService = new EventService(
+			this.app,
+			this.settings,
+			{
+				fileProvider: () =>
+					this.workspaceService?.getScope().getMarkdownFiles()
+					?? this.app.vault.getMarkdownFiles(),
+				defaultFolderProvider: () =>
+					this.workspaceService?.getFolder('events')
+					?? this.settings.eventsFolder
+			}
+		);
 
 		// Initialize recent files service
 		this.recentFilesService = new RecentFilesService(this);
@@ -561,7 +975,15 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.mediaService = new MediaService(this.app, this.settings);
 
 		// Initialize Web Clipper service (watcher starts after layout-ready)
-		this.webClipperService = new WebClipperService(this.app, this.settings);
+		this.webClipperService = new WebClipperService(
+			this.app,
+			this.settings,
+			{
+				stagingFolderProvider: () =>
+					this.workspaceService?.getFolder('staging')
+					?? this.settings.stagingFolder
+			}
+		);
 
 		// Initialize date service (standard + fictional parsing with universe context)
 		this.dateService = createDateService({
@@ -575,10 +997,10 @@ export default class CanvasRootsPlugin extends Plugin {
 		// layer stays decoupled from the universes layer (#650). The UniverseService
 		// is memoized so repeated date parsing doesn't re-scan universe notes; its
 		// own cache picks up universe edits via the metadata-cache.
-		let universeCalendarService: ReturnType<typeof createUniverseService> | null = null;
+		let universeCalendarService: UniverseService | null = null;
 		this.dateService.setUniverseCalendarResolver((universeRef) => {
 			if (!universeRef) return null;
-			if (!universeCalendarService) universeCalendarService = createUniverseService(this);
+			if (!universeCalendarService) universeCalendarService = this.getUniverseService();
 			const universe = universeCalendarService.getUniverseByName(universeRef) ?? universeCalendarService.getUniverse(universeRef);
 			return universe?.defaultCalendar ?? null;
 		});
@@ -684,6 +1106,12 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.registerCRView(
 			VIEW_TYPE_CALENDAR,
 			(leaf) => new CalendarView(leaf, this)
+		);
+
+		// Register v2 historical temporal timeline view
+		this.registerCRView(
+			VIEW_TYPE_TEMPORAL_TIMELINE,
+			(leaf) => new TemporalTimelineView(leaf, this)
 		);
 
 		// Register relationships view
@@ -1144,7 +1572,7 @@ export default class CanvasRootsPlugin extends Plugin {
 			}
 			if (crType !== 'universe') return;
 
-			const universeService = createUniverseService(this);
+			const universeService = this.getUniverseService();
 			void universeService.cascadeUniverseRename(oldBasename, newBasename)
 				.then(updateCount => {
 					if (updateCount > 0) {
@@ -1425,6 +1853,7 @@ export default class CanvasRootsPlugin extends Plugin {
 	}
 	async activateStatisticsView(): Promise<void> { return _activateStatisticsView(this); }
 	async activateCalendarView(): Promise<void> { return _activateCalendarView(this); }
+	async activateTemporalTimelineView(): Promise<void> { return _activateTemporalTimelineView(this); }
 	async activateRelationshipsView(): Promise<void> { return _activateRelationshipsView(this); }
 	async activatePeopleView(): Promise<void> { return _activatePeopleView(this); }
 	async activateEventsView(): Promise<void> { return _activateEventsView(this); }

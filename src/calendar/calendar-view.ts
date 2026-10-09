@@ -60,7 +60,14 @@ export class CalendarView extends ItemView {
 		this.dataService = new CalendarDataService(
 			plugin.app,
 			plugin.settings,
-			(plugin as unknown as { getEventService: () => unknown }).getEventService?.() as import('../events/services/event-service').EventService | null
+			(plugin as unknown as { getEventService: () => unknown }).getEventService?.() as import('../events/services/event-service').EventService | null,
+			{
+				fileProvider: () =>
+					plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+					?? plugin.app.vault.getMarkdownFiles(),
+				scopeKeyProvider: () =>
+					plugin.getWorkspaceService()?.getActiveId() ?? null
+			}
 		);
 
 		const now = new Date();

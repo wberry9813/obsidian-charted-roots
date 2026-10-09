@@ -29,6 +29,11 @@ import { sanitizeFilename } from '../../utils/name-sanitization';
 /**
  * Service for managing proof summary notes
  */
+export interface ProofSummaryServiceOptions {
+	fileProvider?: () => TFile[];
+	defaultSourcesFolderProvider?: () => string;
+}
+
 export class ProofSummaryService {
 	private app: App;
 	private settings: CanvasRootsSettings;
@@ -37,10 +42,22 @@ export class ProofSummaryService {
 	private proofCache: Map<string, ProofSummaryNote> = new Map();
 	private cacheValid = false;
 
-	constructor(app: App, settings: CanvasRootsSettings, sourceService?: SourceService) {
+	constructor(
+		app: App,
+		settings: CanvasRootsSettings,
+		sourceService?: SourceService,
+		private readonly options: ProofSummaryServiceOptions = {}
+	) {
 		this.app = app;
 		this.settings = settings;
-		this.sourceService = sourceService ?? new SourceService(app, settings);
+		this.sourceService = sourceService ?? new SourceService(
+			app,
+			settings,
+			{
+				fileProvider: options.fileProvider,
+				defaultFolderProvider: options.defaultSourcesFolderProvider
+			}
+		);
 	}
 
 	/**
@@ -525,7 +542,7 @@ export class ProofSummaryService {
 	private loadProofCache(): void {
 		this.proofCache.clear();
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.options.fileProvider?.() ?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -545,7 +562,9 @@ export class ProofSummaryService {
 	 */
 	private getProofsFolder(): string {
 		// Store proofs in a subfolder of sources
-		return normalizePath(`${this.settings.sourcesFolder}/Proofs`);
+		const sourcesFolder = this.options.defaultSourcesFolderProvider?.()
+			?? this.settings.sourcesFolder;
+		return normalizePath(`${sourcesFolder}/Proofs`);
 	}
 
 	/**
@@ -617,7 +636,7 @@ export class ProofSummaryService {
 		}
 
 		// Fallback: scan vault (for backward compatibility)
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.options.fileProvider?.() ?? this.app.vault.getMarkdownFiles();
 		for (const file of files) {
 			const basename = file.basename;
 			if (basename === noteName) {

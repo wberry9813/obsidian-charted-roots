@@ -229,7 +229,10 @@ function loadDataQualityCard(
 	// This ensures the card count matches what the modal will actually find
 	const duplicateGroups = findDuplicatePlaceNotes(plugin.app, {
 		settings: plugin.settings,
-		folderFilter: plugin.getFolderFilter()
+		folderFilter: plugin.getFolderFilter(),
+		fileProvider: () =>
+			plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? plugin.app.vault.getMarkdownFiles()
 	});
 
 	// Get places with non-standard types (locality, etc.)
@@ -401,7 +404,9 @@ function loadDataQualityCard(
 	}
 
 	// 5. Standardize place name variations
-	const variationGroups = findPlaceNameVariations(plugin.app);
+	const variationGroups = findPlaceNameVariations(plugin.app, () =>
+			plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? plugin.app.vault.getMarkdownFiles());
 	if (variationGroups.length > 0) {
 		const totalVariations = variationGroups.reduce((sum, g) => sum + g.variations.length, 0);
 		renderSimplifiedIssueRow(sectionsContainer, {
@@ -416,7 +421,9 @@ function loadDataQualityCard(
 	}
 
 	// 5b. Standardize common place name variants (USA vs United States, state abbreviations, etc.)
-	const placeVariants = findPlaceNameVariants(plugin.app);
+	const placeVariants = findPlaceNameVariants(plugin.app, () =>
+			plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? plugin.app.vault.getMarkdownFiles());
 	if (placeVariants.length > 0) {
 		const totalVariantRefs = placeVariants.reduce((sum, v) => sum + v.count, 0);
 		renderSimplifiedIssueRow(sectionsContainer, {
@@ -1430,7 +1437,9 @@ function showQuickCreatePlaceModal(
  */
 function showStandardizePlacesModal(plugin: CanvasRootsPlugin, showTab: (tabId: string) => void): void {
 	// Find place name variations
-	const variationGroups = findPlaceNameVariations(plugin.app);
+	const variationGroups = findPlaceNameVariations(plugin.app, () =>
+			plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? plugin.app.vault.getMarkdownFiles());
 
 	if (variationGroups.length === 0) {
 		new Notice('No place name variations found. Your place names are already consistent!');
@@ -1438,6 +1447,9 @@ function showStandardizePlacesModal(plugin: CanvasRootsPlugin, showTab: (tabId: 
 	}
 
 	const modal = new StandardizePlacesModal(plugin.app, variationGroups, {
+		fileProvider: () =>
+			plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? plugin.app.vault.getMarkdownFiles(),
 		onComplete: (updated: number) => {
 			if (updated > 0) {
 				// Refresh the Places tab
@@ -1453,7 +1465,9 @@ function showStandardizePlacesModal(plugin: CanvasRootsPlugin, showTab: (tabId: 
  */
 function showStandardizePlaceVariantsModal(plugin: CanvasRootsPlugin, showTab: (tabId: string) => void): void {
 	// Find place name variants
-	const variants = findPlaceNameVariants(plugin.app);
+	const variants = findPlaceNameVariants(plugin.app, () =>
+			plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? plugin.app.vault.getMarkdownFiles());
 
 	if (variants.length === 0) {
 		new Notice('No place name variants found. Your place names are already standardized!');
@@ -1461,6 +1475,9 @@ function showStandardizePlaceVariantsModal(plugin: CanvasRootsPlugin, showTab: (
 	}
 
 	const modal = new StandardizePlaceVariantsModal(plugin.app, variants, {
+		fileProvider: () =>
+			plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? plugin.app.vault.getMarkdownFiles(),
 		onComplete: (updated: number) => {
 			if (updated > 0) {
 				// Refresh the Places tab
@@ -1478,7 +1495,10 @@ function showMergeDuplicatePlacesModal(plugin: CanvasRootsPlugin, showTab: (tabI
 	// Find duplicate place notes
 	const duplicateGroups = findDuplicatePlaceNotes(plugin.app, {
 		settings: plugin.settings,
-		folderFilter: plugin.getFolderFilter()
+		folderFilter: plugin.getFolderFilter(),
+		fileProvider: () =>
+			plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? plugin.app.vault.getMarkdownFiles()
 	});
 
 	if (duplicateGroups.length === 0) {
@@ -1487,6 +1507,9 @@ function showMergeDuplicatePlacesModal(plugin: CanvasRootsPlugin, showTab: (tabI
 	}
 
 	const modal = new MergeDuplicatePlacesModal(plugin.app, duplicateGroups, {
+		fileProvider: () =>
+			plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? plugin.app.vault.getMarkdownFiles(),
 		onComplete: (merged: number, deleted: number) => {
 			if (merged > 0 || deleted > 0) {
 				// Refresh the Places tab

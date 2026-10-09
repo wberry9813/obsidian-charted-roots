@@ -52,13 +52,22 @@ function getWriteProperty(canonical: string, aliases: Record<string, string>): s
 /**
  * Service for managing source notes
  */
+export interface SourceServiceOptions {
+	fileProvider?: () => TFile[];
+	defaultFolderProvider?: () => string;
+}
+
 export class SourceService {
 	private app: App;
 	private settings: CanvasRootsSettings;
 	private sourceCache: Map<string, SourceNote> = new Map();
 	private cacheValid = false;
 
-	constructor(app: App, settings: CanvasRootsSettings) {
+	constructor(
+		app: App,
+		settings: CanvasRootsSettings,
+		private readonly options: SourceServiceOptions = {}
+	) {
 		this.app = app;
 		this.settings = settings;
 	}
@@ -404,7 +413,8 @@ export class SourceService {
 
 		// Create file. Filename preserves user typing (#509).
 		const fileName = sanitizeFilename(data.title) + '.md';
-		const folder = this.settings.sourcesFolder;
+		const folder = this.options.defaultFolderProvider?.()
+			?? this.settings.sourcesFolder;
 		const filePath = normalizePath(`${folder}/${fileName}`);
 
 		// Ensure folder exists
@@ -732,7 +742,8 @@ export class SourceService {
 	private loadSourceCache(): void {
 		this.sourceCache.clear();
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.options.fileProvider?.()
+			?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);

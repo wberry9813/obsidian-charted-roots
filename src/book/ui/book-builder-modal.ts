@@ -338,7 +338,7 @@ export class BookBuilderModal extends Modal {
 			this.applyTemplate(templateId, person.crId, person.name);
 			this.currentStep = 1;
 			this.renderCurrentStep();
-		}, defaultPerson ? { initialSearch: defaultPerson.name } : undefined);
+		}, { plugin: this.plugin, initialSearch: defaultPerson?.name });
 		picker.open();
 	}
 
@@ -799,8 +799,10 @@ export class BookBuilderModal extends Modal {
 
 	private addVaultNoteChapter(): void {
 		// File picker for markdown files
-		const mdFiles = this.app.vault.getMarkdownFiles()
-			.sort((a, b) => a.path.localeCompare(b.path));
+		const mdFiles = (
+			this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles()
+		).sort((a, b) => a.path.localeCompare(b.path));
 
 		this.showFilePickerModal(mdFiles, (file) => {
 			const chapter: BookChapter = {
@@ -1227,8 +1229,10 @@ export class BookBuilderModal extends Modal {
 			.trim() || 'untitled-book';
 		const filename = `${sanitizedTitle}.book.json`;
 
-		// Save to vault root or configured folder
-		const folder = this.plugin.settings.reportsFolder || '';
+		// Save definitions with other generated research outputs in the active Workspace.
+		const folder = this.plugin.getWorkspaceService()?.getFolder('reports')
+			?? this.plugin.settings.reportsFolder
+			?? '';
 		const path = folder ? `${folder}/${filename}` : filename;
 
 		try {
@@ -1438,7 +1442,7 @@ class ChapterConfigModal extends Modal {
 				this.subjectCrId = person.crId;
 				this.subjectName = person.name;
 				subjectBtn.textContent = person.name;
-			});
+			}, { plugin: this.plugin });
 			picker.open();
 		});
 	}
@@ -1470,7 +1474,7 @@ class ChapterConfigModal extends Modal {
 				this.subjectCrId = person.crId;
 				this.subjectName = person.name;
 				personBtn.textContent = person.name;
-			});
+			}, { plugin: this.plugin });
 			picker.open();
 		});
 

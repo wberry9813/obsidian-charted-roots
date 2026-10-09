@@ -1,3 +1,5 @@
+import type { TFile } from 'obsidian';
+
 export type MigrationFindingSeverity = 'info' | 'review' | 'blocker';
 
 export type MigrationFindingCode =
@@ -16,6 +18,7 @@ export type MigrationFindingCode =
 	| 'dynamic_identity_review'
 	| 'collection_review'
 	| 'group_name_review'
+	| 'historical_name_review'
 	| 'organization_parent'
 	| 'organization_members_mirror'
 	| 'legacy_schema_candidate';
@@ -61,6 +64,8 @@ export interface LegacyAnalyzerOptions {
 	 * custom relationship types are included without recreating the analyzer.
 	 */
 	relationshipTypeIdProvider?: () => readonly string[];
+	/** Dynamic Workspace/file scope. Omitted for legacy whole-vault scanning. */
+	fileProvider?: () => TFile[];
 }
 
 export type MigrationPreviewStatus = 'ready' | 'review' | 'blocked';

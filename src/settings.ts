@@ -13,6 +13,12 @@ import type { OrganizationCategoryDefinition } from './organizations/types/organ
 import type { RelationshipCategoryDefinition } from './relationships/types/relationship-types';
 import type { PlaceTypeDefinition, PlaceTypeCategoryDefinition } from './places/types/place-types';
 import type { GedcomCompatibilityMode } from './gedcom/gedcom-preprocessor';
+import {
+	buildGeographicBasemapRegistry,
+	type CustomGeographicBasemapConfig
+} from './v2/maps/basemaps';
+import type { GeographicCRS } from './v2/maps/coordinates';
+import type { LegacyNegativeYearSemantics } from './maps/types/map-types';
 import { getSpouseCompoundLabel } from './utils/terminology';
 import {
 	PropertyAliasService,
@@ -217,6 +223,8 @@ export interface CanvasRootsSettings {
 	horizontalSpacing: number;
 	verticalSpacing: number;
 	autoGenerateCrId: boolean;
+	/** Local UI preference; Workspace definitions live in .charted-roots/workspaces.json. */
+	activeWorkspaceId: string;
 	peopleFolder: string;
 	placesFolder: string;
 	mapsFolder: string;
@@ -324,6 +332,12 @@ export interface CanvasRootsSettings {
 	};
 	/** Outline color around map path labels for legibility on colorful or dark backgrounds */
 	pathLabelStroke: 'none' | 'white' | 'black';
+	/** Selected provider inside the Real-world map slot. */
+	geographicBasemapId: string;
+	/** User-defined XYZ/WebMercator raster providers. Provider secrets stay in local plugin settings. */
+	customGeographicBasemaps: CustomGeographicBasemapConfig[];
+	/** Explicit legacy BCE/year-zero interpretation used only by Map -> v2 focus bridging. */
+	legacyNegativeYearSemantics: LegacyNegativeYearSemantics;
 	// Custom relationship types
 	customRelationshipTypes: RelationshipTypeDefinition[];
 	showBuiltInRelationshipTypes: boolean;
@@ -771,6 +785,7 @@ export const DEFAULT_SETTINGS: CanvasRootsSettings = {
 	horizontalSpacing: 400,  // Base horizontal spacing (multiplied by 1.5x in layout engine)
 	verticalSpacing: 250,    // Vertical spacing between generations (used directly)
 	autoGenerateCrId: true,
+	activeWorkspaceId: '',
 	peopleFolder: 'Charted Roots/People',
 	placesFolder: 'Charted Roots/Places',
 	mapsFolder: 'Charted Roots/Places/Maps',
@@ -851,6 +866,9 @@ export const DEFAULT_SETTINGS: CanvasRootsSettings = {
 		high: { radius: 0.9, blur: 0.7, opacity: 0.18 },
 	},
 	pathLabelStroke: 'none' as const,        // Map path label outline (none / white / black)
+	geographicBasemapId: 'carto-voyager', // Provider inside the Real-world map slot
+	customGeographicBasemaps: [],         // User-configured XYZ/WebMercator providers
+	legacyNegativeYearSemantics: 'reject', // Do not guess legacy BCE/year-zero semantics
 	// Custom relationship types
 	customRelationshipTypes: [],   // User-defined relationship types (built-ins are always available)
 	showBuiltInRelationshipTypes: true,  // Whether to show built-in types in UI
@@ -1004,6 +1022,7 @@ export class CanvasRootsSettingTab extends PluginSettingTab {
 	// refreshSettings() re-renders the right element. Null on older app versions,
 	// where display() drives the imperative tab against containerEl instead.
 	private hostEl: HTMLElement | null = null;
+	private newGeographicBasemapDraft: CustomGeographicBasemapConfig | null = null;
 
 	constructor(app: App, plugin: CanvasRootsPlugin) {
 		super(app, plugin);
@@ -1076,6 +1095,258 @@ export class CanvasRootsSettingTab extends PluginSettingTab {
 	 */
 	private refreshSettings(): void {
 		this.rerender(this.hostEl ?? this.containerEl);
+	}
+
+	private async refreshOpenGeographicBasemaps(): Promise<void> {
+		const leaves = this.app.workspace.getLeavesOfType('canvas-roots-map');
+		await Promise.all(leaves.map(async leaf => {
+			const view = leaf.view as unknown as {
+				refreshGeographicBasemapSettings?: () => Promise<void> | void;
+			};
+			await view.refreshGeographicBasemapSettings?.();
+		}));
+	}
+
+	private renderGeographicBasemapSettings(container: HTMLElement): void {
+		new Setting(container).setName('Real-world basemap').setHeading();
+
+		const registryResult = buildGeographicBasemapRegistry(
+			this.plugin.settings.customGeographicBasemaps ?? []
+		);
+		const providers = registryResult.registry.list();
+
+		new Setting(container)
+			.setName('Basemap provider')
+			.setDesc('Provider used by the Real-world map slot. Place coordinates remain canonical WGS84 regardless of provider.')
+			.addDropdown(dropdown => {
+				for (const provider of providers) {
+					dropdown.addOption(
+						provider.id,
+						`${provider.label} · ${provider.coordinateCRS.toUpperCase()}`
+					);
+				}
+				const selected = registryResult.registry.resolve(
+					this.plugin.settings.geographicBasemapId
+				);
+				dropdown.setValue(selected.id);
+				dropdown.onChange(async value => {
+					this.plugin.settings.geographicBasemapId = value;
+					await this.plugin.saveSettings();
+					await this.refreshOpenGeographicBasemaps();
+				});
+			});
+
+		if (registryResult.issues.length > 0) {
+			const warning = container.createDiv({
+				cls: 'cr-info-box cr-info-box--muted'
+			});
+			setIcon(warning.createSpan({ cls: 'cr-info-box-icon' }), 'triangle-alert');
+			warning.createSpan({
+				text: `${registryResult.issues.length} invalid custom basemap setting${registryResult.issues.length === 1 ? '' : 's'} ignored. Edit or remove the affected provider below.`
+			});
+		}
+
+		new Setting(container)
+			.setName('Custom XYZ basemaps')
+			.setDesc('Add authorized/user-supplied XYZ WebMercator endpoints. CRS describes the geographic datum used to align overlays.')
+			.addButton(button => button
+				.setButtonText('Add provider')
+				.onClick(() => {
+					if (!this.newGeographicBasemapDraft) {
+						let suffix = 1;
+						const used = new Set(
+							(this.plugin.settings.customGeographicBasemaps ?? [])
+								.map(config => config.id)
+						);
+						while (used.has(`custom-${suffix}`)) suffix++;
+						this.newGeographicBasemapDraft = {
+							id: `custom-${suffix}`,
+							label: 'Custom basemap',
+							coordinateCRS: 'wgs84',
+							tileUrl: '',
+							attribution: '',
+							maxZoom: 19
+						};
+					}
+					this.refreshSettings();
+				}));
+
+		const list = container.createDiv({ cls: 'cr-geographic-basemap-list' });
+		for (let index = 0;
+			index < (this.plugin.settings.customGeographicBasemaps ?? []).length;
+			index++
+		) {
+			this.renderGeographicBasemapCard(
+				list,
+				{ ...this.plugin.settings.customGeographicBasemaps[index] },
+				index
+			);
+		}
+		if (this.newGeographicBasemapDraft) {
+			this.renderGeographicBasemapCard(
+				list,
+				{ ...this.newGeographicBasemapDraft },
+				null
+			);
+		}
+
+		new Setting(container)
+			.setName('Legacy BCE year interpretation')
+			.setDesc(
+				'Only affects Map time-slider synchronization with the v2 historical axis. It never rewrites note dates.'
+			)
+			.addDropdown(dropdown => dropdown
+				.addOption('reject', 'Reject ambiguous non-positive years (safest)')
+				.addOption('bce_display', 'Negative N means N BCE')
+				.addOption('astronomical', 'Astronomical numbering (0 = 1 BCE)')
+				.setValue(this.plugin.settings.legacyNegativeYearSemantics ?? 'reject')
+				.onChange(async value => {
+					this.plugin.settings.legacyNegativeYearSemantics =
+						value as LegacyNegativeYearSemantics;
+					await this.plugin.saveSettings();
+				}));
+	}
+
+	private renderGeographicBasemapCard(
+		container: HTMLElement,
+		initial: CustomGeographicBasemapConfig,
+		index: number | null
+	): void {
+		const draft: CustomGeographicBasemapConfig = { ...initial };
+		const details = container.createEl('details', {
+			cls: 'cr-settings-section'
+		});
+		if (index === null) details.open = true;
+		const summary = details.createEl('summary');
+		summary.createSpan({
+			text: index === null
+				? 'New custom basemap'
+				: (initial.label || initial.id || 'Custom basemap')
+		});
+		summary.createSpan({
+			cls: 'cr-section-desc',
+			text: ` ${initial.coordinateCRS.toUpperCase()}`
+		});
+		const content = details.createDiv({ cls: 'cr-section-content' });
+
+		new Setting(content)
+			.setName('Provider ID')
+			.setDesc('Stable lowercase ID used in saved settings')
+			.addText(text => text
+				.setValue(draft.id)
+				.onChange(value => { draft.id = value.trim(); }));
+
+		new Setting(content)
+			.setName('Name')
+			.addText(text => text
+				.setValue(draft.label)
+				.onChange(value => { draft.label = value; }));
+
+		new Setting(content)
+			.setName('Coordinate system')
+			.setDesc('Datum used by the tile imagery; this does not change stored Place coordinates')
+			.addDropdown(dropdown => dropdown
+				.addOption('wgs84', 'WGS84')
+				.addOption('gcj02', 'GCJ-02')
+				.addOption('bd09', 'BD-09')
+				.setValue(draft.coordinateCRS)
+				.onChange(value => {
+					draft.coordinateCRS = value as GeographicCRS;
+				}));
+
+		new Setting(content)
+			.setName('XYZ tile URL')
+			.setDesc('HTTPS template containing {z}, {x} and {y}. API keys remain in your local plugin settings.')
+			.addText(text => text
+				.setPlaceholder('https://tiles.example.com/{z}/{x}/{y}.png')
+				.setValue(draft.tileUrl)
+				.onChange(value => { draft.tileUrl = value.trim(); }));
+
+		new Setting(content)
+			.setName('Attribution')
+			.addText(text => text
+				.setValue(draft.attribution ?? '')
+				.onChange(value => { draft.attribution = value; }));
+
+		new Setting(content)
+			.setName('Maximum zoom')
+			.addText(text => text
+				.setValue(String(draft.maxZoom ?? 19))
+				.onChange(value => {
+					const parsed = Number(value);
+					if (Number.isFinite(parsed)) draft.maxZoom = parsed;
+				}));
+
+		new Setting(content)
+			.setName('Suppress referrer')
+			.setDesc('Useful for tile servers that reject Obsidian/Electron app:// referrers')
+			.addToggle(toggle => toggle
+				.setValue(draft.noReferrer ?? false)
+				.onChange(value => { draft.noReferrer = value; }));
+
+		const actions = new Setting(content)
+			.setName(index === null ? 'Save provider' : 'Provider actions');
+
+		actions.addButton(button => button
+			.setButtonText(index === null ? 'Add' : 'Save')
+			.setCta()
+			.onClick(async () => {
+				const configs = [
+					...(this.plugin.settings.customGeographicBasemaps ?? [])
+				];
+				const previousId = index === null ? null : configs[index]?.id ?? null;
+				if (index === null) configs.push({ ...draft });
+				else configs[index] = { ...draft };
+
+				const validation = buildGeographicBasemapRegistry(configs);
+				if (validation.issues.length > 0) {
+					new Notice(
+						`Basemap not saved: ${validation.issues[0].message}`
+					);
+					return;
+				}
+
+				this.plugin.settings.customGeographicBasemaps = configs;
+				if (
+					previousId
+					&& this.plugin.settings.geographicBasemapId === previousId
+				) {
+					this.plugin.settings.geographicBasemapId = draft.id;
+				}
+				this.newGeographicBasemapDraft = null;
+				await this.plugin.saveSettings();
+				await this.refreshOpenGeographicBasemaps();
+				this.refreshSettings();
+			}));
+
+		if (index === null) {
+			actions.addButton(button => button
+				.setButtonText('Cancel')
+				.onClick(() => {
+					this.newGeographicBasemapDraft = null;
+					this.refreshSettings();
+				}));
+		} else {
+			actions.addButton(button => button
+				.setWarning()
+				.setButtonText('Remove')
+				.onClick(async () => {
+					const configs = [
+						...(this.plugin.settings.customGeographicBasemaps ?? [])
+					];
+					const [removed] = configs.splice(index, 1);
+					this.plugin.settings.customGeographicBasemaps = configs;
+					if (
+						removed
+						&& this.plugin.settings.geographicBasemapId === removed.id
+					) {
+						this.plugin.settings.geographicBasemapId = 'carto-voyager';
+					}
+					await this.plugin.saveSettings();
+					await this.refreshOpenGeographicBasemaps();
+					this.refreshSettings();
+				}));
+		}
 	}
 
 	/** Rebuild the full tab into the given container, preserving section open state and scroll. */
@@ -1155,51 +1426,76 @@ export class CanvasRootsSettingTab extends PluginSettingTab {
 		foldersSummary.createSpan({ cls: 'cr-section-desc', text: 'Where Charted Roots stores and finds notes' });
 		const foldersContent = foldersDetails.createDiv({ cls: 'cr-section-content' });
 
-		// Folder explanation
+		const workspaceService = this.plugin.getWorkspaceService();
 		const folderExplanation = foldersContent.createDiv({ cls: 'setting-item-description cr-info-box' });
-		folderExplanation.appendText('These folders determine where new notes are created. Charted Roots identifies notes by their properties (cr_type), not their location—your notes can live anywhere in your vault.');
 
-		// --- Entity folders subsection ---
-		new Setting(foldersContent).setName("Entity folders").setHeading();
+		if (workspaceService) {
+			const active = workspaceService.getActive();
+			folderExplanation.appendText(
+				'Entity and output folders are managed per Workspace. Legacy global folder settings remain stored only as a compatibility fallback.'
+			);
 
-		this.createFolderSetting(foldersContent, 'People folder', 'Default folder for person notes', 'Charted Roots/People',
-			() => this.plugin.settings.peopleFolder, (v) => { this.plugin.settings.peopleFolder = v; });
+			new Setting(foldersContent)
+				.setName(`Active Workspace: ${active.name}`)
+				.setDesc(`Root: ${active.rootFolder} · Mode: ${active.mode}`)
+				.addButton(button => button
+					.setButtonText('Manage Workspaces')
+					.onClick(async () => {
+						const { WorkspaceManagerModal } = await import('./ui/workspace-manager-modal');
+						new WorkspaceManagerModal(this.plugin).open();
+					}));
 
-		this.createFolderSetting(foldersContent, 'Places folder', 'Default folder for place notes', 'Charted Roots/Places',
-			() => this.plugin.settings.placesFolder, (v) => { this.plugin.settings.placesFolder = v; });
+			const resolved = foldersContent.createDiv({ cls: 'cr-workspace-folder-summary' });
+			for (const [label, key] of [
+				['People', 'people'],
+				['Places', 'places'],
+				['Events', 'events'],
+				['Sources', 'sources'],
+				['Assertions', 'assertions'],
+				['Canvases', 'canvases'],
+				['Reports', 'reports']
+			] as const) {
+				const row = resolved.createDiv({ cls: 'setting-item-description' });
+				row.createEl('strong', { text: `${label}: ` });
+				row.createEl('code', { text: workspaceService.getFolder(key) });
+			}
 
-		this.createFolderSetting(foldersContent, 'Events folder', 'Default folder for event notes', 'Charted Roots/Events',
-			() => this.plugin.settings.eventsFolder, (v) => { this.plugin.settings.eventsFolder = v; });
+			const hint = foldersContent.createDiv({ cls: 'cr-info-box cr-info-box--muted' });
+			hint.appendText('Use Workspace Manager → Folder overrides (advanced) to customize relative subfolders.');
+		} else {
+			folderExplanation.appendText(
+				'No Workspace is configured yet. These legacy folders are used as compatibility defaults and can be used to bootstrap a Workspace.'
+			);
 
-		this.createFolderSetting(foldersContent, 'Sources folder', 'Default folder for source notes', 'Charted Roots/Sources',
-			() => this.plugin.settings.sourcesFolder, (v) => { this.plugin.settings.sourcesFolder = v; });
+			new Setting(foldersContent).setName('Legacy entity folders').setHeading();
 
-		this.createFolderSetting(foldersContent, 'Citations folder', 'Default folder for citation notes', 'Charted Roots/Citations',
-			() => this.plugin.settings.citationsFolder, (v) => { this.plugin.settings.citationsFolder = v; });
+			this.createFolderSetting(foldersContent, 'People folder', 'Default folder for person notes', 'Charted Roots/People',
+				() => this.plugin.settings.peopleFolder, (v) => { this.plugin.settings.peopleFolder = v; });
+			this.createFolderSetting(foldersContent, 'Places folder', 'Default folder for place notes', 'Charted Roots/Places',
+				() => this.plugin.settings.placesFolder, (v) => { this.plugin.settings.placesFolder = v; });
+			this.createFolderSetting(foldersContent, 'Events folder', 'Default folder for event notes', 'Charted Roots/Events',
+				() => this.plugin.settings.eventsFolder, (v) => { this.plugin.settings.eventsFolder = v; });
+			this.createFolderSetting(foldersContent, 'Sources folder', 'Default folder for source notes', 'Charted Roots/Sources',
+				() => this.plugin.settings.sourcesFolder, (v) => { this.plugin.settings.sourcesFolder = v; });
+			this.createFolderSetting(foldersContent, 'Citations folder', 'Default folder for citation notes', 'Charted Roots/Citations',
+				() => this.plugin.settings.citationsFolder, (v) => { this.plugin.settings.citationsFolder = v; });
+			this.createFolderSetting(foldersContent, 'Organizations folder', 'Default folder for organization notes', 'Charted Roots/Organizations',
+				() => this.plugin.settings.organizationsFolder, (v) => { this.plugin.settings.organizationsFolder = v; });
+			this.createFolderSetting(foldersContent, 'Universes folder', 'Default folder for universe notes (fictional worlds)', 'Charted Roots/Universes',
+				() => this.plugin.settings.universesFolder, (v) => { this.plugin.settings.universesFolder = v; });
 
-		this.createFolderSetting(foldersContent, 'Organizations folder', 'Default folder for organization notes', 'Charted Roots/Organizations',
-			() => this.plugin.settings.organizationsFolder, (v) => { this.plugin.settings.organizationsFolder = v; });
-
-		this.createFolderSetting(foldersContent, 'Universes folder', 'Default folder for universe notes (fictional worlds)', 'Charted Roots/Universes',
-			() => this.plugin.settings.universesFolder, (v) => { this.plugin.settings.universesFolder = v; });
-
-		// --- Output folders subsection ---
-		new Setting(foldersContent).setName("Output folders").setHeading();
-
-		this.createFolderSetting(foldersContent, 'Canvases folder', 'Default folder for generated canvas files', 'Charted Roots/Canvases',
-			() => this.plugin.settings.canvasesFolder, (v) => { this.plugin.settings.canvasesFolder = v; });
-
-		this.createFolderSetting(foldersContent, 'Maps folder', 'Default folder for map notes', 'Charted Roots/Places/Maps',
-			() => this.plugin.settings.mapsFolder, (v) => { this.plugin.settings.mapsFolder = v; });
-
-		this.createFolderSetting(foldersContent, 'Timelines folder', 'Default folder for timeline notes', 'Charted Roots/Timelines',
-			() => this.plugin.settings.timelinesFolder, (v) => { this.plugin.settings.timelinesFolder = v; });
-
-		this.createFolderSetting(foldersContent, 'Reports folder', 'Default folder for generated reports', 'Charted Roots/Reports',
-			() => this.plugin.settings.reportsFolder, (v) => { this.plugin.settings.reportsFolder = v; });
-
-		this.createFolderSetting(foldersContent, 'Bases folder', 'Default folder for Obsidian Bases files', 'Charted Roots/Bases',
-			() => this.plugin.settings.basesFolder, (v) => { this.plugin.settings.basesFolder = v; });
+			new Setting(foldersContent).setName('Legacy output folders').setHeading();
+			this.createFolderSetting(foldersContent, 'Canvases folder', 'Default folder for generated canvas files', 'Charted Roots/Canvases',
+				() => this.plugin.settings.canvasesFolder, (v) => { this.plugin.settings.canvasesFolder = v; });
+			this.createFolderSetting(foldersContent, 'Maps folder', 'Default folder for map notes', 'Charted Roots/Places/Maps',
+				() => this.plugin.settings.mapsFolder, (v) => { this.plugin.settings.mapsFolder = v; });
+			this.createFolderSetting(foldersContent, 'Timelines folder', 'Default folder for timeline notes', 'Charted Roots/Timelines',
+				() => this.plugin.settings.timelinesFolder, (v) => { this.plugin.settings.timelinesFolder = v; });
+			this.createFolderSetting(foldersContent, 'Reports folder', 'Default folder for generated reports', 'Charted Roots/Reports',
+				() => this.plugin.settings.reportsFolder, (v) => { this.plugin.settings.reportsFolder = v; });
+			this.createFolderSetting(foldersContent, 'Bases folder', 'Default folder for Obsidian Bases files', 'Charted Roots/Bases',
+				() => this.plugin.settings.basesFolder, (v) => { this.plugin.settings.basesFolder = v; });
+		}
 
 		// --- Media folder filtering subsection ---
 		new Setting(foldersContent).setName("Media folder filtering").setHeading();
@@ -1232,15 +1528,16 @@ export class CanvasRootsSettingTab extends PluginSettingTab {
 		});
 
 		// --- System folders subsection ---
-		new Setting(foldersContent).setName("System folders").setHeading();
+		new Setting(foldersContent).setName('System folders').setHeading();
 
-		this.createFolderSetting(foldersContent, 'Schemas folder', 'Default folder for validation schemas', 'Charted Roots/Schemas',
-			() => this.plugin.settings.schemasFolder, (v) => { this.plugin.settings.schemasFolder = v; });
+		if (!workspaceService) {
+			this.createFolderSetting(foldersContent, 'Schemas folder', 'Default folder for validation schemas', 'Charted Roots/Schemas',
+				() => this.plugin.settings.schemasFolder, (v) => { this.plugin.settings.schemasFolder = v; });
+			this.createFolderSetting(foldersContent, 'Staging folder', 'Folder for import staging (isolated from main vault)', 'Charted Roots/Staging',
+				() => this.plugin.settings.stagingFolder, (v) => { this.plugin.settings.stagingFolder = v; });
+		}
 
-		this.createFolderSetting(foldersContent, 'Staging folder', 'Folder for import staging (isolated from main vault)', 'Charted Roots/Staging',
-			() => this.plugin.settings.stagingFolder, (v) => { this.plugin.settings.stagingFolder = v; });
-
-		this.createFolderSetting(foldersContent, 'Log export folder', 'Vault folder for exported log files', '.charted-roots/logs',
+		this.createFolderSetting(foldersContent, 'Log export folder', 'Vault-global folder for exported plugin log files', '.charted-roots/logs',
 			() => this.plugin.settings.logExportPath, (v) => { this.plugin.settings.logExportPath = v; });
 	}
 
@@ -2121,6 +2418,8 @@ export class CanvasRootsSettingTab extends PluginSettingTab {
 					this.plugin.settings.enableDMSCoordinates = value;
 					await this.plugin.saveSettings();
 				}));
+
+		this.renderGeographicBasemapSettings(placesContent);
 
 		// --- Place lookup subsection (#218) ---
 		new Setting(placesContent).setName("Place lookup").setHeading();

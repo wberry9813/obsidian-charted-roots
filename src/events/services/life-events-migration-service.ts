@@ -183,15 +183,21 @@ export function generateEventTitle(personName: string, event: InlineEvent): stri
 export class LifeEventsMigrationService {
 	constructor(
 		private app: App,
-		private settings: CanvasRootsSettings
+		private settings: CanvasRootsSettings,
+		private readonly fileProvider?: () => TFile[],
+		private readonly eventsFolderProvider?: () => string
 	) {}
+
+	private getFiles(): TFile[] {
+		return this.fileProvider?.() ?? this.app.vault.getMarkdownFiles();
+	}
 
 	/**
 	 * Detect all person notes with inline events arrays
 	 */
 	detectInlineEvents(): LegacyEventsNote[] {
 		const results: LegacyEventsNote[] = [];
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -293,7 +299,9 @@ export class LifeEventsMigrationService {
 			reusedEventPaths: []
 		};
 
-		const eventsFolder = this.settings.eventsFolder || 'Charted Roots/Events';
+		const eventsFolder = this.eventsFolderProvider?.()
+			?? this.settings.eventsFolder
+			?? 'Charted Roots/Events';
 
 		// Ensure events folder exists
 		await this.ensureFolderExists(eventsFolder);
@@ -390,7 +398,7 @@ export class LifeEventsMigrationService {
 	 * Used for showing migration notices
 	 */
 	hasInlineEvents(): boolean {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getFiles();
 
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -426,7 +434,7 @@ export class LifeEventsMigrationService {
 	 */
 	private buildExistingEventIdentityMap(): Map<string, TFile> {
 		const map = new Map<string, TFile>();
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.getFiles();
 		for (const file of files) {
 			const cache = this.app.metadataCache.getFileCache(file);
 			if (!cache?.frontmatter) continue;

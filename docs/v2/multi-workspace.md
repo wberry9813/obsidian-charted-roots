@@ -1,6 +1,6 @@
 # Multi-Workspace Foundation
 
-> Status: **Confirmed design baseline before implementation**
+> Status: **Foundation implemented on `feat/v2-workspaces`; automated acceptance covered; ready for user testing after final CI**
 >
 > This document defines how one Obsidian vault can host multiple independent
 > Charted Roots datasets without mixing their entities, assertions or views.
@@ -161,7 +161,32 @@ Workspace is a scope boundary, not a new ID namespace.
 This preserves simple backlink/reference resolution and leaves a clean path for
 future explicit cross-Workspace links.
 
-## 6. Active Workspace
+## 6. Persistence boundaries
+
+Workspace definitions must be portable with the vault, but the currently
+selected Workspace is a local UI preference.
+
+Persist them separately:
+
+~~~text
+.charted-roots/workspaces.json
+  Workspace definitions, roots, modes, packs and folder overrides
+
+.charted-roots/vault.json
+  Schema v2 marker, ontology version and migration history
+
+plugin data.json
+  activeWorkspaceId
+~~~
+
+Workspace configuration deliberately does **not** live inside
+`.charted-roots/vault.json`: Workspaces must be establishable before a legacy
+vault completes Schema v2 migration, so creating a Workspace must never
+accidentally claim that the vault is already Schema v2.
+
+Changing Active Workspace must not dirty a Git-tracked Workspace catalog.
+
+## 7. Active Workspace
 
 The first version has one Active Workspace.
 
@@ -178,7 +203,7 @@ refresh relevant views.
 
 An "All Workspaces" aggregate view is explicitly deferred.
 
-## 7. Workspace Scope
+## 8. Workspace Scope
 
 Services must stop deciding their own vault scope.
 
@@ -211,7 +236,7 @@ Initial candidates to convert:
 
 The scope layer is the authoritative dataset boundary.
 
-## 8. Folder path resolution
+## 9. Folder path resolution
 
 Creation paths should also stop reading global absolute folder settings
 directly.
@@ -244,7 +269,7 @@ people: 人物
 => History/Chinese-History/人物
 ~~~
 
-## 9. Workspace versus Universe
+## 10. Workspace versus Universe
 
 They are intentionally separate concepts.
 
@@ -269,7 +294,7 @@ Workspace: 蜀山研究
 
 Universe must not be repurposed as a storage/index boundary.
 
-## 10. Workspace versus Research Set
+## 11. Workspace versus Research Set
 
 Research Set is an analytical grouping **inside** a Workspace.
 
@@ -282,7 +307,7 @@ Workspace: 中国历史
 
 Research Sets may overlap. Workspace membership does not.
 
-## 11. Mode and ontology packs
+## 12. Mode and ontology packs
 
 Workspace is the natural owner of default working mode and packs.
 
@@ -305,7 +330,7 @@ The first foundation implementation may store this metadata before every UI
 actually reacts to mode/packs. The important part is to put the ownership in
 the correct layer now.
 
-## 12. Cross-Workspace references
+## 13. Cross-Workspace references
 
 Default UI behavior is isolated.
 
@@ -323,7 +348,7 @@ First release policy:
 - existing manual Obsidian wikilinks are never destroyed merely because they
   cross a Workspace boundary.
 
-## 13. Existing Folder Filter
+## 14. Existing Folder Filter
 
 The current FolderFilterService is not a Workspace substitute.
 
@@ -335,7 +360,7 @@ Workspace root remains the primary dataset boundary.
 Legacy include/exclude folder settings should be migrated or isolated rather
 than defining Workspace identity.
 
-## 14. Legacy folder migration
+## 15. Legacy folder migration
 
 The common legacy layout:
 
@@ -386,7 +411,7 @@ The migration principle remains:
 
 > deterministic -> automate; ambiguous -> review; never guess.
 
-## 15. Interaction with Schema v2 migration
+## 16. Interaction with Schema v2 migration
 
 Workspace Foundation must land before destructive Schema v2 migration is
 exposed to users.
@@ -408,7 +433,9 @@ execute Schema v2 migration
 The existing migration transaction/rollback implementation remains useful; its
 input scope changes from whole-vault to Workspace.
 
-## 16. First implementation scope
+## 17. First implementation scope
+
+W0-W4 are implemented on `feat/v2-workspaces`. The milestones below now describe the shipped Foundation boundary rather than future work.
 
 ### W0 — contracts and registry
 
@@ -453,7 +480,7 @@ Convert the most important full-vault scanners first:
 - root/folder validation
 - cache/view refresh on switch
 
-## 17. Deferred work
+## 18. Deferred work
 
 Not part of Foundation:
 
@@ -466,9 +493,11 @@ Not part of Foundation:
 - per-Workspace UI language;
 - per-Workspace Git repositories.
 
-## 18. Acceptance tests
+## 19. Acceptance tests
 
-Foundation is not complete until tests prove:
+All ten Foundation acceptance conditions are now represented by automated unit/integration tests and real-Obsidian E2E coverage on `feat/v2-workspaces`.
+
+The acceptance contract remains:
 
 1. two Workspaces in one real Obsidian vault do not mix Person/Event/Assertion
    discovery;

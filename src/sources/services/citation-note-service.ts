@@ -81,9 +81,9 @@ export class CitationNoteService {
 	 */
 	getCitationsForSubject(subjectCrId: string): CitationNote[] {
 		const citations: CitationNote[] = [];
-		const folder = this.plugin.settings.citationsFolder;
+		const folder = this.getCitationsFolderPath();
 
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of this.getScopedFiles()) {
 			if (!file.path.startsWith(folder)) continue;
 
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -104,9 +104,9 @@ export class CitationNoteService {
 	 */
 	getCitationsForSource(sourceCrId: string): CitationNote[] {
 		const citations: CitationNote[] = [];
-		const folder = this.plugin.settings.citationsFolder;
+		const folder = this.getCitationsFolderPath();
 
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of this.getScopedFiles()) {
 			if (!file.path.startsWith(folder)) continue;
 
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -127,9 +127,9 @@ export class CitationNoteService {
 	 */
 	getAllCitations(): CitationNote[] {
 		const citations: CitationNote[] = [];
-		const folder = this.plugin.settings.citationsFolder;
+		const folder = this.getCitationsFolderPath();
 
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		for (const file of this.getScopedFiles()) {
 			if (!file.path.startsWith(folder)) continue;
 
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -162,11 +162,23 @@ export class CitationNoteService {
 		};
 	}
 
+	private getCitationsFolderPath(): string {
+		return normalizePath(
+			this.plugin.getWorkspaceService()?.getFolder('citations')
+			?? this.plugin.settings.citationsFolder
+		);
+	}
+
+	private getScopedFiles(): TFile[] {
+		return this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
+	}
+
 	/**
 	 * Ensure the citations folder exists
 	 */
 	private async ensureCitationsFolder(): Promise<TFolder> {
-		const folderPath = normalizePath(this.plugin.settings.citationsFolder);
+		const folderPath = this.getCitationsFolderPath();
 		const existing = this.app.vault.getAbstractFileByPath(folderPath);
 		if (existing instanceof TFolder) {
 			return existing;

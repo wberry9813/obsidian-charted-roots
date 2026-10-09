@@ -1,5 +1,6 @@
 import { App, ButtonComponent, Modal, Notice } from 'obsidian';
 import { CanvasSearchResult, CanvasFinder } from '../core/canvas-finder';
+import type CanvasRootsPlugin from '../../main';
 import { createLucideIcon } from './lucide-icons';
 import { pluralize } from '../utils/format-utils';
 
@@ -12,11 +13,23 @@ export class FindOnCanvasModal extends Modal {
 	private results: CanvasSearchResult[] = [];
 	private finder: CanvasFinder;
 
-	constructor(app: App, personName: string, crId: string) {
+	constructor(
+		app: App,
+		personName: string,
+		crId: string,
+		plugin?: CanvasRootsPlugin
+	) {
 		super(app);
 		this.personName = personName;
 		this.crId = crId;
-		this.finder = new CanvasFinder(app);
+		this.finder = new CanvasFinder(
+			app,
+			plugin?.getWorkspaceService()
+				? () => app.vault.getFiles().filter(file =>
+					plugin.getWorkspaceService()?.getScope().contains(file) ?? false
+				)
+				: undefined
+		);
 	}
 
 	async onOpen() {

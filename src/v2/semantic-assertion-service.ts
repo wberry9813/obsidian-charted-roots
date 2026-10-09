@@ -13,6 +13,11 @@ export type SemanticAssertionOrigin =
 	| 'derived'
 	| 'provider';
 
+export interface SemanticAssertionServiceOptions {
+	/** Dynamic entity-note scope; omitted to preserve legacy whole-vault behavior. */
+	fileProvider?: () => TFile[];
+}
+
 export interface SemanticAssertion extends TemporalFields {
 	assertionType: string;
 	subject: string;
@@ -46,7 +51,8 @@ function entityLink(app: App, file: TFile, name: string): string {
 export class SemanticAssertionService {
 	constructor(
 		private readonly app: App,
-		private readonly assertionService: AssertionService
+		private readonly assertionService: AssertionService,
+		private readonly options: SemanticAssertionServiceOptions = {}
 	) {}
 
 	getAll(): SemanticAssertion[] {
@@ -100,7 +106,9 @@ export class SemanticAssertionService {
 		const result: SemanticAssertion[] = [];
 		const spouseKeys = new Set<string>();
 
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		const files = this.options.fileProvider?.()
+			?? this.app.vault.getMarkdownFiles();
+		for (const file of files) {
 			const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 			if (!frontmatter || !isPersonNote(frontmatter)) continue;
 

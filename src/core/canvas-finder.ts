@@ -16,14 +16,18 @@ export interface CanvasSearchResult {
  * Service for finding person nodes in canvas files
  */
 export class CanvasFinder {
-	constructor(private app: App) {}
+	constructor(
+		private app: App,
+		private readonly fileProvider?: () => TFile[]
+	) {}
 
 	/**
 	 * Find all canvases containing a person with the given cr_id
 	 */
 	async findCanvasesWithPerson(crId: string): Promise<CanvasSearchResult[]> {
 		const results: CanvasSearchResult[] = [];
-		const canvasFiles = this.app.vault.getFiles().filter(f => f.extension === 'canvas');
+		const canvasFiles = (this.fileProvider?.() ?? this.app.vault.getFiles())
+			.filter(f => f.extension === 'canvas');
 
 		for (const canvasFile of canvasFiles) {
 			try {

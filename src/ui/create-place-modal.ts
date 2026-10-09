@@ -17,6 +17,11 @@ import type CanvasRootsPlugin from '../../main';
 import { capitalize, splitAndTrim } from '../utils/format-utils';
 import { ModalStatePersistence, renderResumePromptBanner } from './modal-state-persistence';
 import { parseLatitude, parseLongitude, isDMSFormat } from '../utils/coordinate-converter';
+import {
+	CanonicalCoordinateService,
+	GcoordCoordinateTransformProvider,
+	type GeographicCRS
+} from '../v2/maps/coordinates';
 import { PlaceLookupModal } from '../places/ui/place-lookup-modal';
 import type { PlaceLookupResult } from '../places/services/place-lookup-service';
 
@@ -80,6 +85,7 @@ interface PlaceFormData {
 	aliases?: string[];
 	collection?: string;
 	coordinates?: { lat: number; long: number };
+	coordinateCRS?: GeographicCRS;
 	directory?: string;
 	maps?: string[];
 }
@@ -103,6 +109,10 @@ export class CreatePlaceModal extends Modal {
 	private parentDropdownEl?: HTMLSelectElement;
 	private latInputEl?: HTMLInputElement;
 	private longInputEl?: HTMLInputElement;
+	private coordCRSSelectEl?: HTMLSelectElement;
+	private readonly coordinateService = new CanonicalCoordinateService(
+		new GcoordCoordinateTransformProvider()
+	);
 	private pixelXInputEl?: HTMLInputElement;
 	private pixelYInputEl?: HTMLInputElement;
 	private customTypeInputEl?: HTMLInputElement;
@@ -218,6 +228,7 @@ export class CreatePlaceModal extends Modal {
 				placeType: options?.initialPlaceType,
 				placeCategory: defaultCategory,
 				collection: options?.initialCollection,
+				coordinateCRS: 'wgs84',
 				// Default universe for new places (#751); the writer only persists it
 				// for fictional categories via isUniverseApplicable. Fall back to
 				// plugin.settings for call sites that pass plugin but not settings.
@@ -228,7 +239,7 @@ export class CreatePlaceModal extends Modal {
 			if (options?.directory) {
 				this.directory = options.directory;
 			} else if (this.settings) {
-				this.directory = getPlaceFolderForCategory(this.settings, defaultCategory);
+				this.directory = this.getWorkspacePlaceFolder(defaultCategory);
 			} else {
 				this.directory = '';
 			}
@@ -250,6 +261,7 @@ export class CreatePlaceModal extends Modal {
 						lat: options.prefilledCoordinates.lat,
 						long: options.prefilledCoordinates.lng
 					};
+					this.placeData.coordinateCRS = 'wgs84';
 				}
 			}
 		}
@@ -406,6 +418,22 @@ export class CreatePlaceModal extends Modal {
 				this.placeData.parentPlace = suggestedParent.name;
 			}
 		}
+	}
+
+	private getWorkspacePlaceFolder(category: PlaceCategory): string {
+		if (!this.settings) {
+			return this.plugin?.getWorkspaceService()?.getFolder('places') ?? '';
+		}
+
+		const workspaceRoot = this.plugin?.getWorkspaceService()?.getFolder('places');
+		if (!workspaceRoot) {
+			return getPlaceFolderForCategory(this.settings, category);
+		}
+
+		return getPlaceFolderForCategory(
+			{ ...this.settings, placesFolder: workspaceRoot },
+			category
+		);
 	}
 
 	/**
@@ -600,7 +628,7 @@ export class CreatePlaceModal extends Modal {
 					this.updateCoordinatesVisibility();
 					// Update directory based on category (#163)
 					if (!this.editMode && this.settings) {
-						this.directory = getPlaceFolderForCategory(this.settings, value as PlaceCategory);
+						this.directory = this.getWorkspacePlaceFolder(value as PlaceCategory);
 						if (this.directoryInputEl) {
 							this.directoryInputEl.value = this.directory;
 						}
@@ -936,6 +964,28 @@ export class CreatePlaceModal extends Modal {
 			});
 		}
 
+		const crsSetting = new Setting(this.coordSectionEl)
+			.setName('Coordinate system')
+			.setDesc('Input/display CRS. Place notes are always saved as canonical WGS84.');
+		this.coordCRSSelectEl = crsSetting.controlEl.createEl('select', {
+			cls: 'crc-coordinate-crs',
+			attr: { 'aria-label': 'Coordinate reference system' }
+		});
+		for (const [value, label] of [
+			['wgs84', 'WGS84 (GPS / OpenStreetMap)'],
+			['gcj02', 'GCJ-02 (Amap / Gaode)'],
+			['bd09', 'BD-09 (Baidu)']
+		] as const) {
+			const option = this.coordCRSSelectEl.createEl('option', { text: label });
+			option.value = value;
+		}
+		this.coordCRSSelectEl.value = this.placeData.coordinateCRS ?? 'wgs84';
+		this.coordCRSSelectEl.disabled = Boolean(hasPrefilledGeoCoords);
+		this.coordCRSSelectEl.addEventListener('change', () => {
+			const next = this.coordCRSSelectEl?.value as GeographicCRS | undefined;
+			if (next) this.changeCoordinateCRS(next);
+		});
+
 		// Pixel coordinates section (for fictional/mythological places on pixel-based maps)
 		this.pixelCoordSectionEl = form.createDiv({ cls: 'crc-coord-section' });
 
@@ -1118,6 +1168,7 @@ export class CreatePlaceModal extends Modal {
 			aliases: this.placeData.aliases,
 			collection: this.placeData.collection,
 			coordinates: this.placeData.coordinates,
+			coordinateCRS: this.placeData.coordinateCRS,
 			directory: this.directory,
 			maps: this.placeData.maps
 		};
@@ -1136,6 +1187,7 @@ export class CreatePlaceModal extends Modal {
 		this.placeData.aliases = formData.aliases;
 		this.placeData.collection = formData.collection;
 		this.placeData.coordinates = formData.coordinates;
+		this.placeData.coordinateCRS = formData.coordinateCRS ?? 'wgs84';
 		this.placeData.maps = formData.maps;
 		if (formData.directory) {
 			this.directory = formData.directory;
@@ -1348,6 +1400,51 @@ export class CreatePlaceModal extends Modal {
 	}
 
 	/**
+	 * Change only the input/display CRS while preserving the represented
+	 * geographic location. Stored Place coordinates remain WGS84 via the writer.
+	 */
+	private changeCoordinateCRS(next: GeographicCRS): void {
+		const current = this.placeData.coordinateCRS ?? 'wgs84';
+		if (current === next) return;
+
+		const coordinates = this.placeData.coordinates;
+		if (coordinates) {
+			const latText = this.latInputEl?.value.trim() ?? '';
+			const longText = this.longInputEl?.value.trim() ?? '';
+			if (!latText || !longText) {
+				new Notice('Enter both latitude and longitude before changing coordinate system.');
+				if (this.coordCRSSelectEl) this.coordCRSSelectEl.value = current;
+				return;
+			}
+
+			try {
+				const transformed = this.coordinateService.transform(
+					{
+						longitude: coordinates.long,
+						latitude: coordinates.lat
+					},
+					current,
+					next
+				);
+				this.placeData.coordinates = {
+					lat: transformed.latitude,
+					long: transformed.longitude
+				};
+				if (this.latInputEl) this.latInputEl.value = transformed.latitude.toFixed(6);
+				if (this.longInputEl) this.longInputEl.value = transformed.longitude.toFixed(6);
+			} catch (error) {
+				new Notice(
+					`Could not convert coordinates: ${error instanceof Error ? error.message : 'Unknown error'}`
+				);
+				if (this.coordCRSSelectEl) this.coordCRSSelectEl.value = current;
+				return;
+			}
+		}
+
+		this.placeData.coordinateCRS = next;
+	}
+
+	/**
 	 * Update coordinates from input with validation.
 	 * When DMS parsing is enabled in settings, attempts to parse DMS format first.
 	 * If DMS is detected and parsed, updates the input field to show decimal value.
@@ -1503,8 +1600,10 @@ export class CreatePlaceModal extends Modal {
 		}
 
 		if (result.success && result.coordinates) {
-			// Update the data model
+			// Nominatim returns WGS84.
 			this.placeData.coordinates = result.coordinates;
+			this.placeData.coordinateCRS = 'wgs84';
+			if (this.coordCRSSelectEl) this.coordCRSSelectEl.value = 'wgs84';
 
 			// Update the input fields
 			if (this.latInputEl) {
@@ -1673,7 +1772,7 @@ export class CreatePlaceModal extends Modal {
 
 			if (categoryChanged) {
 				// Calculate the target folder for the new category
-				const targetFolder = getPlaceFolderForCategory(this.settings!, newCategory);
+				const targetFolder = this.getWorkspacePlaceFolder(newCategory);
 				const currentFolder = this.directory;
 
 				// Only prompt if the target folder is different
@@ -1856,6 +1955,8 @@ export class CreatePlaceModal extends Modal {
 				lat: result.coordinates.lat,
 				long: result.coordinates.lng
 			};
+			this.placeData.coordinateCRS = 'wgs84';
+			if (this.coordCRSSelectEl) this.coordCRSSelectEl.value = 'wgs84';
 
 			// Update coordinate inputs
 			if (this.latInputEl) {

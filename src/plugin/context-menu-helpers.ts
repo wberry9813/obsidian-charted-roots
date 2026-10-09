@@ -571,7 +571,7 @@ export async function assignReferenceNumbersFromPerson(plugin: CanvasRootsPlugin
 	}
 
 	try {
-		const service = new ReferenceNumberingService(plugin.app);
+		const service = new ReferenceNumberingService(plugin.app, undefined, plugin.createFamilyGraphService());
 		let stats;
 
 		new Notice(`Assigning ${system} numbers from ${personName}...`);
@@ -613,7 +613,7 @@ export async function assignLineageFromPerson(plugin: CanvasRootsPlugin, file: T
 	if (!lineageName) return;
 
 	try {
-		const service = new LineageTrackingService(plugin.app);
+		const service = new LineageTrackingService(plugin.app, undefined, plugin.createFamilyGraphService());
 		new Notice(`Assigning "${lineageName}" lineage from ${personName}...`);
 
 		const stats = await service.assignLineage({

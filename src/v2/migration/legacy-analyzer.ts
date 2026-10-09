@@ -92,6 +92,29 @@ function finding(
 	};
 }
 
+function historicalNameRecords(
+	frontmatter: Record<string, unknown>
+): Array<{ name?: string; period?: string; raw?: unknown }> {
+	const names = toArray(frontmatter.historical_names);
+	const periods = toArray(frontmatter.historical_name_periods);
+	return names.map((entry, index) => {
+		if (typeof entry === 'string') {
+			return {
+				name: stringValue(entry),
+				period: stringValue(periods[index])
+			};
+		}
+		if (entry && typeof entry === 'object') {
+			const record = entry as Record<string, unknown>;
+			return {
+				name: stringValue(record.name),
+				period: stringValue(record.period)
+			};
+		}
+		return { raw: entry };
+	});
+}
+
 function checkParallelFields(
 	filePath: string,
 	frontmatter: Record<string, unknown>,
@@ -584,6 +607,27 @@ export function analyzeLegacyFrontmatter(
 		}
 	}
 
+	if (crType === 'place' && nonEmpty(frontmatter.historical_names)) {
+		const records = historicalNameRecords(frontmatter);
+		findings.push(finding(
+			filePath,
+			'historical_name_review',
+			'review',
+			'Legacy historical_names can become time-bounded designation Assertions, but periods and sources must be reviewed before migration.',
+			[
+				'historical_names',
+				...(hasOwn(frontmatter, 'historical_name_periods')
+					? ['historical_name_periods']
+					: [])
+			],
+			false,
+			{
+				count: records.length,
+				details: { records }
+			}
+		));
+	}
+
 	if (isPersonContext) {
 		for (const field of ['occupation', 'title']) {
 			if (nonEmpty(frontmatter[field])) {
@@ -672,7 +716,8 @@ export class V2MigrationAnalyzer {
 	) {}
 
 	analyze(): MigrationAnalysisReport {
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.options.fileProvider?.()
+			?? this.app.vault.getMarkdownFiles();
 		const analyses = files
 			.map(file => {
 				const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;

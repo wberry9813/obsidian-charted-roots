@@ -254,6 +254,35 @@ export class DateService {
 	}
 
 	/**
+	 * Return whether this universe is governed by a configured fictional date
+	 * system. Other subsystems use this explicit semantic check instead of
+	 * guessing from formatted labels or signed canonical numbers.
+	 */
+	getFictionalDateSystemForUniverse(
+		universe?: string
+	): FictionalDateSystem | null {
+		if (!universe || !this.fictionalParser) return null;
+		const cleanUniverse = universe
+			.replace(/^\[\[/, '')
+			.replace(/\]\]$/, '')
+			.split('|', 1)[0]
+			.trim();
+		if (!cleanUniverse) return null;
+
+		const preferredSystemId = this.universeCalendarResolver
+			?.(cleanUniverse) ?? undefined;
+		if (preferredSystemId) {
+			const preferred = this.fictionalParser.getSystem(preferredSystemId);
+			if (preferred) return preferred;
+		}
+		return this.fictionalParser.findSystemForUniverse(cleanUniverse) ?? null;
+	}
+
+	hasFictionalDateSystemForUniverse(universe?: string): boolean {
+		return this.getFictionalDateSystemForUniverse(universe) !== null;
+	}
+
+	/**
 	 * Get the canonical year for sorting purposes
 	 */
 	getCanonicalYear(dateStr: string | undefined, universe?: string): number | null {
@@ -278,9 +307,21 @@ export class DateService {
 		}
 
 		const system = this.fictionalParser.findSystemForUniverse(universe);
-		if (!system) {
-			return String(year);
-		}
+		return system
+			? this.formatCanonicalYearForSystem(year, system.id)
+			: String(year);
+	}
+
+	/**
+	 * Format a canonical year against one exact fictional calendar ID.
+	 *
+	 * Axis-aware Timeline/Map synchronization carries a stable chronology ID,
+	 * so this avoids re-resolving by universe name and accidentally selecting a
+	 * different calendar that happens to share era abbreviations.
+	 */
+	formatCanonicalYearForSystem(year: number, systemId: string): string {
+		const system = this.fictionalParser?.getSystem(systemId);
+		if (!system) return String(year);
 
 		// Walk eras in declared order; pick the first whose era-relative
 		// year is non-negative. For backward-direction eras (e.g., BBY),
@@ -288,17 +329,16 @@ export class DateService {
 		// epoch.
 		for (const era of system.eras) {
 			const direction = era.direction || 'forward';
-			const eraYear = direction === 'backward' ? era.epoch - year : year - era.epoch;
+			const eraYear = direction === 'backward'
+				? era.epoch - year
+				: year - era.epoch;
 			if (eraYear >= 0) {
 				return `${eraYear} ${era.abbrev}`;
 			}
 		}
 
 		// Pre-epoch: the year precedes every era's covered range — typically a
-		// calendar that defines only forward eras and no "before" era, so a date
-		// earlier than its earliest era has nothing to label it. Render it
-		// relative to that earliest era ("29 before GR") instead of a bare
-		// negative like "-29" (#729).
+		// calendar that defines only forward eras and no "before" era.
 		let earliest: { epoch: number; abbrev: string } | null = null;
 		for (const era of system.eras) {
 			if ((era.direction || 'forward') !== 'forward') continue;

@@ -28,6 +28,7 @@ import { GrampsImporter, type GrampsImportOptions, type GrampsImportResult } fro
 import { readFileWithDecompression } from '../core/compression-utils';
 import { estimateImportSize } from '../core/import-size-estimate';
 import { PrivacyNoticeModal } from './privacy-notice-modal';
+import { resolveWorkspaceTransferFolders } from './workspace-transfer-paths';
 
 /**
  * Import format types
@@ -189,6 +190,7 @@ export class ImportWizardModal extends Modal {
 	 * Get default form data
 	 */
 	private getDefaultFormData(): ImportWizardFormData {
+		const transferFolders = resolveWorkspaceTransferFolders(this.plugin);
 		return {
 			// Step 1
 			format: 'gedcom',
@@ -210,7 +212,7 @@ export class ImportWizardModal extends Modal {
 			mediaFolder: this.plugin?.settings?.mediaFolders?.[0] || 'Charted Roots/Media',
 			preserveMediaFolderStructure: false,
 			includeDynamicBlocks: true,
-			targetFolder: this.plugin?.settings?.peopleFolder || 'People',
+			targetFolder: transferFolders.people,
 			conflictHandling: 'skip',
 			largeImportMode: false,  // Default: off (user must opt-in for large imports)
 
@@ -1184,11 +1186,12 @@ export class ImportWizardModal extends Modal {
 				try {
 					// Build import options
 					const settings = this.plugin.settings;
+					const transferFolders = resolveWorkspaceTransferFolders(this.plugin);
 					const options: GedcomImportOptionsV2 = {
-						peopleFolder: this.formData.targetFolder || settings.peopleFolder,
-						eventsFolder: settings.eventsFolder,
-						sourcesFolder: settings.sourcesFolder,
-						placesFolder: settings.placesFolder,
+						peopleFolder: this.formData.targetFolder || transferFolders.people,
+						eventsFolder: transferFolders.events,
+						sourcesFolder: transferFolders.sources,
+						placesFolder: transferFolders.places,
 						overwriteExisting: this.formData.conflictHandling === 'overwrite',
 						fileName: this.formData.fileName,
 						createPeopleNotes: this.formData.importPeople,
@@ -1197,7 +1200,7 @@ export class ImportWizardModal extends Modal {
 						createPlaceNotes: this.formData.importPlaces,
 						importNotes: this.formData.importNotes,
 						createSeparateNoteFiles: this.formData.createSeparateNoteFiles,
-						notesFolder: settings.notesFolder,
+						notesFolder: transferFolders.notes,
 						importMedia: this.formData.importMedia,
 						mediaPathPrefix: this.formData.mediaPathPrefix || undefined,
 						includeDynamicBlocks: this.formData.includeDynamicBlocks,
@@ -1307,16 +1310,17 @@ export class ImportWizardModal extends Modal {
 				try {
 					// Build import options
 					const settings = this.plugin.settings;
+					const transferFolders = resolveWorkspaceTransferFolders(this.plugin);
 					const options: GrampsImportOptions = {
-						peopleFolder: this.formData.targetFolder || settings.peopleFolder,
+						peopleFolder: this.formData.targetFolder || transferFolders.people,
 						overwriteExisting: this.formData.conflictHandling === 'overwrite',
 						fileName: this.formData.fileName,
 						createSourceNotes: this.formData.importSources,
-						sourcesFolder: settings.sourcesFolder,
+						sourcesFolder: transferFolders.sources,
 						createPlaceNotes: this.formData.importPlaces,
-						placesFolder: settings.placesFolder,
+						placesFolder: transferFolders.places,
 						createEventNotes: this.formData.importEvents,
-						eventsFolder: settings.eventsFolder,
+						eventsFolder: transferFolders.events,
 						propertyAliases: settings.propertyAliases,
 						includeDynamicBlocks: this.formData.includeDynamicBlocks,
 						dynamicBlockTypes: ['media', 'timeline', 'relationships'],
@@ -1327,7 +1331,7 @@ export class ImportWizardModal extends Modal {
 						extractMedia: this.formData.importMedia && this.formData.gpkgExtractionResult !== null,
 						importNotes: this.formData.importNotes,
 						createSeparateNoteFiles: this.formData.createSeparateNoteFiles,
-						notesFolder: settings.notesFolder,
+						notesFolder: transferFolders.notes,
 						onProgress: (progress) => {
 							// Update UI based on progress
 							const percent = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
@@ -1517,7 +1521,8 @@ export class ImportWizardModal extends Modal {
 			},
 			{
 				title: 'Select root person',
-				subtitle: 'Choose the person to use as the root for numbering'
+				subtitle: 'Choose the person to use as the root for numbering',
+				plugin: this.plugin
 			}
 		);
 		picker.open();
@@ -1535,7 +1540,11 @@ export class ImportWizardModal extends Modal {
 		this.renderCurrentStep();
 
 		try {
-			const numberingService = new ReferenceNumberingService(this.app);
+			const numberingService = new ReferenceNumberingService(
+				this.app,
+				undefined,
+				this.plugin.createFamilyGraphService()
+			);
 			let stats: NumberingStats;
 
 			// Map our NumberingSystem to RefNumberingSystem (they're the same values except 'none')
@@ -1769,8 +1778,10 @@ export class ImportWizardModal extends Modal {
 		let count = 0;
 
 		// Get all people from cache
-		const files = this.app.vault.getMarkdownFiles();
-		const peopleFolder = this.plugin.settings.peopleFolder;
+		const workspace = this.plugin.getWorkspaceService();
+		const files = workspace?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
+		const peopleFolder = resolveWorkspaceTransferFolders(this.plugin).people;
 
 		for (const file of files) {
 			// Only check files in people folder

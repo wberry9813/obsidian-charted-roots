@@ -105,10 +105,19 @@ export class GedcomXExporter {
 	}
 
 	/**
+	 * Replace the default family graph with a caller-scoped instance.
+	 */
+	setFamilyGraphService(service: FamilyGraphService): void {
+		this.graphService = service;
+	}
+
+	/**
 	 * Set event service for loading event notes
 	 */
-	setEventService(settings: CanvasRootsSettings): void {
-		this.eventService = new EventService(this.app, settings);
+	setEventService(settingsOrService: CanvasRootsSettings | EventService): void {
+		this.eventService = settingsOrService instanceof EventService
+			? settingsOrService
+			: new EventService(this.app, settingsOrService);
 	}
 
 	/**
@@ -123,11 +132,16 @@ export class GedcomXExporter {
 	/**
 	 * Set place graph service for loading place notes
 	 */
-	setPlaceGraphService(settings: CanvasRootsSettings): void {
+	setPlaceGraphService(settingsOrService: CanvasRootsSettings | PlaceGraphService): void {
+		if (settingsOrService instanceof PlaceGraphService) {
+			this.placeGraphService = settingsOrService;
+			return;
+		}
+
 		this.placeGraphService = new PlaceGraphService(this.app);
-		this.placeGraphService.setSettings(settings);
-		if (settings.valueAliases) {
-			this.placeGraphService.setValueAliases(settings.valueAliases);
+		this.placeGraphService.setSettings(settingsOrService);
+		if (settingsOrService.valueAliases) {
+			this.placeGraphService.setValueAliases(settingsOrService.valueAliases);
 		}
 	}
 

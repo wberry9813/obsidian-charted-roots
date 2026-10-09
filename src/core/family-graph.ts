@@ -261,6 +261,9 @@ export class FamilyGraphService {
 	private personCache: Map<string, PersonNode>;
 	private folderFilter: FolderFilterService | null = null;
 	private personIndex: PersonIndexService | null = null;
+	private fileProvider: (() => TFile[]) | null = null;
+	private scopeKeyProvider: (() => string | null) | null = null;
+	private loadedScopeKey: string | null = null;
 	private propertyAliases: Record<string, string> = {};
 	private valueAliases: ValueAliasSettings = { eventType: {}, sex: {}, gender_identity: {}, placeCategory: {}, noteType: {} };
 	private settings: CanvasRootsSettings | null = null;
@@ -304,6 +307,19 @@ export class FamilyGraphService {
 	 */
 	setPersonIndex(personIndex: PersonIndexService): void {
 		this.personIndex = personIndex;
+	}
+
+	/**
+	 * Primary dataset boundary. FolderFilter remains a secondary person-only
+	 * filter inside the provided Workspace file set.
+	 */
+	setFileProvider(
+		fileProvider: () => TFile[],
+		scopeKeyProvider?: () => string | null
+	): void {
+		this.fileProvider = fileProvider;
+		this.scopeKeyProvider = scopeKeyProvider ?? null;
+		this.clearCache();
 	}
 
 	/**
@@ -510,9 +526,7 @@ export class FamilyGraphService {
 	 */
 	getTotalPeopleCount(): number {
 		// If cache is empty, load it
-		if (this.personCache.size === 0) {
-			this.loadPersonCache();
-		}
+		this.ensureCacheLoaded();
 		return this.personCache.size;
 	}
 
@@ -528,7 +542,11 @@ export class FamilyGraphService {
 	 * Ensures the person cache is loaded
 	 */
 	ensureCacheLoaded(): void {
-		if (this.personCache.size === 0) {
+		const currentScopeKey = this.scopeKeyProvider?.() ?? null;
+		if (
+			this.personCache.size === 0
+			|| this.loadedScopeKey !== currentScopeKey
+		) {
 			this.loadPersonCache();
 		}
 	}
@@ -574,9 +592,7 @@ export class FamilyGraphService {
 	 */
 	findAllFamilyComponents(): Array<{ representative: PersonNode; size: number; people: PersonNode[]; collectionName?: string }> {
 		// Ensure cache is loaded
-		if (this.personCache.size === 0) {
-			this.loadPersonCache();
-		}
+		this.ensureCacheLoaded();
 
 		const visited = new Set<string>();
 		const components: Array<{ representative: PersonNode; size: number; people: PersonNode[]; collectionName?: string }> = [];
@@ -646,9 +662,7 @@ export class FamilyGraphService {
 	 */
 	getUserCollections(): Array<{ name: string; people: PersonNode[]; size: number }> {
 		// Ensure cache is loaded
-		if (this.personCache.size === 0) {
-			this.loadPersonCache();
-		}
+		this.ensureCacheLoaded();
 
 		const peopleByCollection = new Map<string, PersonNode[]>();
 
@@ -691,9 +705,7 @@ export class FamilyGraphService {
 	 */
 	getAllUniverses(): string[] {
 		// Ensure cache is loaded
-		if (this.personCache.size === 0) {
-			this.loadPersonCache();
-		}
+		this.ensureCacheLoaded();
 
 		const universes = new Set<string>();
 		for (const person of this.personCache.values()) {
@@ -710,9 +722,7 @@ export class FamilyGraphService {
 	 */
 	detectCollectionConnections(): CollectionConnection[] {
 		// Ensure cache is loaded
-		if (this.personCache.size === 0) {
-			this.loadPersonCache();
-		}
+		this.ensureCacheLoaded();
 
 		const connections = new Map<string, CollectionConnection>();
 
@@ -1472,7 +1482,8 @@ export class FamilyGraphService {
 	private loadPersonCache(): void {
 		this.personCache.clear();
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.fileProvider?.()
+			?? this.app.vault.getMarkdownFiles();
 
 		for (const file of files) {
 			// Apply folder filter if configured
@@ -1485,6 +1496,8 @@ export class FamilyGraphService {
 				this.personCache.set(personNode.crId, personNode);
 			}
 		}
+
+		this.loadedScopeKey = this.scopeKeyProvider?.() ?? null;
 
 		// Second pass: build child relationships (merge explicit and inferred)
 		for (const [crId, person] of this.personCache.entries()) {
@@ -2470,6 +2483,7 @@ export class FamilyGraphService {
 	 */
 	clearCache(): void {
 		this.personCache.clear();
+		this.loadedScopeKey = null;
 	}
 
 	/**
@@ -2599,9 +2613,7 @@ export class FamilyGraphService {
 	 */
 	calculateCollectionAnalytics(): CollectionAnalytics {
 		// Ensure cache is loaded
-		if (this.personCache.size === 0) {
-			this.loadPersonCache();
-		}
+		this.ensureCacheLoaded();
 
 		const allPeople = Array.from(this.personCache.values());
 		// Merge hand-grouped families that share a collection name into one
@@ -2732,8 +2744,16 @@ export class FamilyGraphService {
  * Create a FamilyGraphService configured with folder filter, property/value aliases, and settings.
  * Consolidates the repeated 7-line initialization pattern used across report generators and UI code.
  */
-export function createConfiguredFamilyGraph(app: App, settings: CanvasRootsSettings): FamilyGraphService {
+export function createConfiguredFamilyGraph(
+	app: App,
+	settings: CanvasRootsSettings,
+	fileProvider?: () => TFile[],
+	scopeKeyProvider?: () => string | null
+): FamilyGraphService {
 	const familyGraph = new FamilyGraphService(app);
+	if (fileProvider) {
+		familyGraph.setFileProvider(fileProvider, scopeKeyProvider);
+	}
 	if (settings.folderFilterMode !== 'disabled') {
 		familyGraph.setFolderFilter(new FolderFilterService(settings));
 	}

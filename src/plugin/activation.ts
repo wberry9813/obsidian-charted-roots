@@ -11,6 +11,7 @@ import { FamilyChartView, VIEW_TYPE_FAMILY_CHART } from '../ui/views/family-char
 import { VIEW_TYPE_MAP } from '../maps/map-view';
 import { VIEW_TYPE_STATISTICS } from '../statistics';
 import { VIEW_TYPE_CALENDAR } from '../calendar/calendar-view';
+import { VIEW_TYPE_TEMPORAL_TIMELINE } from '../v2/temporal/ui/temporal-timeline-view';
 import { VIEW_TYPE_RELATIONSHIPS } from '../relationships/ui/relationships-view';
 import { VIEW_TYPE_PEOPLE } from '../ui/views/people-view';
 import { VIEW_TYPE_EVENTS } from '../dates/ui/events-view';
@@ -193,6 +194,25 @@ export async function activateCalendarView(plugin: CanvasRootsPlugin): Promise<v
 	void workspace.revealLeaf(leaf);
 }
 
+export async function activateTemporalTimelineView(
+	plugin: CanvasRootsPlugin
+): Promise<void> {
+	const { workspace } = plugin.app;
+
+	const leaves = workspace.getLeavesOfType(VIEW_TYPE_TEMPORAL_TIMELINE);
+	if (leaves.length > 0) {
+		void workspace.revealLeaf(leaves[0]);
+		return;
+	}
+
+	const leaf = workspace.getLeaf('tab');
+	await leaf.setViewState({
+		type: VIEW_TYPE_TEMPORAL_TIMELINE,
+		active: true
+	});
+	void workspace.revealLeaf(leaf);
+}
+
 export async function activateRelationshipsView(plugin: CanvasRootsPlugin): Promise<void> {
 	return activateSidebarView(plugin, VIEW_TYPE_RELATIONSHIPS);
 }
@@ -247,7 +267,10 @@ export async function activateProfileView(plugin: CanvasRootsPlugin, file?: TFil
 	});
 
 	if (unpinnedLeaf) {
-		void workspace.revealLeaf(unpinnedLeaf);
+		// Wait for reveal/active-leaf-change side effects before explicit
+		// navigation. ProfileView.navigateToFile() then cancels the debounced
+		// auto-sync created by that reveal, so the requested entity stays visible.
+		await workspace.revealLeaf(unpinnedLeaf);
 		if (file && unpinnedLeaf.view instanceof ProfileView) {
 			unpinnedLeaf.view.navigateToFile(file);
 		}
@@ -260,7 +283,7 @@ export async function activateProfileView(plugin: CanvasRootsPlugin, file?: TFil
 			type: VIEW_TYPE_ENTITY_PROFILE,
 			active: true
 		});
-		void workspace.revealLeaf(leaf);
+		await workspace.revealLeaf(leaf);
 		if (file && leaf.view instanceof ProfileView) {
 			leaf.view.navigateToFile(file);
 		}
