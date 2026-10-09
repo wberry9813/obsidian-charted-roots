@@ -44,10 +44,12 @@ into the ordinary History/Shushan scenarios.
 
 ### A2 — cross-view semantic acceptance
 
-- [ ] Timeline renders migrated Event / Process / Period and temporal Assertions;
-- [ ] Relationships reflects changing relationship Assertions at different
-  temporal focus points;
-- [ ] Profile exposes concurrent affiliation / office state without flattening;
+- [x] Timeline renders migrated Event plus representative Process / Period and
+  temporal Assertions in the isolated acceptance Workspace;
+- [x] Relationships reflects changing relationship Assertions at different
+  temporal focus points (ally at 675 BCE, rival at 665 BCE);
+- [x] Profile exposes concurrent affiliation and office-holding state without
+  flattening those facts back onto the Person note;
 - [ ] Map and Timeline share historical focus without changing stored source
   semantics.
 
