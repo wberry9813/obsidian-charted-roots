@@ -3339,7 +3339,10 @@ export class MapView extends ItemView {
 		const crType = cache?.frontmatter?.cr_type;
 		if (crType !== 'map') return;
 
-		this.mapController.reloadMapConfigs();
+		// A fresh vault can open the Map before MetadataCache has parsed all map
+		// notes. When a map note arrives later, rebuild both the controller cache
+		// and the visible selector so first-open custom maps do not remain hidden.
+		this.loadCustomMaps();
 		const refreshed = this.mapController.getActiveMapUniverse();
 		this.filters.universe = this.resolveUniverseFilterValue(refreshed) ?? undefined;
 	}
