@@ -283,6 +283,12 @@ export class MapView extends ItemView {
 
 		// Register event handlers
 		this.registerEventHandlers();
+
+		// Fresh vaults can finish parsing map-note frontmatter between the
+		// initial initializeMap() scan and listener registration. Rescan once
+		// after handlers are attached so that narrow race cannot leave the
+		// selector empty for the lifetime of the view.
+		this.loadCustomMaps();
 	}
 
 	/**
@@ -3240,6 +3246,17 @@ export class MapView extends ItemView {
 	 * Register event handlers for file changes
 	 */
 	private registerEventHandlers(): void {
+		// A newly opened vault resolves its metadata cache asynchronously. Map
+		// configs are frontmatter-driven, so perform one final selector rebuild
+		// when global metadata resolution completes as well as on per-file
+		// changes below.
+		this.registerEvent(
+			this.plugin.app.metadataCache.on('resolved', () => {
+				this.loadCustomMaps();
+				void this.refreshData();
+			})
+		);
+
 		// Refresh when metadata cache is updated (fires after frontmatter is parsed)
 		// This is more reliable than vault.on('modify') which fires before cache updates
 		this.registerEvent(
