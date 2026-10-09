@@ -2684,6 +2684,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 
 			const assertions = plugin.getAssertionService().getAll()
 				.map(record => ({
+					crId: record.assertion.cr_id,
 					predicate: record.assertion.predicate,
 					object: record.assertion.object ?? null,
 					timeStart: record.assertion.time_start ?? null,
@@ -2695,6 +2696,103 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					a.predicate.localeCompare(b.predicate)
 					|| String(a.timeStart).localeCompare(String(b.timeStart))
 				);
+
+			const byPredicate = Object.fromEntries(
+				assertions.map(assertion => [assertion.predicate, assertion.crId])
+			);
+			const membershipIds = assertions
+				.filter(assertion => assertion.predicate === 'member_of')
+				.map(assertion => assertion.crId)
+				.sort();
+
+			await plugin.activateTemporalTimelineView();
+			await new Promise(resolve => window.setTimeout(resolve, 100));
+			const timelineRoot = app.workspace
+				.getLeavesOfType('charted-roots-temporal-timeline')[0]
+				?.view?.containerEl;
+			const timeline = {
+				workspace: timelineRoot
+					?.querySelector('.cr-v2-timeline__workspace')?.textContent ?? '',
+				spanIds: [...(timelineRoot?.querySelectorAll(
+					'.cr-v2-timeline__span'
+				) ?? [])]
+					.map(element => element.getAttribute('data-item-id'))
+					.filter(Boolean)
+					.sort()
+			};
+
+			const calendar = plugin.getHistoricalDateService()
+				.getCalendarProvider('tyme');
+			if (!calendar) {
+				throw new Error('Historical calendar unavailable for architecture acceptance.');
+			}
+			const focusAtBce = displayYear =>
+				calendar.solarToJulianDay({
+					year: 1 - displayYear,
+					month: 6,
+					day: 1
+				});
+			const focusService = plugin.getTemporalFocusService();
+
+			const readRelationships = () => {
+				const root = app.workspace
+					.getLeavesOfType('canvas-roots-relationships')[0]
+					?.view?.containerEl;
+				return [...(root?.querySelectorAll(
+					'.cr-rv-temporal-state__item[data-temporal-state="active"]'
+				) ?? [])]
+					.map(element => element.getAttribute('data-assertion-id'))
+					.filter(Boolean)
+					.sort();
+			};
+			const readProfile = () => {
+				const root = app.workspace
+					.getLeavesOfType('charted-roots-entity-profile')[0]
+					?.view?.containerEl;
+				return [...(root?.querySelectorAll(
+					'.cr-profile__temporal-institution-item[data-temporal-state="active"]'
+				) ?? [])]
+					.map(element => ({
+						id: element.getAttribute('data-assertion-id'),
+						text: element.textContent ?? ''
+					}))
+					.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+			};
+
+			focusService.setPoint(
+				focusAtBce(675),
+				'architecture-acceptance'
+			);
+			await plugin.activateRelationshipsView();
+			await new Promise(resolve => window.setTimeout(resolve, 80));
+			const relationships675 = readRelationships();
+			await plugin.activateProfileView(minister);
+			await new Promise(resolve => window.setTimeout(resolve, 100));
+			const profile675 = readProfile();
+
+			focusService.setPoint(
+				focusAtBce(665),
+				'architecture-acceptance'
+			);
+			await plugin.activateRelationshipsView();
+			await new Promise(resolve => window.setTimeout(resolve, 80));
+			const relationships665 = readRelationships();
+			await plugin.activateProfileView(minister);
+			await new Promise(resolve => window.setTimeout(resolve, 100));
+			const profile665 = readProfile();
+
+			const crossViews = {
+				timeline,
+				ids: {
+					ally: byPredicate.ally,
+					rival: byPredicate.rival,
+					memberships: membershipIds
+				},
+				relationships675,
+				relationships665,
+				profile675,
+				profile665
+			};
 
 			snapshot = {
 				activeDuringRun: activeService.getActiveId(),
@@ -2728,9 +2826,11 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					hasLegacyDate: /^date:/m.test(migratedEvent),
 					hasLegacyDateEnd: /^date_end:/m.test(migratedEvent)
 				},
-				assertions
+				assertions,
+				crossViews
 			};
 		} finally {
+			plugin.getTemporalFocusService().clear();
 			await plugin.replaceWorkspaceCatalog(previousCatalog);
 			await plugin.setActiveWorkspace(previousActive);
 		}
@@ -2811,6 +2911,66 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			)
 		)
 	);
+
+	assert.equal(
+		architectureAcceptance.crossViews.timeline.workspace,
+		'架构验收'
+	);
+	assert.ok(
+		architectureAcceptance.crossViews.timeline.spanIds.includes(
+			'acceptance-alliance'
+		)
+	);
+	for (const assertion of architectureAcceptance.assertions) {
+		assert.ok(
+			architectureAcceptance.crossViews.timeline.spanIds.includes(
+				assertion.crId
+			)
+		);
+	}
+	const allyId = architectureAcceptance.crossViews.ids.ally;
+	const rivalId = architectureAcceptance.crossViews.ids.rival;
+	const membershipIds = architectureAcceptance.crossViews.ids.memberships;
+	assert.ok(allyId);
+	assert.ok(rivalId);
+	assert.equal(membershipIds.length, 2);
+
+	assert.ok(
+		architectureAcceptance.crossViews.relationships675.includes(allyId)
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.relationships675.includes(rivalId),
+		false
+	);
+	assert.ok(
+		architectureAcceptance.crossViews.relationships665.includes(rivalId)
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.relationships665.includes(allyId),
+		false
+	);
+
+	assert.deepEqual(
+		architectureAcceptance.crossViews.profile675.map(item => item.id).sort(),
+		membershipIds
+	);
+	assert.deepEqual(
+		architectureAcceptance.crossViews.profile665.map(item => item.id).sort(),
+		membershipIds
+	);
+	assert.ok(
+		architectureAcceptance.crossViews.profile675
+			.map(item => item.text)
+			.join(' ')
+			.includes('齐国')
+	);
+	assert.ok(
+		architectureAcceptance.crossViews.profile675
+			.map(item => item.text)
+			.join(' ')
+			.includes('齐国朝廷')
+	);
+
 	assert.equal(architectureAcceptance.restoredActive, 'history-cn');
 	assert.deepEqual(architectureAcceptance.restoredWorkspaceIds, [
 		'history-cn',
