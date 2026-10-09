@@ -103,6 +103,35 @@ describe('v2 foundation linter', () => {
 		]));
 	});
 
+	it('reports non-canonical persisted control-layer CRS', () => {
+		const app = makeApp([{
+			path: 'History/Layers/Legacy.md',
+			frontmatter: {
+				cr_schema: 2,
+				cr_type: 'control_layer',
+				cr_id: 'legacy-boundary',
+				name: 'Legacy boundary',
+				geojson_file: 'legacy.geojson',
+				coordinate_crs: 'gcj02'
+			}
+		}]);
+
+		const assertions = new AssertionService(app as never);
+		const issues = new V2Linter(
+			app as never,
+			createV2OntologyRegistry(),
+			assertions
+		).lint();
+
+		expect(issues).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				severity: 'warning',
+				code: 'non_canonical_control_layer_crs',
+				filePath: 'History/Layers/Legacy.md'
+			})
+		]));
+	});
+
 	it('keeps content lint Workspace-scoped while enforcing cr_id globally', () => {
 		const app = makeApp([
 			{

@@ -11,6 +11,7 @@ Schema v2 removes the main structural limits of the legacy model: dynamic relati
 | `person` | Person |
 | `organization` | Organization, polity, clan, institution, faction |
 | `place` | Geographic / historical place |
+| `control_layer` | Time-bounded geographic GeoJSON/control layer |
 | `office` | Office or position that can be held |
 | `event` | Historically treated occurrence |
 | `process` | Sustained development or change |
@@ -116,7 +117,36 @@ external_ids:
 
 Canonical stored coordinates are WGS84. GCJ-02/BD-09 are provider/rendering concerns. Political control or administrative membership is historical Assertion data, not a timeless `country` property.
 
-## 7. Office
+## 7. Historical control layer
+
+~~~yaml
+cr_schema: 2
+cr_type: control_layer
+cr_id: han-boundary
+
+name: Han boundary
+geojson_file: han-boundary.geojson
+coordinate_crs: wgs84
+source_coordinate_crs: gcj02
+
+time_start: "BCE 202"
+time_end: "220 CE"
+universe: "[[现实历史]]"
+source: "[[Historical Atlas]]"
+confidence: high
+uncertainty: certain
+~~~
+
+The Markdown note is the indexed manifest; geometry remains in the referenced
+`.geojson` file. `geojson_file` is relative to the manifest directory by
+default; a leading `/` selects a vault-root path.
+
+Persisted geometry is canonical WGS84. `source_coordinate_crs` records import
+provenance only. A legacy/non-canonical `coordinate_crs` may be normalized in
+memory for compatibility, but the linter reports it until the persisted file is
+rewritten as WGS84.
+
+## 8. Office
 
 ~~~yaml
 cr_schema: 2
@@ -131,7 +161,7 @@ external_ids:
 
 Office is first-class because users may need institutional history, rank, jurisdiction, responsibilities and holders over time. Same display name does not imply the same historical Office entity.
 
-## 8. Shared temporal fields
+## 9. Shared temporal fields
 
 Event, Process, Period and Assertion share:
 
@@ -148,7 +178,7 @@ time_end_certainty:
 
 Event may still have duration. Process represents sustained change. Period represents periodization and may have disputed boundaries.
 
-## 9. Assertion
+## 10. Assertion
 
 ~~~yaml
 cr_schema: 2
@@ -185,7 +215,7 @@ value: 武皇帝
 designation_type: posthumous_name
 ~~~
 
-## 10. Citation
+## 11. Citation
 
 ~~~yaml
 cr_schema: 2
@@ -204,7 +234,7 @@ notes:
 
 A Citation may target an Assertion/Claim note or a compact property on an entity through `target_property`.
 
-## 11. Claim
+## 12. Claim
 
 ~~~yaml
 cr_schema: 2
@@ -223,7 +253,7 @@ confidence:
 
 User-authored claims may use `asserted_by: self`.
 
-## 12. Universe, Period and Research Set differ
+## 13. Universe, Period and Research Set differ
 
 - Universe = which reality/fictional world the material belongs to.
 - Period = temporal periodization.
@@ -231,6 +261,6 @@ User-authored claims may use `asserted_by: self`.
 
 Do not overload them onto one field.
 
-## 13. Storage versus semantic model
+## 14. Storage versus semantic model
 
 Markdown is deliberately simpler than the in-memory semantic graph. The semantic layer may normalize Person kinship fields, Assertion notes, provider results and time expressions into a common graph/temporal model without forcing every note to mirror a theoretical knowledge graph exactly.

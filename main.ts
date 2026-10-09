@@ -15,6 +15,7 @@ import { FamilyChartView, VIEW_TYPE_FAMILY_CHART } from './src/ui/views/family-c
 import { MapView, VIEW_TYPE_MAP } from './src/maps/map-view';
 import { StatisticsView, VIEW_TYPE_STATISTICS } from './src/statistics';
 import { CalendarView, VIEW_TYPE_CALENDAR } from './src/calendar/calendar-view';
+import { TemporalTimelineView, VIEW_TYPE_TEMPORAL_TIMELINE } from './src/v2/temporal/ui/temporal-timeline-view';
 import { RelationshipsView, VIEW_TYPE_RELATIONSHIPS } from './src/relationships/ui/relationships-view';
 import { PeopleView, VIEW_TYPE_PEOPLE } from './src/ui/views/people-view';
 import { EventsView, VIEW_TYPE_EVENTS } from './src/dates/ui/events-view';
@@ -32,7 +33,7 @@ import { EvidenceService, ProofSummaryService, SourceService } from './src/sourc
 import { EventService } from './src/events/services/event-service';
 import { OrganizationService } from './src/organizations/services/organization-service';
 import { DateService, createDateService } from './src/dates';
-import { AssertionService, HistoricalDateService, SemanticAssertionService, V2Linter, V2MigrationAnalyzer, V2MigrationExecutor, WorkspaceCatalogService, WorkspaceService, bootstrapWorkspaceFoundation, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type LegacyWorkspaceDerivation, type MigrationExecutionOptions, type MigrationExecutionResult, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry, type WorkspaceCatalog } from './src/v2';
+import { AssertionService, HistoricalControlLayerRepository, HistoricalDateService, SemanticAssertionService, TemporalAssertionStateService, TemporalContextStateService, TemporalFocusService, TemporalInstitutionStateService, TemporalPlaceStateService, TemporalProjectionService, V2Linter, V2MigrationAnalyzer, V2MigrationExecutor, WorkspaceCatalogService, WorkspaceService, bootstrapWorkspaceFoundation, buildMigrationPlan, buildMigrationPreview, createV2OntologyRegistry, relationshipTypeToV2Predicate, validateMigrationPlanFreshness, type LegacyWorkspaceDerivation, type MigrationExecutionOptions, type MigrationExecutionResult, type MigrationPlan, type MigrationPlanValidationResult, type MigrationPreview, type OntologyRegistry, type WorkspaceCatalog } from './src/v2';
 import { TimelineProcessor, RelationshipsProcessor, MediaProcessor, SourceRolesProcessor, TransfersProcessor, MembersProcessor, SourcesProcessor, ExtractionsProcessor, NegativeFindingsProcessor, ResearchTimelineProcessor, UniverseEntitiesProcessor, UniverseMapsProcessor } from './src/dynamic-content';
 import { RecentFilesService, RecentEntityType } from './src/core/recent-files-service';
 import { registerCustomIcons } from './src/ui/lucide-icons';
@@ -49,6 +50,7 @@ import {
 	activateMapView as _activateMapView,
 	activateStatisticsView as _activateStatisticsView,
 	activateCalendarView as _activateCalendarView,
+	activateTemporalTimelineView as _activateTemporalTimelineView,
 	activateRelationshipsView as _activateRelationshipsView,
 	activatePeopleView as _activatePeopleView,
 	activateEventsView as _activateEventsView,
@@ -121,6 +123,13 @@ export default class CanvasRootsPlugin extends Plugin {
 	private v2MigrationExecutor: V2MigrationExecutor | null = null;
 	private v2Linter: V2Linter | null = null;
 	private historicalDateService: HistoricalDateService | null = null;
+	private historicalControlLayerRepository: HistoricalControlLayerRepository | null = null;
+	private temporalProjectionService: TemporalProjectionService | null = null;
+	private temporalAssertionStateService: TemporalAssertionStateService | null = null;
+	private temporalContextStateService: TemporalContextStateService | null = null;
+	private temporalFocusService: TemporalFocusService | null = null;
+	private temporalInstitutionStateService: TemporalInstitutionStateService | null = null;
+	private temporalPlaceStateService: TemporalPlaceStateService | null = null;
 	private workspaceCatalogService: WorkspaceCatalogService | null = null;
 	private workspaceService: WorkspaceService | null = null;
 	private workspaceSetupReview: LegacyWorkspaceDerivation | null = null;
@@ -371,6 +380,19 @@ export default class CanvasRootsPlugin extends Plugin {
 		};
 	}
 
+	private refreshWorkspaceScopedViews(): void {
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_TEMPORAL_TIMELINE)) {
+			if (leaf.view instanceof TemporalTimelineView) {
+				leaf.view.refresh();
+			}
+		}
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_MAP)) {
+			if (leaf.view instanceof MapView) {
+				void leaf.view.refreshWorkspaceScopedData();
+			}
+		}
+	}
+
 	async setActiveWorkspace(id: string): Promise<void> {
 		if (!this.workspaceService) {
 			throw new Error('Workspace setup is required before selecting an active Workspace.');
@@ -383,6 +405,8 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.personIndex?.invalidateCache();
 		this.proofSummaryService?.invalidateCache();
 		this.webClipperService?.resetUnreadCount();
+		this.refreshWorkspaceScopedViews();
+		this.temporalFocusService?.refresh();
 		await this.saveSettings();
 	}
 
@@ -416,6 +440,8 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.personIndex?.invalidateCache();
 		this.proofSummaryService?.invalidateCache();
 		this.webClipperService?.resetUnreadCount();
+		this.refreshWorkspaceScopedViews();
+		this.temporalFocusService?.refresh();
 		await this.saveSettings();
 	}
 
@@ -628,6 +654,126 @@ export default class CanvasRootsPlugin extends Plugin {
 			this.historicalDateService = new HistoricalDateService();
 		}
 		return this.historicalDateService;
+	}
+
+	/**
+	 * Workspace-scoped v2 historical control-layer storage repository.
+	 * The dynamic provider follows Active Workspace changes without rebuilding
+	 * the service instance.
+	 */
+	getHistoricalControlLayerRepository(): HistoricalControlLayerRepository {
+		if (!this.historicalControlLayerRepository) {
+			this.historicalControlLayerRepository =
+				new HistoricalControlLayerRepository(
+					this.app,
+					{
+						fileProvider: () =>
+							this.workspaceService?.getScope().getMarkdownFiles()
+							?? this.app.vault.getMarkdownFiles()
+					}
+				);
+		}
+		return this.historicalControlLayerRepository;
+	}
+
+	/**
+	 * Unified v2 temporal projection over Event, Process, Period and
+	 * time-bounded Assertion notes. The file provider is resolved lazily on
+	 * every read so the same service instance follows the Active Workspace.
+	 */
+	getTemporalProjectionService(): TemporalProjectionService {
+		if (!this.temporalProjectionService) {
+			this.temporalProjectionService = new TemporalProjectionService(
+				this.app,
+				this.getHistoricalDateService(),
+				{
+					fileProvider: () =>
+						this.workspaceService?.getScope().getMarkdownFiles()
+						?? this.app.vault.getMarkdownFiles()
+				}
+			);
+		}
+		return this.temporalProjectionService;
+	}
+
+	/**
+	 * Time-sliced v2 Assertion state for graph/map consumers. The underlying
+	 * projection is Workspace-dynamic, so one service instance follows Active
+	 * Workspace switches without owning another cache.
+	 */
+	getTemporalAssertionStateService(): TemporalAssertionStateService | null {
+		if (!this.temporalAssertionStateService) {
+			const calendar = this.getHistoricalDateService()
+				.getCalendarProvider('tyme');
+			if (!calendar) return null;
+			this.temporalAssertionStateService = new TemporalAssertionStateService(
+				this.getTemporalProjectionService(),
+				calendar
+			);
+		}
+		return this.temporalAssertionStateService;
+	}
+
+	/**
+	 * Active/possible Period and Process context at the shared temporal focus.
+	 * The projection remains Workspace-dynamic through TemporalProjectionService.
+	 */
+	getTemporalContextStateService(): TemporalContextStateService | null {
+		if (!this.temporalContextStateService) {
+			const calendar = this.getHistoricalDateService()
+				.getCalendarProvider('tyme');
+			if (!calendar) return null;
+			this.temporalContextStateService = new TemporalContextStateService(
+				this.getTemporalProjectionService(),
+				calendar
+			);
+		}
+		return this.temporalContextStateService;
+	}
+
+	/**
+	 * Runtime temporal navigation focus shared by Timeline, Relationships and
+	 * future Map integration. This state is intentionally not persisted.
+	 */
+	getTemporalFocusService(): TemporalFocusService {
+		if (!this.temporalFocusService) {
+			this.temporalFocusService = new TemporalFocusService();
+		}
+		return this.temporalFocusService;
+	}
+
+	/**
+	 * Ontology-safe organization/office/affiliation state for graph/profile
+	 * consumers. Classification follows resolved entity types rather than
+	 * hard-coded predicate ids.
+	 */
+	getTemporalInstitutionStateService(): TemporalInstitutionStateService | null {
+		if (!this.temporalInstitutionStateService) {
+			const assertionState = this.getTemporalAssertionStateService();
+			if (!assertionState) return null;
+			this.temporalInstitutionStateService = new TemporalInstitutionStateService(
+				assertionState,
+				this.getV2OntologyRegistry()
+			);
+		}
+		return this.temporalInstitutionStateService;
+	}
+
+	/**
+	 * Ontology-safe place projection for the shared temporal focus. The
+	 * PlaceGraph carries a dynamic Workspace provider and scope key.
+	 */
+	getTemporalPlaceStateService(): TemporalPlaceStateService | null {
+		if (!this.temporalPlaceStateService) {
+			const assertionState = this.getTemporalAssertionStateService();
+			if (!assertionState) return null;
+			this.temporalPlaceStateService = new TemporalPlaceStateService(
+				assertionState,
+				this.getV2OntologyRegistry(),
+				this.createPlaceGraphService()
+			);
+		}
+		return this.temporalPlaceStateService;
 	}
 
 	/**
@@ -960,6 +1106,12 @@ export default class CanvasRootsPlugin extends Plugin {
 		this.registerCRView(
 			VIEW_TYPE_CALENDAR,
 			(leaf) => new CalendarView(leaf, this)
+		);
+
+		// Register v2 historical temporal timeline view
+		this.registerCRView(
+			VIEW_TYPE_TEMPORAL_TIMELINE,
+			(leaf) => new TemporalTimelineView(leaf, this)
 		);
 
 		// Register relationships view
@@ -1701,6 +1853,7 @@ export default class CanvasRootsPlugin extends Plugin {
 	}
 	async activateStatisticsView(): Promise<void> { return _activateStatisticsView(this); }
 	async activateCalendarView(): Promise<void> { return _activateCalendarView(this); }
+	async activateTemporalTimelineView(): Promise<void> { return _activateTemporalTimelineView(this); }
 	async activateRelationshipsView(): Promise<void> { return _activateRelationshipsView(this); }
 	async activatePeopleView(): Promise<void> { return _activatePeopleView(this); }
 	async activateEventsView(): Promise<void> { return _activateEventsView(this); }

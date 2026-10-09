@@ -10,7 +10,8 @@ export const V2_NOTE_TYPES = [
 	'process',
 	'period',
 	'assertion',
-	'claim'
+	'claim',
+	'control_layer'
 ] as const;
 
 export type V2NoteType = typeof V2_NOTE_TYPES[number];
@@ -91,6 +92,19 @@ export interface AssertionFrontmatter extends V2BaseFrontmatter, TemporalFields 
 	confidence?: string;
 	research_status?: string;
 	notes?: string;
+}
+
+export interface ControlLayerFrontmatter extends V2BaseFrontmatter, TemporalFields {
+	cr_type: 'control_layer';
+	name: string;
+	geojson_file: string;
+	/** Persisted geometry datum. Canonical v2 storage is WGS84. */
+	coordinate_crs?: 'wgs84' | 'gcj02' | 'bd09';
+	/** Original import datum retained only as provenance after normalization. */
+	source_coordinate_crs?: 'wgs84' | 'gcj02' | 'bd09';
+	source?: string | string[];
+	confidence?: string;
+	uncertainty?: TemporalCertainty;
 }
 
 /**

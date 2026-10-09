@@ -1,0 +1,236 @@
+/* v2 Temporal Timeline */
+
+.cr-v2-timeline {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	height: 100%;
+	padding: var(--size-4-4);
+	overflow: hidden;
+}
+
+.cr-v2-timeline__header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--size-4-3);
+}
+
+.cr-v2-timeline__title {
+	margin: 0;
+}
+
+.cr-v2-timeline__workspace,
+.cr-v2-timeline__summary,
+.cr-v2-timeline__review-reasons {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.cr-v2-timeline__actions,
+.cr-v2-timeline__controls {
+	display: flex;
+	gap: var(--size-2-1);
+}
+
+.cr-v2-timeline__controls {
+	align-items: center;
+}
+
+.cr-v2-timeline__search {
+	flex: 1 1 16rem;
+	min-width: 8rem;
+}
+
+.cr-v2-timeline__kind-filter,
+.cr-v2-timeline__group-filter {
+	flex: 0 0 auto;
+	min-width: 8rem;
+}
+
+.cr-v2-timeline__results {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	min-height: 0;
+}
+
+.cr-v2-timeline__viewport {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+}
+
+.cr-v2-timeline__svg {
+	display: block;
+	min-width: 100%;
+}
+
+.cr-v2-timeline__axis-line,
+.cr-v2-timeline__tick-mark,
+.cr-v2-timeline__grid-line {
+	stroke: var(--background-modifier-border);
+	shape-rendering: crispedges;
+}
+
+.cr-v2-timeline__grid-line {
+	stroke-opacity: 45%;
+}
+
+.cr-v2-timeline__tick-label,
+.cr-v2-timeline__item-label {
+	fill: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.cr-v2-timeline__item-label {
+	fill: var(--text-normal);
+}
+
+.cr-v2-timeline__lane-label {
+	fill: var(--text-accent);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+}
+
+.cr-v2-timeline__window-label {
+	font-style: italic;
+}
+
+.cr-v2-timeline__span {
+	fill: var(--interactive-accent);
+	stroke: var(--interactive-accent);
+	stroke-width: 1;
+	cursor: pointer;
+}
+
+.cr-v2-timeline__span:hover {
+	stroke-width: 2;
+}
+
+.cr-v2-timeline__span--period {
+	fill: none;
+	stroke-width: 2;
+}
+
+.cr-v2-timeline__span--assertion {
+	stroke-dasharray: 4 2;
+}
+
+.cr-v2-timeline__window {
+	fill: var(--background-secondary-alt);
+	fill-opacity: 35%;
+	stroke: var(--text-muted);
+	stroke-dasharray: 5 3;
+	stroke-width: 1;
+	cursor: pointer;
+}
+
+.cr-v2-timeline__window:hover {
+	stroke-width: 2;
+}
+
+.cr-v2-timeline__window[data-open-start='true'],
+.cr-v2-timeline__window[data-open-end='true'] {
+	stroke-dasharray: 2 3;
+}
+
+.cr-v2-timeline__empty {
+	padding: var(--size-4-6);
+	color: var(--text-muted);
+	text-align: center;
+}
+
+.cr-v2-timeline__review {
+	flex: 0 0 auto;
+	max-height: 30%;
+	overflow: auto;
+	border-top: 1px solid var(--background-modifier-border);
+	padding-top: var(--size-4-2);
+}
+
+.cr-v2-timeline__review-list {
+	margin-bottom: 0;
+}
+
+.cr-v2-timeline__review-title {
+	color: var(--text-normal);
+	font-weight: var(--font-medium);
+}
+
+
+.cr-v2-timeline__focus-line {
+	stroke: var(--interactive-accent);
+	stroke-width: 1.5;
+	stroke-dasharray: 3 2;
+	pointer-events: none;
+}
+
+.cr-v2-timeline__focus-label {
+	fill: var(--text-accent);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-medium);
+	pointer-events: none;
+}
+
+.cr-v2-timeline__focus-range {
+	fill: var(--interactive-accent);
+	fill-opacity: 10%;
+	stroke: var(--interactive-accent);
+	stroke-opacity: 50%;
+	pointer-events: none;
+}
+
+
+.cr-v2-timeline__context {
+	display: flex;
+	flex: 0 0 auto;
+	flex-direction: column;
+	gap: var(--size-2-1);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	padding: var(--size-2-2) var(--size-4-2);
+	background: var(--background-secondary);
+}
+
+.cr-v2-timeline__context-heading {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--size-4-2);
+}
+
+.cr-v2-timeline__context-title {
+	font-weight: var(--font-semibold);
+}
+
+.cr-v2-timeline__context-summary,
+.cr-v2-timeline__context-empty,
+.cr-v2-timeline__context-kind,
+.cr-v2-timeline__context-state {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.cr-v2-timeline__context-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-2-1);
+}
+
+.cr-v2-timeline__context-item {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	max-width: 100%;
+}
+
+.cr-v2-timeline__context-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

@@ -32,6 +32,7 @@ export type NoteType =
 	| 'period'
 	| 'assertion'
 	| 'claim'
+	| 'control_layer'
 	| 'schema'
 	| 'universe'
 	| 'proof_summary'
@@ -61,6 +62,7 @@ export const ALL_NOTE_TYPES: readonly NoteType[] = [
 	'period',
 	'assertion',
 	'claim',
+	'control_layer',
 	'schema',
 	'universe',
 	'proof_summary',

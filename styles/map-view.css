@@ -2271,3 +2271,121 @@ svg.leaflet-image-layer.leaflet-interactive path {
 .cr-region-handle--nwse-resize {
   cursor: nwse-resize;
 }
+
+
+/* v2 temporal focus place overlay */
+
+.cr-temporal-place-marker-icon {
+	background: transparent;
+	border: 0;
+}
+
+.cr-temporal-place-marker__dot {
+	width: 14px;
+	height: 14px;
+	margin: 2px;
+	border: 2px solid var(--interactive-accent);
+	border-radius: 50%;
+	background: var(--interactive-accent);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+}
+
+.cr-temporal-place-marker-icon--possible .cr-temporal-place-marker__dot {
+	background: var(--background-primary);
+	border-style: dashed;
+	opacity: 0.85;
+}
+
+.cr-temporal-place-popup {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-1);
+	min-width: 10rem;
+}
+
+.cr-temporal-place-popup button {
+	margin-top: var(--size-2-1);
+}
+
+
+/* Shared temporal Period / Process context overlay */
+.cr-map-temporal-context {
+	position: absolute;
+	top: var(--size-4-3);
+	left: 3.25rem;
+	z-index: 1001;
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-1);
+	max-width: min(24rem, calc(100% - 4.5rem));
+	padding: var(--size-2-2) var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: color-mix(in srgb, var(--background-primary) 92%, transparent);
+	box-shadow: var(--shadow-s);
+	backdrop-filter: blur(6px);
+	pointer-events: auto;
+}
+
+.cr-map-temporal-context__heading {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--size-4-2);
+}
+
+.cr-map-temporal-context__title {
+	font-weight: var(--font-semibold);
+}
+
+.cr-map-temporal-context__summary,
+.cr-map-temporal-context__empty,
+.cr-map-temporal-context__kind,
+.cr-map-temporal-context__state {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.cr-map-temporal-context__list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-2-1);
+}
+
+.cr-map-temporal-context__item {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	max-width: 100%;
+	padding: var(--size-2-1) var(--size-2-2);
+}
+
+.cr-map-temporal-context__label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.cr-map-temporal-context__item[data-temporal-state='possible'] {
+	border-style: dashed;
+}
+
+.cr-phone .cr-map-temporal-context {
+	top: var(--size-4-2);
+	left: var(--size-4-2);
+	right: var(--size-4-2);
+	max-width: none;
+}
+
+
+/* M6 historical GeoJSON control layers */
+.cr-historical-control-feature[data-temporal-state='possible'] {
+	stroke-dasharray: 7 5;
+}
+
+.cr-historical-control-popup {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-1);
+	min-width: 10rem;
+}

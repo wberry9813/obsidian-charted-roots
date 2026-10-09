@@ -19,6 +19,7 @@ import { PersonPickerModal } from '../ui/person-picker';
 import { PlacePickerModal, SelectedPlaceInfo } from '../ui/place-picker';
 import { UniverseSyncModal } from './ui/universe-sync-modal';
 import { GeocodingService } from './services/geocoding-service';
+import { MapTemporalFocusBridge } from './services/map-temporal-focus-bridge';
 import { PlaceCategory, UNIVERSE_CATEGORIES } from '../models/place';
 import type {
 	MapFilters,
@@ -32,6 +33,25 @@ import type {
 	JourneyWaypoint
 } from './types/map-types';
 import { getJourneyWaypointEventLabel, parseYearFilterValue } from './types/map-types';
+import {
+	buildTemporalMapOverlay,
+	type TemporalMapOverlayMarker
+} from '../v2/temporal/temporal-map-overlay';
+import {
+	isChronologyYearFocus,
+	isJulianDayFocus,
+	type TemporalFocus
+} from '../v2/temporal/temporal-focus-service';
+import {
+	applyFocusedHistoricalPlaceNames,
+	CanonicalCoordinateService,
+	canonicalizeHistoricalControlLayer,
+	GcoordCoordinateTransformProvider,
+	HistoricalControlLayerStateService,
+	PlaceDesignationService,
+	type CanonicalHistoricalControlLayer,
+	type HistoricalControlLayerDefinition
+} from '../v2/maps';
 
 const logger = getLogger('MapView');
 
@@ -66,6 +86,14 @@ export class MapView extends ItemView {
 	// Controllers and services
 	private mapController: MapController | null = null;
 	private dataService: MapDataService;
+	private temporalOverlayLayer: L.LayerGroup | null = null;
+	private temporalOverlayMap: L.Map | null = null;
+	private temporalFocusUnsubscribe: (() => void) | null = null;
+	private historicalControlLayers: CanonicalHistoricalControlLayer[] = [];
+	private historicalControlStateService: HistoricalControlLayerStateService | null = null;
+	private readonly controlLayerCoordinates = new CanonicalCoordinateService(
+		new GcoordCoordinateTransformProvider()
+	);
 
 	// UI elements
 	private toolbarEl: HTMLElement | null = null;
@@ -146,6 +174,79 @@ export class MapView extends ItemView {
 		super(leaf);
 		this.plugin = plugin;
 		this.dataService = new MapDataService(plugin);
+		const calendar = plugin.getHistoricalDateService().getCalendarProvider('tyme');
+		if (calendar) {
+			this.historicalControlStateService =
+				new HistoricalControlLayerStateService(
+					plugin.getHistoricalDateService(),
+					calendar
+				);
+		}
+	}
+
+	/**
+	 * Runtime/import boundary for historical geographic control layers.
+	 * Incoming geometry is normalized once to canonical WGS84; storage/import
+	 * UI can later call the same API without changing render semantics.
+	 */
+	setHistoricalControlLayers(
+		layers: readonly HistoricalControlLayerDefinition[]
+	): void {
+		this.historicalControlLayers = layers.map(layer =>
+			canonicalizeHistoricalControlLayer(
+				layer,
+				this.controlLayerCoordinates
+			)
+		);
+		this.renderHistoricalControlLayers(
+			this.plugin.getTemporalFocusService().get()
+		);
+	}
+
+	getHistoricalControlLayers(): readonly CanonicalHistoricalControlLayer[] {
+		return this.historicalControlLayers;
+	}
+
+	/**
+	 * Reload persisted control-layer manifests/GeoJSON for the Active Workspace.
+	 * Ordinary map filtering does not call this; storage is re-read only when
+	 * Workspace or layer assets change.
+	 */
+	async refreshHistoricalControlLayers(): Promise<void> {
+		const result = await this.plugin
+			.getHistoricalControlLayerRepository()
+			.loadAll();
+		this.historicalControlLayers = result.layers;
+
+		if (this.mapContainerEl) {
+			this.mapContainerEl.dataset.controlLayerIssueCount =
+				String(result.issues.length);
+		}
+		if (result.issues.length > 0) {
+			logger.warn(
+				'control-layer-storage',
+				'Historical control-layer storage issues detected',
+				{
+					issues: result.issues.map(issue => ({
+						code: issue.code,
+						manifestPath: issue.manifestPath,
+						geojsonPath: issue.geojsonPath
+					}))
+				}
+			);
+		}
+
+		this.renderHistoricalControlLayers(
+			this.plugin.getTemporalFocusService().get()
+		);
+	}
+
+	/**
+	 * Refresh every Map dataset whose boundary is the Active Workspace.
+	 */
+	async refreshWorkspaceScopedData(): Promise<void> {
+		await this.refreshHistoricalControlLayers();
+		await this.refreshData();
 	}
 
 	getViewType(): string {
@@ -171,6 +272,14 @@ export class MapView extends ItemView {
 
 		// Initialize map
 		await this.initializeMap();
+
+		// Load Workspace-scoped persisted historical control layers before
+		// binding shared focus so the first temporal render is complete.
+		await this.refreshHistoricalControlLayers();
+
+		// Shared Timeline/Relationships temporal focus drives a read-only
+		// place-state overlay without mutating the legacy Map data model.
+		this.bindTemporalFocus();
 
 		// Register event handlers
 		this.registerEventHandlers();
@@ -208,6 +317,9 @@ export class MapView extends ItemView {
 
 	async onClose(): Promise<void> {
 		logger.debug('view-close', 'Closing MapView');
+		this.unbindTemporalFocus();
+		this.clearTemporalOverlay();
+		this.mapController?.renderHistoricalControlFeatures([]);
 		this.destroyMap();
 	}
 
@@ -1320,7 +1432,7 @@ export class MapView extends ItemView {
 		slider.addEventListener('input', () => {
 			this.timeSlider.currentYear = parseInt(slider.value);
 			this.updateTimeSliderDisplay();
-			this.applyTimeFilter();
+			this.applyTimeFilter(undefined, undefined, true);
 		});
 
 		// Controls row
@@ -1581,7 +1693,11 @@ export class MapView extends ItemView {
 				if (isPixelCRS && m.pixelX !== undefined && m.pixelY !== undefined) {
 					points.push([m.pixelY, m.pixelX]);
 				} else if (m.lat !== undefined && m.lng !== undefined) {
-					points.push([m.lat, m.lng]);
+					const display = this.mapController.canonicalGeographicToMapLatLng(
+						m.lat,
+						m.lng
+					);
+					points.push([display.lat, display.lng]);
 				}
 			}
 			if (points.length > 0) {
@@ -1799,7 +1915,11 @@ export class MapView extends ItemView {
 		if (isPixelCRS && hasPixel) {
 			target = [waypoint.pixelY!, waypoint.pixelX!];
 		} else if (hasLatLng) {
-			target = [waypoint.lat, waypoint.lng];
+			const display = this.mapController.canonicalGeographicToMapLatLng(
+				waypoint.lat,
+				waypoint.lng
+			);
+			target = [display.lat, display.lng];
 		}
 
 		if (target) {
@@ -2078,14 +2198,21 @@ export class MapView extends ItemView {
 		}
 
 		if (this.timeSlider.enabled) {
-			// Update slider range from data
+			// Update slider range from data.
 			this.updateTimeSliderRange();
-			// Apply initial filter
-			this.applyTimeFilter();
+			// An explicit Map time action may publish shared focus when the
+			// legacy year has a safe chronology bridge.
+			this.applyTimeFilter(undefined, undefined, true);
 		} else {
-			// Stop animation if running
 			this.stopAnimation();
-			// Show all markers
+			const focusService = this.plugin.getTemporalFocusService();
+			if (focusService.get()?.source === 'map-time-slider') {
+				focusService.clear();
+			}
+			if (this.mapContainerEl) {
+				delete this.mapContainerEl.dataset.mapTemporalBridgeStatus;
+				delete this.mapContainerEl.dataset.mapTemporalBridgeReason;
+			}
 			this.showAllMarkers();
 		}
 	}
@@ -2195,8 +2322,15 @@ export class MapView extends ItemView {
 	/**
 	 * Apply time filter to show/hide markers
 	 */
-	private applyTimeFilter(): void {
+	private applyTimeFilter(
+		focus: TemporalFocus | null = this.plugin.getTemporalFocusService().get(),
+		displayData?: MapData,
+		syncSharedFocus = false
+	): void {
 		if (!this.mapController || !this.currentMapData) return;
+
+		const focusedData = displayData
+			?? this.buildFocusedHistoricalMapData(this.currentMapData, focus);
 
 		// Get IDs of people visible for current year
 		const visiblePersonIds = new Set<string>();
@@ -2206,18 +2340,81 @@ export class MapView extends ItemView {
 			}
 		}
 
-		// Filter markers
-		const filteredMarkers = this.currentMapData.markers.filter(m => visiblePersonIds.has(m.personId));
+		const filteredMarkers = focusedData.markers.filter(
+			m => visiblePersonIds.has(m.personId)
+		);
+		const filteredPaths = focusedData.paths.filter(
+			p => visiblePersonIds.has(p.personId)
+		);
+		const filteredJourneys = focusedData.journeyPaths.filter(
+			journey => visiblePersonIds.has(journey.personId)
+		);
 
-		// Filter paths (both endpoints must be visible)
-		const filteredPaths = this.currentMapData.paths.filter(p => visiblePersonIds.has(p.personId));
+		this.mapController.setFilteredData(
+			filteredMarkers,
+			filteredPaths,
+			filteredJourneys,
+			focusedData.placeMarkers,
+			focusedData
+		);
 
-		// Update map controller with filtered data
-		this.mapController.setFilteredData(filteredMarkers, filteredPaths);
-
-		// Update display
 		this.updateTimeSliderDisplay();
 		this.updateStatusBar(filteredMarkers.length, filteredPaths.length);
+		if (syncSharedFocus) {
+			this.syncMapTimeSliderToSharedFocus();
+		}
+	}
+
+	private syncMapTimeSliderToSharedFocus(): void {
+		const legacyDates = this.plugin.getDateService();
+		const focusService = this.plugin.getTemporalFocusService();
+		if (!legacyDates) {
+			focusService.clear();
+			if (this.mapContainerEl) {
+				this.mapContainerEl.dataset.mapTemporalBridgeStatus = 'unsupported';
+				this.mapContainerEl.dataset.mapTemporalBridgeReason =
+					'date_service_unavailable';
+			}
+			return;
+		}
+
+		const result = new MapTemporalFocusBridge(
+			legacyDates,
+			this.plugin.getHistoricalDateService(),
+			this.plugin.settings.legacyNegativeYearSemantics ?? 'reject'
+		).resolveYear(
+			this.timeSlider.currentYear,
+			this.filters.universe
+		);
+
+		if (this.mapContainerEl) {
+			this.mapContainerEl.dataset.mapTemporalBridgeStatus = result.status;
+			this.mapContainerEl.dataset.mapTemporalBridgeReason =
+				result.status === 'unsupported' ? result.reason : '';
+			this.mapContainerEl.dataset.mapTemporalBridgeAxis =
+				result.status === 'resolved' ? result.axis.kind : '';
+		}
+
+		if (result.status === 'resolved') {
+			if (result.axis.kind === 'julian_day') {
+				focusService.setRange(
+					result.start,
+					result.endExclusive,
+					'map-time-slider'
+				);
+			} else {
+				focusService.setAxisRange(
+					result.start,
+					result.endExclusive,
+					result.axis,
+					'map-time-slider'
+				);
+			}
+		} else {
+			// The Map time action now owns navigation but cannot safely map to
+			// the shared axis. Clear stale focus instead of mixing chronologies.
+			focusService.clear();
+		}
 	}
 
 	/**
@@ -2226,8 +2423,16 @@ export class MapView extends ItemView {
 	private showAllMarkers(): void {
 		if (!this.mapController || !this.currentMapData) return;
 
-		this.mapController.setData(this.currentMapData);
-		this.updateStatusBar(this.currentMapData.markers.length, this.currentMapData.paths.length);
+		const focus = this.plugin.getTemporalFocusService().get();
+		const displayData = this.buildFocusedHistoricalMapData(
+			this.currentMapData,
+			focus
+		);
+		this.mapController.setDisplayData(displayData);
+		this.updateStatusBar(
+			this.currentMapData.markers.length,
+			this.currentMapData.paths.length
+		);
 	}
 
 	/**
@@ -2270,7 +2475,7 @@ export class MapView extends ItemView {
 				slider.value = String(this.timeSlider.currentYear);
 			}
 
-			this.applyTimeFilter();
+			this.applyTimeFilter(undefined, undefined, true);
 			this.animationInterval = window.setTimeout(tick, this.timeSlider.speed);
 		};
 		this.animationInterval = window.setTimeout(tick, this.timeSlider.speed);
@@ -2297,6 +2502,403 @@ export class MapView extends ItemView {
 		if (playBtn) {
 			playBtn.textContent = this.timeSlider.isPlaying ? '⏸' : '▶';
 		}
+	}
+
+	// =========================================================================
+	// Temporal place-state overlay
+	// =========================================================================
+
+	private buildFocusedHistoricalMapData(
+		data: MapData,
+		focus: TemporalFocus | null
+	): MapData {
+		if (!isJulianDayFocus(focus)) return data;
+		const temporalAssertions =
+			this.plugin.getTemporalAssertionStateService();
+		if (!temporalAssertions) return data;
+
+		const placeIds = new Set<string>();
+		for (const marker of data.markers) {
+			if (marker.placeId) placeIds.add(marker.placeId);
+		}
+		for (const marker of data.placeMarkers) {
+			placeIds.add(marker.placeId);
+		}
+		for (const journey of data.journeyPaths) {
+			for (const waypoint of journey.waypoints) {
+				if (waypoint.placeId) placeIds.add(waypoint.placeId);
+			}
+		}
+		if (placeIds.size === 0) return data;
+
+		const designationService = new PlaceDesignationService(
+			temporalAssertions
+		);
+		const ids = [...placeIds];
+		const snapshots = focus.kind === 'point'
+			? designationService.getAtMany(ids, focus.position)
+			: designationService.getRangeMany(ids, {
+				start: focus.start,
+				endExclusive: focus.endExclusive
+			});
+
+		return applyFocusedHistoricalPlaceNames(data, snapshots);
+	}
+
+	private renderFocusedHistoricalPlaceNames(
+		focus: TemporalFocus | null
+	): void {
+		if (!this.mapController || !this.currentMapData) return;
+		const displayData = this.buildFocusedHistoricalMapData(
+			this.currentMapData,
+			focus
+		);
+		if (this.timeSlider.enabled) {
+			this.applyTimeFilter(focus, displayData);
+			return;
+		}
+		this.mapController.setDisplayData(displayData);
+	}
+
+	/**
+	 * Follow a shared fictional chronology focus back into the legacy Map
+	 * slider. The Map slider is a whole-year control, so only the explicit
+	 * chronology bridge may update it; JDN focus is intentionally ignored.
+	 */
+	private syncSharedChronologyFocusToTimeSlider(
+		focus: TemporalFocus | null
+	): void {
+		if (
+			!this.timeSlider.enabled
+			|| !this.currentMapData
+			|| focus?.source === 'map-time-slider'
+			|| !isChronologyYearFocus(focus)
+		) {
+			return;
+		}
+
+		const legacyDates = this.plugin.getDateService();
+		if (!legacyDates) return;
+
+		const result = new MapTemporalFocusBridge(
+			legacyDates,
+			this.plugin.getHistoricalDateService(),
+			this.plugin.settings.legacyNegativeYearSemantics ?? 'reject'
+		).resolveFocusYear(focus, this.filters.universe);
+		if (result.status !== 'resolved') return;
+
+		const { min, max } = this.currentMapData.yearRange;
+		if (result.year < min || result.year > max) return;
+
+		this.timeSlider.currentYear = result.year;
+		const slider = this.timeSliderContainerEl?.querySelector(
+			'.cr-map-time-slider'
+		);
+		if (slider instanceof HTMLInputElement) {
+			slider.value = String(result.year);
+		}
+
+		if (this.mapContainerEl) {
+			this.mapContainerEl.dataset.mapTemporalFollowAxis = 'chronology_year';
+			this.mapContainerEl.dataset.mapTemporalFollowYear = String(result.year);
+		}
+	}
+
+	private bindTemporalFocus(): void {
+		this.unbindTemporalFocus();
+		const focusService = this.plugin.getTemporalFocusService();
+		this.temporalFocusUnsubscribe = focusService.subscribe(focus => {
+			this.syncSharedChronologyFocusToTimeSlider(focus);
+			this.renderFocusedHistoricalPlaceNames(focus);
+			this.renderTemporalPlaceOverlay(focus);
+			this.renderTemporalContextOverlay(focus);
+			this.renderHistoricalControlLayers(focus);
+		});
+		const focus = focusService.get();
+		this.syncSharedChronologyFocusToTimeSlider(focus);
+		this.renderFocusedHistoricalPlaceNames(focus);
+		this.renderTemporalPlaceOverlay(focus);
+		this.renderTemporalContextOverlay(focus);
+		this.renderHistoricalControlLayers(focus);
+	}
+
+	private unbindTemporalFocus(): void {
+		this.temporalFocusUnsubscribe?.();
+		this.temporalFocusUnsubscribe = null;
+	}
+
+	private renderHistoricalControlLayers(
+		focus: TemporalFocus | null
+	): void {
+		if (!this.mapController || !this.historicalControlStateService) return;
+
+		if (this.mapController.getCurrentCRS() !== 'geographic') {
+			this.mapController.renderHistoricalControlFeatures([]);
+			if (this.mapContainerEl) {
+				this.mapContainerEl.dataset.controlLayerActiveCount = '0';
+				this.mapContainerEl.dataset.controlLayerPossibleCount = '0';
+			}
+			return;
+		}
+
+		const universe = this.filters.universe;
+		const historicalFocus = isJulianDayFocus(focus) ? focus : null;
+		const snapshot = !historicalFocus
+			? this.historicalControlStateService.getWithoutFocus(
+				this.historicalControlLayers,
+				universe
+			)
+			: historicalFocus.kind === 'point'
+				? this.historicalControlStateService.getAt(
+					this.historicalControlLayers,
+					historicalFocus.position,
+					universe
+				)
+				: this.historicalControlStateService.getRange(
+					this.historicalControlLayers,
+					{
+						start: historicalFocus.start,
+						endExclusive: historicalFocus.endExclusive
+					},
+					universe
+				);
+
+		this.mapController.renderHistoricalControlFeatures([
+			...snapshot.active,
+			...snapshot.possible
+		]);
+		if (this.mapContainerEl) {
+			this.mapContainerEl.dataset.controlLayerActiveCount =
+				String(snapshot.active.length);
+			this.mapContainerEl.dataset.controlLayerPossibleCount =
+				String(snapshot.possible.length);
+		}
+	}
+
+	private ensureTemporalOverlayLayer(): L.LayerGroup | null {
+		const map = this.mapController?.getLeafletMap() ?? null;
+		if (!map) return null;
+
+		if (
+			this.temporalOverlayLayer
+			&& this.temporalOverlayMap === map
+		) {
+			return this.temporalOverlayLayer;
+		}
+
+		if (
+			this.temporalOverlayLayer
+			&& this.temporalOverlayMap
+			&& this.temporalOverlayMap.hasLayer(this.temporalOverlayLayer)
+		) {
+			this.temporalOverlayMap.removeLayer(this.temporalOverlayLayer);
+		}
+
+		this.temporalOverlayMap = map;
+		this.temporalOverlayLayer = L.layerGroup().addTo(map);
+		return this.temporalOverlayLayer;
+	}
+
+	private clearTemporalOverlay(): void {
+		this.temporalOverlayLayer?.clearLayers();
+		if (
+			this.temporalOverlayLayer
+			&& this.temporalOverlayMap
+			&& this.temporalOverlayMap.hasLayer(this.temporalOverlayLayer)
+		) {
+			this.temporalOverlayMap.removeLayer(this.temporalOverlayLayer);
+		}
+		this.temporalOverlayLayer = null;
+		this.temporalOverlayMap = null;
+		if (this.mapContainerEl) {
+			delete this.mapContainerEl.dataset.temporalFocusKind;
+			this.mapContainerEl.dataset.temporalMarkerCount = '0';
+			this.mapContainerEl.dataset.temporalActiveCount = '0';
+			this.mapContainerEl.dataset.temporalPossibleCount = '0';
+			this.mapContainerEl.querySelector('.cr-map-temporal-context')?.remove();
+		}
+	}
+
+	private renderTemporalPlaceOverlay(focus: TemporalFocus | null): void {
+		const layer = this.ensureTemporalOverlayLayer();
+		if (!layer) return;
+		layer.clearLayers();
+
+		if (this.mapContainerEl) {
+			this.mapContainerEl.dataset.temporalFocusKind = focus?.kind ?? '';
+			this.mapContainerEl.dataset.temporalMarkerCount = '0';
+			this.mapContainerEl.dataset.temporalActiveCount = '0';
+			this.mapContainerEl.dataset.temporalPossibleCount = '0';
+		}
+
+		if (!isJulianDayFocus(focus) || !this.mapController) return;
+
+		const placeState = this.plugin.getTemporalPlaceStateService();
+		if (!placeState) return;
+
+		const snapshot = focus.kind === 'point'
+			? placeState.getAt(focus.position)
+			: placeState.getRange({
+				start: focus.start,
+				endExclusive: focus.endExclusive
+			});
+
+		const markers = buildTemporalMapOverlay(snapshot, {
+			crs: this.mapController.getCurrentCRS(),
+			activeMapId: this.mapController.getActiveMapId(),
+			...(this.filters.universe
+				? { universe: this.filters.universe }
+				: {})
+		});
+
+		for (const markerData of markers) {
+			layer.addLayer(this.createTemporalPlaceMarker(markerData));
+		}
+
+		if (this.mapContainerEl) {
+			this.mapContainerEl.dataset.temporalMarkerCount = String(markers.length);
+			this.mapContainerEl.dataset.temporalActiveCount = String(
+				markers.filter(marker => marker.state === 'active').length
+			);
+			this.mapContainerEl.dataset.temporalPossibleCount = String(
+				markers.filter(marker => marker.state === 'possible').length
+			);
+		}
+	}
+
+	private renderTemporalContextOverlay(
+		focus: TemporalFocus | null
+	): void {
+		if (!this.mapContainerEl) return;
+
+		this.mapContainerEl.querySelector('.cr-map-temporal-context')?.remove();
+		if (!isJulianDayFocus(focus)) return;
+
+		const service = this.plugin.getTemporalContextStateService();
+		if (!service) return;
+
+		const snapshot = focus.kind === 'point'
+			? service.getAt(focus.position)
+			: service.getRange({
+				start: focus.start,
+				endExclusive: focus.endExclusive
+			});
+
+		const panel = this.mapContainerEl.createDiv({
+			cls: 'cr-map-temporal-context'
+		});
+		panel.setAttribute('data-active-count', String(snapshot.active.length));
+		panel.setAttribute('data-possible-count', String(snapshot.possible.length));
+
+		const heading = panel.createDiv({
+			cls: 'cr-map-temporal-context__heading'
+		});
+		heading.createSpan({
+			text: 'Context',
+			cls: 'cr-map-temporal-context__title'
+		});
+		heading.createSpan({
+			text: `${snapshot.active.length} active · ${snapshot.possible.length} possible`,
+			cls: 'cr-map-temporal-context__summary'
+		});
+
+		if (snapshot.active.length === 0 && snapshot.possible.length === 0) {
+			panel.createDiv({
+				text: 'No Period or Process context at this focus.',
+				cls: 'cr-map-temporal-context__empty'
+			});
+			return;
+		}
+
+		const list = panel.createDiv({
+			cls: 'cr-map-temporal-context__list'
+		});
+		for (const entry of [...snapshot.active, ...snapshot.possible]) {
+			const button = list.createEl('button', {
+				cls: 'cr-map-temporal-context__item'
+			});
+			button.setAttribute('data-context-id', entry.id);
+			button.setAttribute('data-context-kind', entry.kind);
+			button.setAttribute('data-temporal-state', entry.state);
+			button.createSpan({
+				text: entry.kind === 'period' ? 'Period' : 'Process',
+				cls: 'cr-map-temporal-context__kind'
+			});
+			button.createSpan({
+				text: entry.title,
+				cls: 'cr-map-temporal-context__label'
+			});
+			if (entry.state === 'possible') {
+				button.createSpan({
+					text: 'possible',
+					cls: 'cr-map-temporal-context__state'
+				});
+			}
+			button.addEventListener('click', () => {
+				void this.app.workspace.getLeaf(false).openFile(entry.item.file);
+			});
+		}
+	}
+
+	private createTemporalPlaceMarker(
+		data: TemporalMapOverlayMarker
+	): L.Marker {
+		let coords: L.LatLngExpression;
+		if (data.coordinate.kind === 'geographic' && this.mapController) {
+			const display = this.mapController.canonicalGeographicToMapLatLng(
+				data.coordinate.lat,
+				data.coordinate.long
+			);
+			coords = [display.lat, display.lng];
+		} else if (data.coordinate.kind === 'geographic') {
+			coords = [data.coordinate.lat, data.coordinate.long];
+		} else {
+			coords = [data.coordinate.y, data.coordinate.x];
+		}
+
+		const icon = L.divIcon({
+			className: `cr-temporal-place-marker-icon cr-temporal-place-marker-icon--${data.state}`,
+			html: '<div class="cr-temporal-place-marker__dot"></div>',
+			iconSize: [18, 18],
+			iconAnchor: [9, 9]
+		});
+
+		const marker = L.marker(coords, {
+			icon,
+			zIndexOffset: 2200
+		});
+
+		marker.on('add', () => {
+			const element = marker.getElement();
+			element?.setAttribute('data-temporal-place-id', data.placeCrId);
+			element?.setAttribute('data-temporal-state', data.state);
+			element?.setAttribute('data-assertion-id', data.assertionId);
+		});
+
+		const popup = document.createElement('div');
+		popup.className = 'cr-temporal-place-popup';
+		const title = document.createElement('strong');
+		title.textContent = data.placeName;
+		popup.appendChild(title);
+		const detail = document.createElement('div');
+		detail.textContent = `${data.state === 'active' ? 'Active' : 'Possible'} · ${data.predicate}`;
+		popup.appendChild(detail);
+		const subject = document.createElement('div');
+		subject.textContent = data.subject;
+		popup.appendChild(subject);
+		const openButton = document.createElement('button');
+		openButton.type = 'button';
+		openButton.textContent = 'Open place';
+		openButton.addEventListener('click', () => {
+			const file = this.app.vault.getFileByPath(data.placeFilePath);
+			if (file) {
+				void this.app.workspace.getLeaf(false).openFile(file);
+			}
+		});
+		popup.appendChild(openButton);
+		marker.bindPopup(popup);
+
+		return marker;
 	}
 
 	// =========================================================================
@@ -2362,6 +2964,9 @@ export class MapView extends ItemView {
 
 				// Refresh data with new universe filter
 				void this.refreshData();
+				const temporalFocus = this.plugin.getTemporalFocusService().get();
+				this.renderTemporalPlaceOverlay(temporalFocus);
+				this.renderTemporalContextOverlay(temporalFocus);
 			});
 
 			// Register edit mode change callback
@@ -2417,6 +3022,20 @@ export class MapView extends ItemView {
 	}
 
 	/**
+	 * Apply global real-world basemap settings to an already-open Map view.
+	 * Marker/path data is then re-rendered through the new datum adapter.
+	 */
+	async refreshGeographicBasemapSettings(): Promise<void> {
+		if (!this.mapController) return;
+		this.mapController.updateGeographicBasemapSettings({
+			geographicBasemapId: this.plugin.settings.geographicBasemapId,
+			customGeographicBasemaps:
+				this.plugin.settings.customGeographicBasemaps ?? []
+		});
+		await this.refreshData();
+	}
+
+	/**
 	 * Refresh map data based on current filters
 	 * @param forceRefresh If true, read directly from files instead of metadata cache
 	 */
@@ -2429,15 +3048,22 @@ export class MapView extends ItemView {
 			// Get data from service (force refresh bypasses metadata cache)
 			const data = await this.dataService.getMapData(this.filters, forceRefresh);
 
-			// Store current map data for time slider
+			// Store canonical/source map data for time slider and exports.
 			this.currentMapData = data;
 
-			// Update map with new data (or filtered if time slider is active)
+			const temporalFocus =
+				this.plugin.getTemporalFocusService().get();
+			const displayData = this.buildFocusedHistoricalMapData(
+				data,
+				temporalFocus
+			);
+
+			// Update map with new data (or filtered if time slider is active).
 			if (this.timeSlider.enabled) {
 				this.updateTimeSliderRange();
-				this.applyTimeFilter();
+				this.applyTimeFilter(temporalFocus, displayData);
 			} else {
-				this.mapController.setData(data);
+				this.mapController.setData(data, displayData);
 				this.updateStatusBar(data.markers.length, data.paths.length);
 			}
 
@@ -2445,6 +3071,10 @@ export class MapView extends ItemView {
 
 			// Update collection dropdown
 			this.updateCollectionDropdown(data.collections);
+
+			this.renderTemporalPlaceOverlay(temporalFocus);
+			this.renderTemporalContextOverlay(temporalFocus);
+			this.renderHistoricalControlLayers(temporalFocus);
 
 			logger.debug('refresh-complete', 'Map data refreshed', {
 				markers: data.markers.length,
@@ -2615,10 +3245,73 @@ export class MapView extends ItemView {
 		this.registerEvent(
 			this.plugin.app.metadataCache.on('changed', (file) => {
 				// Only refresh if a person or place note changed
+				const frontmatter = this.plugin.app.metadataCache
+					.getFileCache(file)?.frontmatter;
+				const crType = frontmatter?.cr_type;
+
+				if (crType === 'place') {
+					void this.plugin.getTemporalPlaceStateService()
+						?.refreshPlaces()
+						.then(() => {
+							this.renderTemporalPlaceOverlay(
+								this.plugin.getTemporalFocusService().get()
+							);
+						});
+				} else if (crType === 'assertion') {
+					this.renderTemporalPlaceOverlay(
+						this.plugin.getTemporalFocusService().get()
+					);
+				} else if (crType === 'control_layer') {
+					void this.refreshHistoricalControlLayers();
+				}
+
 				if (this.isRelevantFile(file.path)) {
 					logger.debug('metadata-changed', `Refreshing map due to change in ${file.path}`);
 					this.syncMapConfigOnChange(file);
 					void this.refreshData();
+				}
+			})
+		);
+
+		// GeoJSON assets do not pass through metadataCache. Reload only when
+		// a .geojson file itself changes; normal Markdown modifies remain on the
+		// metadata-cache path above.
+		this.registerEvent(
+			this.plugin.app.vault.on('modify', file => {
+				if (
+					file instanceof TFile
+					&& file.extension.toLowerCase() === 'geojson'
+				) {
+					void this.refreshHistoricalControlLayers();
+				}
+			})
+		);
+
+		// Deleted/renamed manifests no longer have readable frontmatter, so
+		// metadataCache cannot classify them after the fact. These operations
+		// are rare; reloading Workspace-scoped control layers for Markdown or
+		// GeoJSON removals/renames prevents stale "ghost" boundaries.
+		this.registerEvent(
+			this.plugin.app.vault.on('delete', file => {
+				if (
+					file instanceof TFile
+					&& ['md', 'geojson'].includes(file.extension.toLowerCase())
+				) {
+					void this.refreshHistoricalControlLayers();
+				}
+			})
+		);
+		this.registerEvent(
+			this.plugin.app.vault.on('rename', (file, oldPath) => {
+				const oldExtension = oldPath.split('.').pop()?.toLowerCase() ?? '';
+				const newExtension = file instanceof TFile
+					? file.extension.toLowerCase()
+					: '';
+				if (
+					['md', 'geojson'].includes(oldExtension)
+					|| ['md', 'geojson'].includes(newExtension)
+				) {
+					void this.refreshHistoricalControlLayers();
 				}
 			})
 		);
@@ -2690,6 +3383,10 @@ export class MapView extends ItemView {
 		// TODO: Add full map settings to plugin settings when implementing map settings tab
 		return {
 			tileProvider: 'openstreetmap',
+			geographicBasemapId: this.plugin.settings.geographicBasemapId || 'carto-voyager',
+			customGeographicBasemaps: this.plugin.settings.customGeographicBasemaps || [],
+			legacyNegativeYearSemantics:
+				this.plugin.settings.legacyNegativeYearSemantics ?? 'reject',
 			defaultCenter: { lat: 40, lng: -40 },
 			defaultZoom: 3,
 			// Core life event colors

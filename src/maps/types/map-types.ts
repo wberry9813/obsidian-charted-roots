@@ -3,6 +3,7 @@
  */
 
 import type * as L from 'leaflet';
+import type { CustomGeographicBasemapConfig } from '../../v2/maps/basemaps';
 
 // ============================================================================
 // Core Map Data Types
@@ -214,6 +215,8 @@ export interface MigrationPath {
 		pixelX?: number;
 		pixelY?: number;
 		name: string;
+		/** Stable Place cr_id when the endpoint resolves to a Place note. */
+		placeId?: string;
 	};
 	/** Destination location (typically death) */
 	destination: {
@@ -222,6 +225,8 @@ export interface MigrationPath {
 		pixelX?: number;
 		pixelY?: number;
 		name: string;
+		/** Stable Place cr_id when the endpoint resolves to a Place note. */
+		placeId?: string;
 	};
 	/** Birth year for filtering */
 	birthYear?: number;
@@ -624,11 +629,26 @@ export interface CRPolyline extends L.Polyline {
 /**
  * Map-related plugin settings
  */
+export type LegacyNegativeYearSemantics =
+	| 'reject'
+	| 'bce_display'
+	| 'astronomical';
+
 export interface MapSettings {
 	/** Tile provider for real-world maps */
 	tileProvider: 'openstreetmap' | 'custom';
 	/** Custom tile URL template (if tileProvider is 'custom') */
 	customTileUrl?: string;
+	/** Selected provider inside the Real-world map slot. */
+	geographicBasemapId: string;
+	/** User-defined validated XYZ/WebMercator raster providers. */
+	customGeographicBasemaps: CustomGeographicBasemapConfig[];
+	/**
+	 * Explicit interpretation for legacy non-positive real-world slider years
+	 * when bridging into v2 astronomical/JDN focus. Default reject preserves
+	 * existing ambiguity instead of guessing.
+	 */
+	legacyNegativeYearSemantics: LegacyNegativeYearSemantics;
 
 	/** Default center for initial map view */
 	defaultCenter: { lat: number; lng: number };
@@ -711,6 +731,9 @@ export interface MapSettings {
  */
 export const DEFAULT_MAP_SETTINGS: MapSettings = {
 	tileProvider: 'openstreetmap',
+	geographicBasemapId: 'carto-voyager',
+	customGeographicBasemaps: [],
+	legacyNegativeYearSemantics: 'reject',
 	defaultCenter: { lat: 40, lng: -40 },
 	defaultZoom: 3,
 

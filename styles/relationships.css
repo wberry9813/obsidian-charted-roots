@@ -580,3 +580,54 @@
   display: flex;
   flex-direction: column;
 }
+
+
+/* v2 temporal Assertion focus — intentionally separate from legacy relationships */
+
+.cr-rv-temporal-state {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-2);
+	margin-bottom: var(--size-4-3);
+	padding: var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.cr-rv-temporal-state__header {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--size-4-2);
+}
+
+.cr-rv-temporal-state__focus,
+.cr-rv-temporal-state__summary,
+.cr-rv-temporal-state__predicate {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.cr-rv-temporal-state__item {
+	width: 100%;
+	padding: var(--size-2-2) var(--size-4-2);
+	border: 0;
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	text-align: left;
+	cursor: pointer;
+}
+
+.cr-rv-temporal-state__item:hover {
+	background: var(--background-modifier-hover);
+}
+
+.cr-rv-temporal-state__item--possible {
+	border-left: 2px dashed var(--text-muted);
+}
+
+.cr-rv-temporal-state__subject {
+	font-weight: var(--font-medium);
+}
