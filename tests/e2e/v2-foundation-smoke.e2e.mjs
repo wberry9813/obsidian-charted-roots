@@ -2657,6 +2657,8 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			const originalMinister = await app.vault.read(minister);
 			const originalReview = await app.vault.read(review);
 			const originalEvent = await app.vault.read(event);
+			const originalLegacyYearSemantics =
+				plugin.settings.legacyNegativeYearSemantics ?? 'reject';
 
 			const result = await plugin.executeV2MigrationReady(plan, {
 				runId: 'spring-warring-ready',
@@ -2810,6 +2812,116 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			await new Promise(resolve => window.setTimeout(resolve, 100));
 			const profile665 = readProfile();
 
+			const officeFile = app.vault.getFileByPath(
+				'Workspace-E2E/Acceptance-History/Assertions/Office-Holding.md'
+			);
+			if (!officeFile) {
+				throw new Error('Acceptance office-holding source file is missing.');
+			}
+			const sourcesBeforeSharedFocus = {
+				minister: await app.vault.read(minister),
+				event: await app.vault.read(event),
+				office: await app.vault.read(officeFile)
+			};
+
+			// A2 Map <-> Timeline historical-focus acceptance. BCE slider values
+			// are intentionally ambiguous by default, so opt into display-year BCE
+			// semantics for this test and restore the setting in finally.
+			plugin.settings.legacyNegativeYearSemantics = 'bce_display';
+			await plugin.activateMapView();
+			await new Promise(resolve => window.setTimeout(resolve, 120));
+			const acceptanceMapLeaf = app.workspace
+				.getLeavesOfType('canvas-roots-map')[0];
+			const acceptanceMapView = acceptanceMapLeaf?.view;
+			if (!acceptanceMapView?.refreshData) {
+				throw new Error('Acceptance Map runtime is unavailable.');
+			}
+			await acceptanceMapView.refreshData();
+			const acceptanceMapToggle = acceptanceMapView.containerEl.querySelector(
+				'button[aria-label="Timeline"]'
+			);
+			if (!(acceptanceMapToggle instanceof HTMLButtonElement)) {
+				throw new Error('Acceptance Map Timeline toggle is unavailable.');
+			}
+			if (!acceptanceMapView.timeSlider.enabled) {
+				acceptanceMapToggle.click();
+			}
+			await new Promise(resolve => window.setTimeout(resolve, 40));
+			const acceptanceSlider = acceptanceMapView.containerEl.querySelector(
+				'.cr-map-time-slider'
+			);
+			if (!(acceptanceSlider instanceof HTMLInputElement)) {
+				throw new Error('Acceptance Map time slider is unavailable.');
+			}
+			if (
+				Number(acceptanceSlider.min) > -675
+				|| Number(acceptanceSlider.max) < -675
+			) {
+				throw new Error(
+					'Acceptance BCE Map range does not include display year 675 BCE.'
+				);
+			}
+			acceptanceSlider.value = '-675';
+			acceptanceSlider.dispatchEvent(new Event('input', { bubbles: true }));
+			await new Promise(resolve => window.setTimeout(resolve, 50));
+			const focusFromMap = focusService.get();
+
+			await plugin.activateTemporalTimelineView();
+			await new Promise(resolve => window.setTimeout(resolve, 50));
+			const acceptanceTimelineLeaf = app.workspace
+				.getLeavesOfType('charted-roots-temporal-timeline')[0];
+			await acceptanceTimelineLeaf?.view?.setState?.({
+				...acceptanceTimelineLeaf?.view?.getState?.(),
+				search: '',
+				kind: 'all',
+				groupBy: 'none'
+			});
+			acceptanceTimelineLeaf?.view?.refresh?.();
+			await new Promise(resolve => window.setTimeout(resolve, 40));
+			const timelineAfterMap = readTimelineView();
+
+			const acceptanceTimelineSvg = acceptanceTimelineLeaf?.view?.containerEl
+				?.querySelector('.cr-v2-timeline__svg');
+			if (!(acceptanceTimelineSvg instanceof SVGSVGElement)) {
+				throw new Error('Acceptance Timeline SVG is unavailable.');
+			}
+			const acceptanceBounds = acceptanceTimelineSvg.getBoundingClientRect();
+			acceptanceTimelineSvg.dispatchEvent(new MouseEvent('click', {
+				bubbles: true,
+				clientX: acceptanceBounds.left + acceptanceBounds.width * 0.55,
+				clientY: acceptanceBounds.top + 60
+			}));
+			await new Promise(resolve => window.setTimeout(resolve, 50));
+			const focusFromTimeline = focusService.get();
+			const mapAfterTimeline = readTemporalMap();
+
+			const sourcesAfterSharedFocus = {
+				minister: await app.vault.read(minister),
+				event: await app.vault.read(event),
+				office: await app.vault.read(officeFile)
+			};
+			const mapTimelineFocus = {
+				fromMap: {
+					sliderYear: Number(acceptanceSlider.value),
+					bridgeStatus: acceptanceMapView.containerEl.querySelector(
+						'.cr-map-container'
+					)?.getAttribute('data-map-temporal-bridge-status') ?? null,
+					focus: focusFromMap,
+					timelineFocusKind: timelineAfterMap.focusKind
+				},
+				fromTimeline: {
+					focus: focusFromTimeline,
+					mapFocusKind: mapAfterTimeline.focusKind
+				},
+				sourceUnchanged:
+					JSON.stringify(sourcesBeforeSharedFocus)
+					=== JSON.stringify(sourcesAfterSharedFocus)
+			};
+
+			if (acceptanceMapView.timeSlider.enabled) {
+				acceptanceMapToggle.click();
+			}
+
 			const crossViews = {
 				timeline,
 				ids: {
@@ -2821,7 +2933,8 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				relationships675,
 				relationships665,
 				profile675,
-				profile665
+				profile665,
+				mapTimelineFocus
 			};
 
 			snapshot = {
@@ -2861,6 +2974,8 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				crossViews
 			};
 		} finally {
+			plugin.settings.legacyNegativeYearSemantics =
+				originalLegacyYearSemantics;
 			plugin.getTemporalFocusService().clear();
 			await plugin.replaceWorkspaceCatalog(previousCatalog);
 			await plugin.setActiveWorkspace(previousActive);
@@ -3017,6 +3132,43 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			.map(item => item.text)
 			.join(' ')
 			.includes('齐卿')
+	);
+
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromMap.sliderYear,
+		-675
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromMap.bridgeStatus,
+		'resolved'
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromMap.focus?.kind,
+		'range'
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromMap.focus?.source,
+		'map-time-slider'
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromMap.timelineFocusKind,
+		'range'
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromTimeline.focus?.kind,
+		'point'
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromTimeline.focus?.source,
+		'timeline'
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromTimeline.mapFocusKind,
+		'point'
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.sourceUnchanged,
+		true
 	);
 
 	assert.equal(architectureAcceptance.restoredActive, 'history-cn');

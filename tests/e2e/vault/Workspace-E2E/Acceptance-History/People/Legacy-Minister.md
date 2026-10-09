@@ -2,6 +2,8 @@
 cr_type: person
 cr_id: acceptance-minister
 name: 春秋人物甲
+born: "BCE 700"
+died: "BCE 650"
 membership_orgs:
   - "[[Workspace-E2E/Acceptance-History/Organizations/Qi|齐国]]"
   - "[[Workspace-E2E/Acceptance-History/Organizations/Qi-Court|齐国朝廷]]"
