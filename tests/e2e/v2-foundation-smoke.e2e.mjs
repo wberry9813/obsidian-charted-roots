@@ -2706,10 +2706,11 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				.sort();
 
 			await plugin.activateTemporalTimelineView();
-			await new Promise(resolve => window.setTimeout(resolve, 100));
-			const timelineRoot = app.workspace
-				.getLeavesOfType('charted-roots-temporal-timeline')[0]
-				?.view?.containerEl;
+			const timelineLeaf = app.workspace
+				.getLeavesOfType('charted-roots-temporal-timeline')[0];
+			timelineLeaf?.view?.refresh?.();
+			await new Promise(resolve => window.setTimeout(resolve, 30));
+			const timelineRoot = timelineLeaf?.view?.containerEl;
 			const timeline = {
 				workspace: timelineRoot
 					?.querySelector('.cr-v2-timeline__workspace')?.textContent ?? '',
@@ -2916,18 +2917,13 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		architectureAcceptance.crossViews.timeline.workspace,
 		'架构验收'
 	);
-	assert.ok(
-		architectureAcceptance.crossViews.timeline.spanIds.includes(
-			'acceptance-alliance'
-		)
+	assert.deepEqual(
+		architectureAcceptance.crossViews.timeline.spanIds,
+		[
+			'acceptance-alliance',
+			...architectureAcceptance.assertions.map(item => item.crId)
+		].sort()
 	);
-	for (const assertion of architectureAcceptance.assertions) {
-		assert.ok(
-			architectureAcceptance.crossViews.timeline.spanIds.includes(
-				assertion.crId
-			)
-		);
-	}
 	const allyId = architectureAcceptance.crossViews.ids.ally;
 	const rivalId = architectureAcceptance.crossViews.ids.rival;
 	const membershipIds = architectureAcceptance.crossViews.ids.memberships;
