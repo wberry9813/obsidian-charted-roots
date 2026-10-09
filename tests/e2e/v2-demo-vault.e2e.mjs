@@ -60,8 +60,6 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 		document.querySelector('.cr-workspace-manager .modal-button-container button:last-child')?.click();
 		await app.plugins.plugins['charted-roots'].setActiveWorkspace('history-cn-demo');
 		return true;
-	
-		return true;
 	`);
 	await session.waitFor(
 		`app.plugins.plugins['charted-roots'].getWorkspaceService()?.getActiveId() === 'history-cn-demo'`
@@ -97,4 +95,18 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 	assert.ok(!fiction.people.includes('林晨'));
 	assert.equal(fiction.calendar, '蜀山纪年');
 	assert.equal(fiction.dna, true);
+
+	const showcase = await session.evalInApp(`
+		const manager = app.plugins.plugins['charted-roots'].imageMapManager;
+		return {
+			worldMap: manager?.getMapConfig?.('shushan-world-map')?.name ?? null,
+			childMap: manager?.getMapConfig?.('emei-region-map')?.name ?? null,
+			li: app.vault.getAbstractFileByPath('示例/蜀山/People/李英琼.md') !== null,
+			start: app.vault.getAbstractFileByPath('00-开始这里.md') !== null
+		};
+	`);
+	assert.equal(showcase.worldMap, '蜀山全图');
+	assert.equal(showcase.childMap, '峨眉山区域');
+	assert.equal(showcase.li, true);
+	assert.equal(showcase.start, true);
 });
