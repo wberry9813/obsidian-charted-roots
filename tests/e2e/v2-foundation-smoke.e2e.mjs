@@ -2633,6 +2633,13 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			if (activeService?.getActiveId() !== 'acceptance-history') {
 				throw new Error('Acceptance Workspace did not become active.');
 			}
+			const corpusTypeCounts = {};
+			for (const file of activeService.getScope().getMarkdownFiles()) {
+				const type = app.metadataCache.getFileCache(file)?.frontmatter?.cr_type;
+				if (typeof type === 'string') {
+					corpusTypeCounts[type] = (corpusTypeCounts[type] ?? 0) + 1;
+				}
+			}
 
 			const plan = plugin.buildV2MigrationPlan();
 			const planFiles = plan.files
@@ -2715,6 +2722,23 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				timeStart: officeHoldingRecord.assertion.time_start ?? null,
 				timeEnd: officeHoldingRecord.assertion.time_end ?? null
 			};
+
+			const sourceFile = app.vault.getFileByPath(
+				'Workspace-E2E/Acceptance-History/Sources/Zuo-Zhuan.md'
+			);
+			const citationFile = app.vault.getFileByPath(
+				'Workspace-E2E/Acceptance-History/Citations/Zuo-Zhuan-Jin-Office.md'
+			);
+			const claimFile = app.vault.getFileByPath(
+				'Workspace-E2E/Acceptance-History/Claims/Hegemony-Structure.md'
+			);
+			if (!sourceFile || !citationFile || !claimFile) {
+				throw new Error('A3 research graph fixture is incomplete.');
+			}
+			const sourceFm = app.metadataCache.getFileCache(sourceFile)?.frontmatter ?? {};
+			const citationFm = app.metadataCache.getFileCache(citationFile)?.frontmatter ?? {};
+			const claimFm = app.metadataCache.getFileCache(claimFile)?.frontmatter ?? {};
+			const acceptanceLint = plugin.getV2Linter().lint();
 
 			const byPredicate = Object.fromEntries(
 				assertions.map(assertion => [assertion.predicate, assertion.crId])
@@ -2944,6 +2968,21 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 
 			snapshot = {
 				activeDuringRun: activeService.getActiveId(),
+				corpus: {
+					typeCounts: corpusTypeCounts,
+					researchGraph: {
+						sourceType: sourceFm.source_type ?? null,
+						citationSource: citationFm.source ?? null,
+						citationTarget: citationFm.target ?? null,
+						citationRelation: citationFm.relation ?? null,
+						claimType: claimFm.claim_type ?? null,
+						claimAbout: Array.isArray(claimFm.about) ? claimFm.about : [],
+						claimEvidence: Array.isArray(claimFm.evidence) ? claimFm.evidence : []
+					},
+					lintErrors: acceptanceLint
+						.filter(issue => issue.severity === 'error')
+						.map(issue => issue.code)
+				},
 				plan: {
 					executableFiles: plan.executableFiles,
 					reviewFiles: plan.reviewFiles,
@@ -2995,6 +3034,36 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	`);
 
 	assert.equal(architectureAcceptance.activeDuringRun, 'acceptance-history');
+	assert.deepEqual(architectureAcceptance.corpus.typeCounts, {
+		person: 4,
+		organization: 4,
+		office: 2,
+		event: 2,
+		process: 1,
+		period: 1,
+		assertion: 3,
+		source: 1,
+		citation: 1,
+		claim: 1
+	});
+	assert.deepEqual(architectureAcceptance.corpus.researchGraph, {
+		sourceType: 'text',
+		citationSource:
+			'[[Workspace-E2E/Acceptance-History/Sources/Zuo-Zhuan|左传]]',
+		citationTarget:
+			'[[Workspace-E2E/Acceptance-History/Assertions/Jin-Office-Holding|晋国人物丙任晋卿]]',
+		citationRelation: 'supports',
+		claimType: 'causal',
+		claimAbout: [
+			'[[Workspace-E2E/Acceptance-History/Organizations/Qi|齐国]]',
+			'[[Workspace-E2E/Acceptance-History/Organizations/Jin|晋国]]'
+		],
+		claimEvidence: [
+			'[[Workspace-E2E/Acceptance-History/Assertions/Jin-Office-Holding|晋国人物丙任晋卿]]',
+			'[[Workspace-E2E/Acceptance-History/Assertions/Jin-Court-Part-Of|晋国朝廷隶属于晋国]]'
+		]
+	});
+	assert.deepEqual(architectureAcceptance.corpus.lintErrors, []);
 	assert.equal(architectureAcceptance.plan.executableFiles, 2);
 	assert.equal(architectureAcceptance.plan.reviewFiles, 1);
 	assert.equal(architectureAcceptance.plan.blockedFiles, 0);
@@ -3073,6 +3142,9 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			'acceptance-alliance',
 			'acceptance-hegemony-process',
 			'acceptance-spring-autumn',
+			'acceptance-jin-transition',
+			'acceptance-jin-office-holding',
+			'acceptance-jin-court-part-of',
 			architectureAcceptance.officeHolding.crId,
 			...architectureAcceptance.assertions.map(item => item.crId)
 		].sort()
