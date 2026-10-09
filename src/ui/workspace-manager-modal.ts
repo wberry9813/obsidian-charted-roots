@@ -9,6 +9,7 @@ import {
 	type WorkspaceFolderOverrides,
 	type WorkspaceMode
 } from '../v2/workspaces';
+import { localizeUiTree, resolveUiLanguage } from '../i18n/ui-locale';
 
 const MODE_LABELS: Record<WorkspaceMode, string> = {
 	genealogy: 'Genealogy',
@@ -162,6 +163,8 @@ export class WorkspaceManagerModal extends Modal {
 		});
 		const close = buttons.createEl('button', { text: 'Close' });
 		close.addEventListener('click', () => this.close());
+
+		localizeUiTree(contentEl, resolveUiLanguage(this.plugin.settings.uiLanguage));
 	}
 
 	private renderWorkspaceCard(
@@ -357,6 +360,8 @@ class WorkspaceEditModal extends Modal {
 		save.addEventListener('click', () => { void this.save(); });
 		const cancel = buttons.createEl('button', { text: 'Cancel' });
 		cancel.addEventListener('click', () => this.close());
+
+		localizeUiTree(contentEl, resolveUiLanguage(this.plugin.settings.uiLanguage));
 	}
 
 	private setFolderOverride(key: WorkspaceFolderKey, value: string): void {
@@ -413,5 +418,7 @@ class WorkspaceDeleteConfirmModal extends Modal {
 		});
 		const cancel = buttons.createEl('button', { text: 'Cancel' });
 		cancel.addEventListener('click', () => this.close());
+
+		localizeUiTree(contentEl, resolveUiLanguage(this.plugin.settings.uiLanguage));
 	}
 }

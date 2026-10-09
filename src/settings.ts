@@ -41,6 +41,11 @@ import {
 	type ValueAliasField
 } from './core/value-alias-service';
 import { capitalize, pluralize } from './utils/format-utils';
+import {
+	localizeUiTree,
+	resolveUiLanguage,
+	type UiLanguagePreference
+} from './i18n/ui-locale';
 
 export interface RecentTreeInfo {
 	canvasPath: string;
@@ -218,6 +223,8 @@ export type SexNormalizationMode = 'standard' | 'schema-aware' | 'disabled';
 export type EventIconMode = 'text' | 'icon' | 'both';
 
 export interface CanvasRootsSettings {
+	/** Local-only UI language; schema keys and persisted research data remain language-neutral. */
+	uiLanguage: UiLanguagePreference;
 	defaultNodeWidth: number;
 	defaultNodeHeight: number;
 	horizontalSpacing: number;
@@ -777,6 +784,7 @@ export function getPlaceFolderForCategory(
 }
 
 export const DEFAULT_SETTINGS: CanvasRootsSettings = {
+	uiLanguage: 'auto',
 	dismissedDuplicatePairs: [],
 	defaultNodeWidth: 200,
 	defaultNodeHeight: 100,
@@ -1390,6 +1398,22 @@ export class CanvasRootsSettingTab extends PluginSettingTab {
 
 	/** Build the search box and all eleven sections into the container. */
 	private renderSettingsInto(containerEl: HTMLElement): void {
+		const resolvedLanguage = resolveUiLanguage(this.plugin.settings.uiLanguage);
+
+		new Setting(containerEl)
+			.setName('Language')
+			.setDesc('Choose the Charted Roots interface language. Auto follows Obsidian / system language.')
+			.addDropdown(dropdown => dropdown
+				.addOption('auto', 'Follow Obsidian / system')
+				.addOption('en', 'English')
+				.addOption('zh-CN', 'Simplified Chinese')
+				.setValue(this.plugin.settings.uiLanguage)
+				.onChange(async value => {
+					this.plugin.settings.uiLanguage = value as UiLanguagePreference;
+					await this.plugin.saveSettings();
+					this.refreshSettings();
+				}));
+
 		// Search box for filtering settings
 		const searchContainer = containerEl.createDiv({ cls: 'cr-settings-search' });
 		new Setting(searchContainer)
@@ -1413,6 +1437,8 @@ export class CanvasRootsSettingTab extends PluginSettingTab {
 		this.renderResearchSection(containerEl);
 		this.renderAliasesSection(containerEl);
 		this.renderAdvancedSection(containerEl);
+
+		localizeUiTree(containerEl, resolvedLanguage);
 	}
 
 	private renderFoldersSection(containerEl: HTMLElement): void {

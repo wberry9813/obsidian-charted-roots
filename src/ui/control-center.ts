@@ -1,6 +1,7 @@
 import { Notice } from 'obsidian';
 import { ControlCenterModal as CoreControlCenterModal } from './control-center-core';
 import { WorkspaceManagerModal } from './workspace-manager-modal';
+import { localizeUiTree, resolveUiLanguage } from '../i18n/ui-locale';
 
 /**
  * Keep the mature Control Center implementation isolated in control-center-core
@@ -45,6 +46,8 @@ export class ControlCenterModal extends CoreControlCenterModal {
 		manage.addEventListener('click', () => {
 			new WorkspaceManagerModal(this.plugin).open();
 		});
+
+		localizeUiTree(actions, resolveUiLanguage(this.plugin.settings.uiLanguage));
 	}
 
 	private async switchWorkspace(id: string): Promise<void> {
