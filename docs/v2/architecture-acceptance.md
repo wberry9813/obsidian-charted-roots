@@ -1,6 +1,6 @@
 # Architecture Acceptance — Historical Research Graph
 
-> Status: **In progress**
+> Status: **Complete**
 >
 > This document turns the architecture acceptance requirement in
 > `migration-and-implementation.md` into executable checks.
@@ -58,10 +58,44 @@ into the ordinary History/Shushan scenarios.
 
 ### A3 — representative research corpus
 
-- [ ] expand the minimal fixture with a larger Spring-and-Autumn /
-  Warring-States corpus after the migration contract is stable;
-- [ ] record any schema or UX gaps revealed by that corpus as explicit issues
-  rather than adding one-off compatibility fields.
+- [x] expand the minimal fixture into a small two-polity historical-research
+  corpus spanning Person, Organization, Office, Event, Process, Period,
+  temporal Assertions, Source, Citation and Claim;
+- [x] record schema / UX gaps in the acceptance gap register rather than
+  adding one-off compatibility fields.
+
+The expanded real-Obsidian corpus contains 20 static records before migration,
+plus the four Assertions created from the Ready legacy subset. It verifies a
+second polity/institution/office chain, time-bounded organization hierarchy,
+additional event material and a Source -> Citation -> Assertion /
+Claim -> evidence research chain.
+
+## Gap register
+
+### AA-GAP-001 — Map lifespan parser does not consume v2 BCE expressions
+
+**Status:** open, non-blocking for architecture acceptance.
+
+The v2 historical time layer accepts explicit expressions such as
+`BCE 700`, but the legacy Map lifespan path delegates Person `born` /
+`died` to `DateService.parseDate()`. A three-digit era expression such as
+`BCE 700` is not converted into the Map slider's canonical numeric year, so
+it does not contribute to the slider range.
+
+The same path accepts legacy numeric values such as `-700`; with the explicit
+`legacyNegativeYearSemantics: bce_display` policy, the Map -> JDN bridge can
+then interpret that value safely as 700 BCE.
+
+**Desired direction:** allow Map lifespan navigation to consume the same
+historical expressions as the v2 time layer without weakening the rule that
+ambiguous bare non-positive years require an explicit interpretation policy.
+
+**Acceptance decision:** keep the migration fixture in its real legacy numeric
+shape and track this integration gap explicitly. Do not add a test-only or
+schema-only compatibility field.
+
+GitHub Issues is disabled for this repository, so acceptance gaps are tracked
+here with stable `AA-GAP-xxx` identifiers.
 
 ## Non-goal
 
