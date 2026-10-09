@@ -30,12 +30,17 @@ were that vault.
 
 ### A1 — real Obsidian migration execution
 
-- [ ] add a dedicated historical legacy-vault fixture;
-- [ ] execute the Ready subset through the plugin migration API in real
+- [x] add a dedicated historical legacy-vault fixture;
+- [x] execute the Ready subset through the plugin migration API in real
   Obsidian;
-- [ ] verify exact backups and migration manifest;
-- [ ] verify Review/Blocked source notes remain untouched;
-- [ ] verify migrated Assertions are visible through Workspace-scoped services.
+- [x] verify exact backups and migration manifest;
+- [x] verify Review source notes remain untouched;
+- [x] verify migrated Assertions are visible through Workspace-scoped services.
+
+A1 is covered by the real Obsidian foundation smoke using a temporary
+`acceptance-history` Workspace. The test restores the prior Workspace catalog
+and active Workspace after execution so the acceptance corpus does not leak
+into the ordinary History/Shushan scenarios.
 
 ### A2 — cross-view semantic acceptance
 
