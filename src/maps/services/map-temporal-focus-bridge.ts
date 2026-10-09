@@ -1,6 +1,10 @@
 import type { DateService } from '../../dates/services/date-service';
 import type { HistoricalDateService } from '../../v2/time/historical-date-service';
-import type { TemporalAxis } from '../../v2/temporal/temporal-focus-service';
+import {
+	isChronologyYearFocus,
+	type TemporalAxis,
+	type TemporalFocus
+} from '../../v2/temporal/temporal-focus-service';
 import type { LegacyNegativeYearSemantics } from '../types/map-types';
 
 export type MapTemporalBridgeFailureReason =
@@ -16,6 +20,25 @@ export type MapTemporalBridgeResolvedSource =
 	| 'legacy-bce-display-year'
 	| 'legacy-astronomical-year'
 	| 'fictional-canonical-year';
+
+export type MapTemporalReverseBridgeFailureReason =
+	| 'focus_not_chronology_year'
+	| 'fictional_calendar_bridge_required'
+	| 'chronology_mismatch'
+	| 'invalid_chronology_year';
+
+export type MapTemporalReverseBridgeResult =
+	| {
+		status: 'resolved';
+		year: number;
+		chronologyId: string;
+		source: 'chronology-local-focus';
+	}
+	| {
+		status: 'unsupported';
+		reason: MapTemporalReverseBridgeFailureReason;
+		message: string;
+	};
 
 export type MapTemporalBridgeResult =
 	| {
@@ -48,6 +71,63 @@ export class MapTemporalFocusBridge {
 		private readonly historicalDates: HistoricalDateService,
 		private readonly negativeYearSemantics: LegacyNegativeYearSemantics = 'reject'
 	) {}
+
+	/**
+	 * Reverse the explicit chronology-local focus back into the legacy Map
+	 * slider's canonical-year coordinate.
+	 *
+	 * Only configured fictional calendars are reversible here. JDN focus stays
+	 * on the historical path and is never numerically reinterpreted as a Map
+	 * year.
+	 */
+	resolveFocusYear(
+		focus: TemporalFocus | null | undefined,
+		universe?: string
+	): MapTemporalReverseBridgeResult {
+		if (!isChronologyYearFocus(focus)) {
+			return {
+				status: 'unsupported',
+				reason: 'focus_not_chronology_year',
+				message: 'Map reverse synchronization requires chronology-local focus.'
+			};
+		}
+
+		const fictionalSystem =
+			this.legacyDates.getFictionalDateSystemForUniverse(universe);
+		if (!fictionalSystem) {
+			return {
+				status: 'unsupported',
+				reason: 'fictional_calendar_bridge_required',
+				message: 'The active Map universe has no configured fictional calendar.'
+			};
+		}
+
+		if (fictionalSystem.id !== focus.axis.chronologyId) {
+			return {
+				status: 'unsupported',
+				reason: 'chronology_mismatch',
+				message: 'The shared focus belongs to a different fictional calendar.'
+			};
+		}
+
+		const year = focus.kind === 'point'
+			? focus.position
+			: focus.start;
+		if (!Number.isInteger(year)) {
+			return {
+				status: 'unsupported',
+				reason: 'invalid_chronology_year',
+				message: 'The legacy Map slider requires a whole canonical year.'
+			};
+		}
+
+		return {
+			status: 'resolved',
+			year,
+			chronologyId: fictionalSystem.id,
+			source: 'chronology-local-focus'
+		};
+	}
 
 	resolveYear(
 		legacyYear: number,

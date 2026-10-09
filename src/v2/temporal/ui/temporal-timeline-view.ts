@@ -12,11 +12,14 @@ import {
 	type D3ZoomEvent
 } from 'd3';
 import type CanvasRootsPlugin from '../../../../main';
+import type { DateService } from '../../../dates/services/date-service';
 import type { CalendarProvider } from '../../time/calendar-provider';
 import { astronomicalYearToHistorical } from '../../time/historical-year';
 import {
+	buildChronologyTimelineModel,
 	buildTimelineLanes,
 	buildTimelineModel,
+	generateChronologyYearTicks,
 	generateHistoricalYearTicks,
 	matchesTimelineFilter,
 	timelineWindowBounds,
@@ -26,7 +29,10 @@ import {
 	type TimelineModel,
 	type TimelineSpan
 } from '../index';
-import { isJulianDayFocus } from '../temporal-focus-service';
+import {
+	isChronologyYearFocus,
+	isJulianDayFocus
+} from '../temporal-focus-service';
 
 export const VIEW_TYPE_TEMPORAL_TIMELINE = 'charted-roots-temporal-timeline';
 
@@ -45,6 +51,19 @@ interface TemporalTimelineViewState {
 	kind?: TimelineKindFilter;
 	groupBy?: TimelineGroupBy;
 }
+
+type TimelineRenderAxis =
+	| {
+		kind: 'julian_day';
+		calendar: CalendarProvider;
+	}
+	| {
+		kind: 'chronology_year';
+		chronologyId: string;
+		label?: string;
+		universe?: string;
+		dateService: DateService;
+	};
 
 interface TimelineVisualRow {
 	key: string;
@@ -357,16 +376,7 @@ export class TemporalTimelineView extends ItemView {
 		container.empty();
 		this.resetZoom = null;
 
-		const dates = this.plugin.getHistoricalDateService();
-		const calendar = dates.getCalendarProvider('tyme');
-		if (!calendar) {
-			container.createDiv({
-				text: 'Historical calendar provider is unavailable.',
-				cls: 'cr-v2-timeline__empty'
-			});
-			return;
-		}
-
+		const focus = this.plugin.getTemporalFocusService().get();
 		const allItems = this.plugin.getTemporalProjectionService().getAll();
 		const filter = {
 			...(this.currentSearch.trim()
@@ -379,7 +389,44 @@ export class TemporalTimelineView extends ItemView {
 		const items = allItems.filter(item =>
 			matchesTimelineFilter(item, filter)
 		);
-		const model = buildTimelineModel(items, calendar);
+
+		let model: TimelineModel;
+		let axis: TimelineRenderAxis;
+		if (isChronologyYearFocus(focus)) {
+			const dateService = this.plugin.getDateService();
+			if (!dateService) {
+				container.createDiv({
+					text: 'Fictional calendar service is unavailable.',
+					cls: 'cr-v2-timeline__empty'
+				});
+				return;
+			}
+			model = buildChronologyTimelineModel(
+				items,
+				focus.axis.chronologyId,
+				dateService,
+				{ universe: focus.axis.universe }
+			);
+			axis = {
+				kind: 'chronology_year',
+				chronologyId: focus.axis.chronologyId,
+				label: focus.axis.label,
+				universe: focus.axis.universe,
+				dateService
+			};
+		} else {
+			const dates = this.plugin.getHistoricalDateService();
+			const calendar = dates.getCalendarProvider('tyme');
+			if (!calendar) {
+				container.createDiv({
+					text: 'Historical calendar provider is unavailable.',
+					cls: 'cr-v2-timeline__empty'
+				});
+				return;
+			}
+			model = buildTimelineModel(items, calendar);
+			axis = { kind: 'julian_day', calendar };
+		}
 
 		container.createDiv({
 			text: `${model.spans.length} plotted · ${model.windows.length} possible · ${model.review.length} review`,
@@ -412,14 +459,14 @@ export class TemporalTimelineView extends ItemView {
 			return;
 		}
 
-		this.renderChart(container, model, calendar, this.currentGroupBy);
+		this.renderChart(container, model, axis, this.currentGroupBy);
 		this.renderReview(container, model);
 	}
 
 	private renderChart(
 		container: HTMLElement,
 		model: TimelineModel,
-		calendar: CalendarProvider,
+		axis: TimelineRenderAxis,
 		groupBy: TimelineGroupBy
 	): void {
 		if (!model.domain) return;
@@ -448,7 +495,13 @@ export class TemporalTimelineView extends ItemView {
 		svgNode.setAttribute('width', String(width));
 		svgNode.setAttribute('height', String(height));
 		svgNode.setAttribute('viewBox', `0 0 ${width} ${height}`);
-		svgNode.setAttribute('data-scale', 'julian-day');
+		svgNode.setAttribute(
+			'data-scale',
+			axis.kind === 'julian_day' ? 'julian-day' : 'chronology-year'
+		);
+		if (axis.kind === 'chronology_year') {
+			svgNode.setAttribute('data-chronology-id', axis.chronologyId);
+		}
 		viewport.appendChild(svgNode);
 
 		const svg = select(svgNode);
@@ -571,7 +624,11 @@ export class TemporalTimelineView extends ItemView {
 		const renderFocus = (xScale: typeof baseScale): void => {
 			focusGroup.selectAll('*').remove();
 			const focus = focusService.get();
-			if (!isJulianDayFocus(focus)) return;
+			const matchesAxis = axis.kind === 'julian_day'
+				? isJulianDayFocus(focus)
+				: isChronologyYearFocus(focus)
+					&& focus.axis.chronologyId === axis.chronologyId;
+			if (!focus || !matchesAxis) return;
 
 			if (focus.kind === 'point') {
 				if (
@@ -592,7 +649,14 @@ export class TemporalTimelineView extends ItemView {
 					.attr('class', 'cr-v2-timeline__focus-label')
 					.attr('x', x + 6)
 					.attr('y', AXIS_Y + 18)
-					.text(formatFocusPoint(focus.position, calendar));
+					.text(
+						axis.kind === 'julian_day'
+							? formatFocusPoint(focus.position, axis.calendar)
+							: axis.dateService.formatCanonicalYearForSystem(
+								Math.floor(focus.position),
+								axis.chronologyId
+							)
+					);
 				return;
 			}
 
@@ -621,11 +685,26 @@ export class TemporalTimelineView extends ItemView {
 				? { start: visibleStart, endExclusive: visibleEnd }
 				: model.domain!;
 
-			const ticks = generateHistoricalYearTicks(
-				visibleDomain,
-				calendar,
-				{ maxTicks }
-			);
+			const ticks = axis.kind === 'julian_day'
+				? generateHistoricalYearTicks(
+					visibleDomain,
+					axis.calendar,
+					{ maxTicks }
+				).map(tick => ({
+					key: `${tick.era}-${tick.historicalYear}`,
+					position: tick.position,
+					label: tick.label
+				}))
+				: generateChronologyYearTicks(
+					visibleDomain,
+					axis.dateService,
+					axis.chronologyId,
+					maxTicks
+				).map(tick => ({
+					key: `chronology-${tick.canonicalYear}`,
+					position: tick.position,
+					label: tick.label
+				}));
 
 			axisGroup.selectAll('*').remove();
 			gridGroup.selectAll('*').remove();
@@ -639,7 +718,7 @@ export class TemporalTimelineView extends ItemView {
 
 			const tickGroups = axisGroup
 				.selectAll<SVGGElement, typeof ticks[number]>('g')
-				.data(ticks, tick => `${tick.era}-${tick.historicalYear}`)
+				.data(ticks, tick => tick.key)
 				.join('g')
 				.attr('class', 'cr-v2-timeline__tick')
 				.attr('data-year-label', tick => tick.label)
@@ -658,7 +737,7 @@ export class TemporalTimelineView extends ItemView {
 
 			gridGroup
 				.selectAll<SVGLineElement, typeof ticks[number]>('line')
-				.data(ticks, tick => `${tick.era}-${tick.historicalYear}`)
+				.data(ticks, tick => tick.key)
 				.join('line')
 				.attr('class', 'cr-v2-timeline__grid-line')
 				.attr('x1', tick => xScale(tick.position))
@@ -721,7 +800,22 @@ export class TemporalTimelineView extends ItemView {
 			) {
 				return;
 			}
-			focusService.setPoint(position, 'timeline');
+			if (axis.kind === 'julian_day') {
+				focusService.setPoint(position, 'timeline');
+			} else {
+				const canonicalYear = Math.floor(position);
+				focusService.setAxisRange(
+					canonicalYear,
+					canonicalYear + 1,
+					{
+						kind: 'chronology_year',
+						chronologyId: axis.chronologyId,
+						...(axis.label ? { label: axis.label } : {}),
+						...(axis.universe ? { universe: axis.universe } : {})
+					},
+					'timeline'
+				);
+			}
 			renderFocus(activeScale);
 			this.refreshTemporalContext();
 		});

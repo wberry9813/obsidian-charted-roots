@@ -38,6 +38,7 @@ import {
 	type TemporalMapOverlayMarker
 } from '../v2/temporal/temporal-map-overlay';
 import {
+	isChronologyYearFocus,
 	isJulianDayFocus,
 	type TemporalFocus
 } from '../v2/temporal/temporal-focus-service';
@@ -2559,16 +2560,62 @@ export class MapView extends ItemView {
 		this.mapController.setDisplayData(displayData);
 	}
 
+	/**
+	 * Follow a shared fictional chronology focus back into the legacy Map
+	 * slider. The Map slider is a whole-year control, so only the explicit
+	 * chronology bridge may update it; JDN focus is intentionally ignored.
+	 */
+	private syncSharedChronologyFocusToTimeSlider(
+		focus: TemporalFocus | null
+	): void {
+		if (
+			!this.timeSlider.enabled
+			|| !this.currentMapData
+			|| focus?.source === 'map-time-slider'
+			|| !isChronologyYearFocus(focus)
+		) {
+			return;
+		}
+
+		const legacyDates = this.plugin.getDateService();
+		if (!legacyDates) return;
+
+		const result = new MapTemporalFocusBridge(
+			legacyDates,
+			this.plugin.getHistoricalDateService(),
+			this.plugin.settings.legacyNegativeYearSemantics ?? 'reject'
+		).resolveFocusYear(focus, this.filters.universe);
+		if (result.status !== 'resolved') return;
+
+		const { min, max } = this.currentMapData.yearRange;
+		if (result.year < min || result.year > max) return;
+
+		this.timeSlider.currentYear = result.year;
+		const slider = this.timeSliderContainerEl?.querySelector(
+			'.cr-map-time-slider'
+		);
+		if (slider instanceof HTMLInputElement) {
+			slider.value = String(result.year);
+		}
+
+		if (this.mapContainerEl) {
+			this.mapContainerEl.dataset.mapTemporalFollowAxis = 'chronology_year';
+			this.mapContainerEl.dataset.mapTemporalFollowYear = String(result.year);
+		}
+	}
+
 	private bindTemporalFocus(): void {
 		this.unbindTemporalFocus();
 		const focusService = this.plugin.getTemporalFocusService();
 		this.temporalFocusUnsubscribe = focusService.subscribe(focus => {
+			this.syncSharedChronologyFocusToTimeSlider(focus);
 			this.renderFocusedHistoricalPlaceNames(focus);
 			this.renderTemporalPlaceOverlay(focus);
 			this.renderTemporalContextOverlay(focus);
 			this.renderHistoricalControlLayers(focus);
 		});
 		const focus = focusService.get();
+		this.syncSharedChronologyFocusToTimeSlider(focus);
 		this.renderFocusedHistoricalPlaceNames(focus);
 		this.renderTemporalPlaceOverlay(focus);
 		this.renderTemporalContextOverlay(focus);

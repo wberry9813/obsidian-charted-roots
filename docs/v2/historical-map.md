@@ -163,16 +163,20 @@ WMTS / EPSG:4490 remains intentionally outside this completed C2 boundary.
   - [x] fictional canonical years are never coerced into astronomical year/JDN;
   - [x] current JDN-only Timeline / Relationships / Profile / historical Map
     overlays safely ignore chronology-local focus instead of misreading it;
-  - [ ] add chronology-local rendering/query support to Timeline and other
-    consumers that should participate in fictional-world synchronization;
+  - [x] add chronology-local rendering/query support to Timeline while
+    JDN-only consumers continue to ignore chronology-local focus safely;
   - [x] define explicit runtime BCE interpretation policies for legacy
     negative standard years while keeping source data untouched;
   - [ ] optional migration assistant to rewrite ambiguous legacy negative
     standard years into explicit v2 BCE expressions;
 - [x] Map time controls publish shared TemporalFocus only through the explicit
   bridge and attach the correct axis;
-- [ ] complete bidirectional chronology-local Timeline <-> Map interaction once
-  the Timeline renderer/model can render `chronology_year` axes.
+- [x] complete bidirectional chronology-local Timeline <-> Map interaction:
+  - [x] Map fictional year slider publishes `chronology_year` focus;
+  - [x] Timeline renders the matching chronology-local model and labels;
+  - [x] Timeline clicks publish chronology-local year ranges;
+  - [x] an enabled Map slider follows matching shared chronology focus;
+  - [x] Real Obsidian smoke covers the Map -> Timeline -> Map round trip.
 
 #### C5 axis contract
 

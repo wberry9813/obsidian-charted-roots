@@ -1083,6 +1083,8 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			return {
 				workspace: root?.querySelector('.cr-v2-timeline__workspace')?.textContent ?? '',
 				scale: root?.querySelector('.cr-v2-timeline__svg')?.getAttribute('data-scale') ?? null,
+				chronologyId: root?.querySelector('.cr-v2-timeline__svg')
+					?.getAttribute('data-chronology-id') ?? null,
 				spanIds: [...(root?.querySelectorAll('.cr-v2-timeline__span') ?? [])]
 					.map(el => el.getAttribute('data-item-id'))
 					.filter(Boolean)
@@ -1770,6 +1772,137 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			})
 		);
 
+		// C5 chronology-local bidirectional smoke:
+		// Map fictional slider -> shared chronology focus -> Timeline axis,
+		// then a real Timeline click -> shared chronology focus -> Map slider.
+		const chronologyPaths = [
+			'Workspace-E2E/Shushan/People/C5-Chronology-Person.md',
+			'Workspace-E2E/Shushan/Events/C5-Chronology-Early.md',
+			'Workspace-E2E/Shushan/Events/C5-Chronology-Late.md'
+		];
+		for (const path of chronologyPaths) {
+			const existing = app.vault.getAbstractFileByPath(path);
+			if (existing) await app.vault.delete(existing);
+		}
+		await app.vault.create(chronologyPaths[0], [
+			'---',
+			'cr_schema: 2',
+			'cr_type: person',
+			'cr_id: c5-chronology-person',
+			'name: C5 Chronology Person',
+			'universe: Star Wars',
+			'born: "BBY 82"',
+			'died: "BBY 78"',
+			'---',
+			''
+		].join('\\n'));
+		await app.vault.create(chronologyPaths[1], [
+			'---',
+			'cr_schema: 2',
+			'cr_type: event',
+			'cr_id: c5-chronology-early',
+			'title: C5 Chronology Early',
+			'event_type: other',
+			'universe: Star Wars',
+			'time_start: "BBY 82"',
+			'---',
+			''
+		].join('\\n'));
+		await app.vault.create(chronologyPaths[2], [
+			'---',
+			'cr_schema: 2',
+			'cr_type: event',
+			'cr_id: c5-chronology-late',
+			'title: C5 Chronology Late',
+			'event_type: other',
+			'universe: Star Wars',
+			'time_start: "BBY 79"',
+			'---',
+			''
+		].join('\\n'));
+
+		for (let i = 0; i < 80; i++) {
+			const ready = chronologyPaths.every(path =>
+				app.metadataCache.getCache(path)?.frontmatter?.cr_type
+			);
+			if (ready) break;
+			await new Promise(resolve => window.setTimeout(resolve, 25));
+		}
+
+		historyMapView.filters.universe = 'Star Wars';
+		await historyMapView.refreshData();
+		const chronologyToggle = historyMapView.containerEl.querySelector(
+			'button[aria-label="Timeline"]'
+		);
+		if (!(chronologyToggle instanceof HTMLButtonElement)) {
+			throw new Error('Chronology Map Timeline toggle is unavailable.');
+		}
+		if (!historyMapView.timeSlider.enabled) {
+			chronologyToggle.click();
+		}
+		await new Promise(resolve => window.setTimeout(resolve, 60));
+
+		const chronologySlider = historyMapView.containerEl.querySelector(
+			'.cr-map-time-slider'
+		);
+		if (!(chronologySlider instanceof HTMLInputElement)) {
+			throw new Error('Chronology Map slider is unavailable.');
+		}
+		const chronologyFocusFromMap = plugin.getTemporalFocusService().get();
+		const chronologyTimelineFromMap = readTimelineView();
+
+		// The Timeline leaf may be hidden after Profile/Map interactions. Reveal it
+		// before pointer-based clicking so getBoundingClientRect() reflects the
+		// real interactive viewport instead of a zero-width hidden leaf.
+		await plugin.activateTemporalTimelineView();
+		await new Promise(resolve => window.setTimeout(resolve, 60));
+
+		const chronologySvg = app.workspace
+			.getLeavesOfType('charted-roots-temporal-timeline')[0]
+			?.view?.containerEl?.querySelector('.cr-v2-timeline__svg');
+		if (!(chronologySvg instanceof SVGSVGElement)) {
+			throw new Error('Chronology Timeline SVG is unavailable.');
+		}
+		const chronologyBounds = chronologySvg.getBoundingClientRect();
+		chronologySvg.dispatchEvent(new MouseEvent('click', {
+			bubbles: true,
+			clientX: chronologyBounds.left + chronologyBounds.width * 0.7,
+			clientY: chronologyBounds.top + 60
+		}));
+		await new Promise(resolve => window.setTimeout(resolve, 60));
+
+		const chronologyFocusFromTimeline =
+			plugin.getTemporalFocusService().get();
+		const chronologySync = {
+			fromMap: {
+				sliderYear: Number(chronologySlider.value),
+				focus: chronologyFocusFromMap,
+				timeline: chronologyTimelineFromMap
+			},
+			fromTimeline: {
+				focus: chronologyFocusFromTimeline,
+				sliderYear: Number(chronologySlider.value),
+				followAxis: historyMapView.containerEl.querySelector(
+					'.cr-map-container'
+				)?.getAttribute('data-map-temporal-follow-axis') ?? null,
+				followYear: Number(historyMapView.containerEl.querySelector(
+					'.cr-map-container'
+				)?.getAttribute('data-map-temporal-follow-year'))
+			}
+		};
+
+		if (historyMapView.timeSlider.enabled) {
+			chronologyToggle.click();
+		}
+		plugin.getTemporalFocusService().clear();
+		historyMapView.filters.universe = undefined;
+		for (const path of chronologyPaths) {
+			const current = app.vault.getAbstractFileByPath(path);
+			if (current) await app.vault.delete(current);
+		}
+		await historyMapView.refreshData();
+		await new Promise(resolve => window.setTimeout(resolve, 40));
+
 		const shushanCreated = [
 			await eventService.createEvent({
 				title: 'Shushan Created Event E2E',
@@ -1859,6 +1992,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			profileTemporal: shushanProfileTemporal,
 			mapAfterWorkspaceSwitch: shushanMapAfterSwitch,
 			mapFocused: shushanMapFocused,
+			chronologySync,
 			createdPaths: shushanCreated.map(file => file.path)
 		};
 
@@ -2360,6 +2494,62 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'Fiction Person',
 		'Ungrouped'
 	]);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromMap.focus?.axis?.kind,
+		'chronology_year'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromMap.focus?.axis?.chronologyId,
+		'star_wars'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromMap.focus?.source,
+		'map-time-slider'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromMap.timeline.scale,
+		'chronology-year'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromMap.timeline.chronologyId,
+		'star_wars'
+	);
+	assert.deepEqual(
+		workspaceState.shushan.chronologySync.fromMap.timeline.spanIds,
+		['c5-chronology-early', 'c5-chronology-late']
+	);
+	assert.ok(
+		workspaceState.shushan.chronologySync.fromMap.timeline.tickLabels
+			.every(label => / BBY$/.test(label))
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromTimeline.focus?.axis?.kind,
+		'chronology_year'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromTimeline.focus?.axis?.chronologyId,
+		'star_wars'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromTimeline.focus?.source,
+		'timeline'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromTimeline.focus?.kind,
+		'range'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromTimeline.sliderYear,
+		workspaceState.shushan.chronologySync.fromTimeline.focus?.start
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromTimeline.followAxis,
+		'chronology_year'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromTimeline.followYear,
+		workspaceState.shushan.chronologySync.fromTimeline.sliderYear
+	);
 	assert.deepEqual(workspaceState.shushan.relationshipTemporal.activeIds, [
 		'workspace-shushan-assertion'
 	]);

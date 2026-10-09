@@ -185,3 +185,92 @@ describe('M6 Map -> shared TemporalFocus chronology bridge', () => {
 		});
 	});
 });
+
+
+describe('shared chronology focus -> Map slider reverse bridge', () => {
+	it('resolves a chronology-local range back to the matching fictional Map year', () => {
+		const result = new MapTemporalFocusBridge(
+			legacyDates(),
+			new HistoricalDateService()
+		).resolveFocusYear({
+			kind: 'range',
+			start: -82,
+			endExclusive: -81,
+			axis: {
+				kind: 'chronology_year',
+				chronologyId: 'star_wars',
+				universe: 'Star Wars'
+			},
+			source: 'timeline'
+		}, 'Star Wars');
+
+		expect(result).toEqual({
+			status: 'resolved',
+			year: -82,
+			chronologyId: 'star_wars',
+			source: 'chronology-local-focus'
+		});
+	});
+
+	it('supports a whole-year chronology point', () => {
+		expect(
+			new MapTemporalFocusBridge(legacyDates(), new HistoricalDateService())
+				.resolveFocusYear({
+					kind: 'point',
+					position: 5,
+					axis: {
+						kind: 'chronology_year',
+						chronologyId: 'star_wars'
+					}
+				}, 'Star Wars')
+		).toMatchObject({ status: 'resolved', year: 5 });
+	});
+
+	it('rejects a chronology owned by another calendar', () => {
+		expect(
+			new MapTemporalFocusBridge(legacyDates(), new HistoricalDateService())
+				.resolveFocusYear({
+					kind: 'range',
+					start: -82,
+					endExclusive: -81,
+					axis: {
+						kind: 'chronology_year',
+						chronologyId: 'different-calendar'
+					}
+				}, 'Star Wars')
+		).toMatchObject({
+			status: 'unsupported',
+			reason: 'chronology_mismatch'
+		});
+	});
+
+	it('rejects fractional chronology coordinates instead of rounding them', () => {
+		expect(
+			new MapTemporalFocusBridge(legacyDates(), new HistoricalDateService())
+				.resolveFocusYear({
+					kind: 'point',
+					position: 5.5,
+					axis: {
+						kind: 'chronology_year',
+						chronologyId: 'star_wars'
+					}
+				}, 'Star Wars')
+		).toMatchObject({
+			status: 'unsupported',
+			reason: 'invalid_chronology_year'
+		});
+	});
+
+	it('never treats ordinary JDN focus as a Map canonical year', () => {
+		expect(
+			new MapTemporalFocusBridge(legacyDates(), new HistoricalDateService())
+				.resolveFocusYear({
+					kind: 'point',
+					position: 2460000
+				}, 'Star Wars')
+		).toMatchObject({
+			status: 'unsupported',
+			reason: 'focus_not_chronology_year'
+		});
+	});
+});
