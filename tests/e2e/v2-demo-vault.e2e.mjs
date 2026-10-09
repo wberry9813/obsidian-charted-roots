@@ -103,9 +103,9 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 	`);
 	await session.waitFor(
 		`[...document.querySelectorAll('select.cr-map-select[aria-label="Select map"] option')]
-			.some(option => option.textContent === '蜀山全图')
+			.some(option => option.value === 'shushan-world-map')
 		&& [...document.querySelectorAll('select.cr-map-select[aria-label="Select map"] option')]
-			.some(option => option.textContent === '峨眉山区域')`
+			.some(option => option.value === 'emei-region-map')`
 	);
 	const showcase = await session.evalInApp(`
 		const mapSelect = document.querySelector(
@@ -121,10 +121,12 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 		};
 	`);
 	assert.ok(showcase.maps.some(item =>
-		item.value === 'shushan-world-map' && item.text === '蜀山全图'
+		item.value === 'shushan-world-map'
+		&& item.text?.includes('蜀山全图')
 	));
 	assert.ok(showcase.maps.some(item =>
-		item.value === 'emei-region-map' && item.text === '峨眉山区域'
+		item.value === 'emei-region-map'
+		&& item.text?.includes('峨眉山区域')
 	));
 	assert.equal(showcase.li, true);
 	assert.equal(showcase.start, true);

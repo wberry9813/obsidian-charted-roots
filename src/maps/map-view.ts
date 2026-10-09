@@ -283,12 +283,6 @@ export class MapView extends ItemView {
 
 		// Register event handlers
 		this.registerEventHandlers();
-
-		// Fresh vaults can finish parsing map-note frontmatter between the
-		// initial initializeMap() scan and listener registration. Rescan once
-		// after handlers are attached so that narrow race cannot leave the
-		// selector empty for the lifetime of the view.
-		this.loadCustomMaps();
 	}
 
 	/**
@@ -3246,17 +3240,6 @@ export class MapView extends ItemView {
 	 * Register event handlers for file changes
 	 */
 	private registerEventHandlers(): void {
-		// A newly opened vault resolves its metadata cache asynchronously. Map
-		// configs are frontmatter-driven, so perform one final selector rebuild
-		// when global metadata resolution completes as well as on per-file
-		// changes below.
-		this.registerEvent(
-			this.plugin.app.metadataCache.on('resolved', () => {
-				this.loadCustomMaps();
-				void this.refreshData();
-			})
-		);
-
 		// Refresh when metadata cache is updated (fires after frontmatter is parsed)
 		// This is more reliable than vault.on('modify') which fires before cache updates
 		this.registerEvent(
@@ -3356,10 +3339,7 @@ export class MapView extends ItemView {
 		const crType = cache?.frontmatter?.cr_type;
 		if (crType !== 'map') return;
 
-		// A fresh vault can open the Map before MetadataCache has parsed all map
-		// notes. When a map note arrives later, rebuild both the controller cache
-		// and the visible selector so first-open custom maps do not remain hidden.
-		this.loadCustomMaps();
+		this.mapController.reloadMapConfigs();
 		const refreshed = this.mapController.getActiveMapUniverse();
 		this.filters.universe = this.resolveUniverseFilterValue(refreshed) ?? undefined;
 	}
