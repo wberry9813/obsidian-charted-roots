@@ -2,6 +2,15 @@
   "version": 1,
   "workspaces": [
     {
+      "id": "genealogy-demo",
+      "name": "林氏家族 · 家谱研究",
+      "rootFolder": "示例/林氏家族",
+      "mode": "genealogy",
+      "enabledPacks": [
+        "core"
+      ]
+    },
+    {
       "id": "history-cn-demo",
       "name": "春秋战国 · 历史研究",
       "rootFolder": "示例/春秋战国",

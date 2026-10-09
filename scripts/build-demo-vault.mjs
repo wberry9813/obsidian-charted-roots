@@ -29,6 +29,31 @@ await copyJson('demo/config/workspaces.json', '.charted-roots/workspaces.json');
 await copyJson('demo/config/plugin-data.json', '.obsidian/plugins/charted-roots/data.json');
 await copyJson('demo/config/community-plugins.json', '.obsidian/community-plugins.json');
 
+// Showcase media fixtures and real import fixtures.
+const mediaTarget = path.join(TARGET, '示例/林氏家族/Media');
+await mkdir(mediaTarget, { recursive: true });
+for (const [sourceName, targetName] of [
+	['anderson_family_1990.jpg', '林家1990家庭合影-演示.jpg'],
+	['james_anderson_portrait.jpg', '林国梁肖像-演示.jpg'],
+	['linda_martinez_photo.jpg', '张淑芬肖像-演示.jpg'],
+	['david_anderson_graduation.jpg', '林晨毕业照-演示.jpg'],
+	['james_birth_certificate.pdf', '林晨出生证明-演示.pdf'],
+	['anderson_martinez_marriage.pdf', '林晨婚姻证明-演示.pdf']
+]) {
+	await cp(path.join(ROOT, 'tests/fixtures/gedcom/media-sample', sourceName), path.join(mediaTarget, targetName));
+}
+
+const importTarget = path.join(TARGET, '实验台/导入样例');
+await mkdir(importTarget, { recursive: true });
+for (const [source, targetName] of [
+	['tests/fixtures/gedcom/gedcom-sample-small-full.ged', 'GEDCOM-完整小型家谱.ged'],
+	['tests/fixtures/gedcom/gedcom-sample-small-remarriage.ged', 'GEDCOM-再婚家庭.ged'],
+	['tests/fixtures/gedcom/gedcom-sample-small-media.ged', 'GEDCOM-含媒体.ged'],
+	['tests/fixtures/gedcom/gedcom-sample-duplicates-27.ged', 'GEDCOM-重复项测试.ged'],
+	['tests/fixtures/gramps/gramps-app-export-test10-small.gpkg', 'Gramps-小型样例.gpkg']
+]) {
+	await cp(path.join(ROOT, source), path.join(importTarget, targetName));
+}
 await writeFile(
 	path.join(TARGET, '.obsidian/app.json'),
 	JSON.stringify({

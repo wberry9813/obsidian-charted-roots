@@ -24,13 +24,16 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 	`);
 
 	assert.equal(initial.language, 'zh-CN');
-	assert.equal(initial.active, 'history-cn-demo');
+	assert.equal(initial.active, 'genealogy-demo');
 	assert.deepEqual(initial.workspaces, [
+		{ id: 'genealogy-demo', name: '林氏家族 · 家谱研究' },
 		{ id: 'history-cn-demo', name: '春秋战国 · 历史研究' },
 		{ id: 'shushan-demo', name: '蜀山 · 世界观' }
 	]);
-	assert.ok(initial.people.includes('齐桓公'));
-	assert.ok(initial.people.includes('管仲'));
+	assert.ok(initial.people.includes('林晨'));
+	assert.ok(initial.people.includes('林国梁'));
+	assert.ok(initial.people.includes('林雨'));
+	assert.ok(!initial.people.includes('齐桓公'));
 	assert.ok(!initial.people.includes('李英琼'));
 
 	await session.evalInApp(`
@@ -55,6 +58,24 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 
 	await session.evalInApp(`
 		document.querySelector('.cr-workspace-manager .modal-button-container button:last-child')?.click();
+		await app.plugins.plugins['charted-roots'].setActiveWorkspace('history-cn-demo');
+		return true;
+	
+		return true;
+	`);
+	await session.waitFor(
+		`app.plugins.plugins['charted-roots'].getWorkspaceService()?.getActiveId() === 'history-cn-demo'`
+	);
+	const history = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		return plugin.getWorkspaceService().getScope().getMarkdownFiles()
+			.filter(file => file.path.includes('/People/')).map(file => file.basename);
+	`);
+	assert.ok(history.includes('齐桓公'));
+	assert.ok(history.includes('管仲'));
+	assert.ok(!history.includes('林晨'));
+
+	await session.evalInApp(`
 		await app.plugins.plugins['charted-roots'].setActiveWorkspace('shushan-demo');
 		return true;
 	`);
@@ -67,10 +88,13 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 			people: plugin.getWorkspaceService().getScope().getMarkdownFiles()
 				.filter(file => file.path.includes('/People/')).map(file => file.basename),
 			calendar: plugin.settings.fictionalDateSystems
-				.find(system => system.id === 'shushan-calendar')?.name
+				.find(system => system.id === 'shushan-calendar')?.name,
+			dna: plugin.settings.enableDnaTracking
 		};
 	`);
 	assert.ok(fiction.people.includes('李英琼'));
 	assert.ok(!fiction.people.includes('齐桓公'));
+	assert.ok(!fiction.people.includes('林晨'));
 	assert.equal(fiction.calendar, '蜀山纪年');
+	assert.equal(fiction.dna, true);
 });

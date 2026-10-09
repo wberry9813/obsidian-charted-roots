@@ -1,6 +1,6 @@
 {
   "uiLanguage": "zh-CN",
-  "activeWorkspaceId": "history-cn-demo",
+  "activeWorkspaceId": "genealogy-demo",
   "legacyNegativeYearSemantics": "bce_display",
   "geographicBasemapId": "carto-voyager",
   "enableFictionalDates": true,
@@ -29,5 +29,13 @@
       "defaultEra": "shushan-era",
       "source": "custom"
     }
-  ]
+  ],
+  "enableDnaTracking": true,
+  "showSourceIndicators": true,
+  "enablePrivacyProtection": true,
+  "timelineShowPlaceContext": true,
+  "trackFactSourcing": true,
+  "showResearchGapsInStatus": true,
+  "stagingFolder": "示例/林氏家族/Staging",
+  "enableStagingIsolation": true
 }
