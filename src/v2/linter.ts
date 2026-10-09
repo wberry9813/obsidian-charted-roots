@@ -82,6 +82,31 @@ export class V2Linter {
 				});
 			}
 
+			if (crType === 'control_layer') {
+				if (
+					typeof frontmatter.geojson_file !== 'string'
+					|| !frontmatter.geojson_file.trim()
+				) {
+					issues.push({
+						severity: 'error',
+						code: 'missing_control_layer_geojson',
+						message: 'Control layer requires a non-empty geojson_file.',
+						filePath: file.path
+					});
+				}
+				if (
+					frontmatter.coordinate_crs !== undefined
+					&& frontmatter.coordinate_crs !== 'wgs84'
+				) {
+					issues.push({
+						severity: 'warning',
+						code: 'non_canonical_control_layer_crs',
+						message: 'Persisted control-layer geometry should use canonical WGS84.',
+						filePath: file.path
+					});
+				}
+			}
+
 			const crId = frontmatter.cr_id;
 			if (typeof crId !== 'string' || !crId.trim()) {
 				issues.push({

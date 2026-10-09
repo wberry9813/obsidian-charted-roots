@@ -30,6 +30,7 @@ import { AddCitationModal } from '../sources/ui/add-citation-modal';
 import { CitationSyncService } from '../sources/services/citation-sync-service';
 import { formatChangeDescription } from '../core/relationship-history';
 import { V2MigrationPreviewModal } from '../v2/migration/preview-modal';
+import { HistoricalControlLayerImportModal } from '../v2/maps/control-layers/import-modal';
 import {
 	promptAssignReferenceNumbers,
 	promptClearReferenceNumbers,
@@ -630,6 +631,15 @@ export function registerCommandsAndEvents(plugin: CanvasRootsPlugin): void {
 		name: 'Open map view',
 		callback: () => {
 			void plugin.activateMapView();
+		}
+	});
+
+	// Add command: Import Historical Control Layer
+	plugin.addCommand({
+		id: 'import-historical-control-layer',
+		name: 'Import historical control layer',
+		callback: () => {
+			new HistoricalControlLayerImportModal(plugin.app, plugin).open();
 		}
 	});
 

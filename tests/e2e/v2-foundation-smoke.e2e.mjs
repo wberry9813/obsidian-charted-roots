@@ -368,20 +368,31 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	`);
 
 	await session.waitFor(
-		`document.querySelector('.cr-profile__type-badge')?.textContent === 'Office'
-			&& document.querySelector('.cr-profile__header-name')?.textContent?.includes('丞相')
-			&& [...document.querySelectorAll('.cr-profile__section-title')]
-				.some(el => el.textContent === 'Structured assertions')`
+		`app.workspace.getLeavesOfType('charted-roots-entity-profile')
+			.some(leaf => {
+				const root = leaf.view?.containerEl;
+				return root?.querySelector('.cr-profile__type-badge')?.textContent === 'Office'
+					&& root?.querySelector('.cr-profile__header-name')?.textContent?.includes('丞相')
+					&& [...(root?.querySelectorAll('.cr-profile__section-title') ?? [])]
+						.some(el => el.textContent === 'Structured assertions');
+			})`
 	);
 
 	const officeProfileUi = await session.evalInApp(`
-		const title = [...document.querySelectorAll('.cr-profile__section-title')]
+		const leaf = app.workspace.getLeavesOfType('charted-roots-entity-profile')
+			.find(candidate => {
+				const root = candidate.view?.containerEl;
+				return root?.querySelector('.cr-profile__type-badge')?.textContent === 'Office'
+					&& root?.querySelector('.cr-profile__header-name')?.textContent?.includes('丞相');
+			});
+		const root = leaf?.view?.containerEl;
+		const title = [...(root?.querySelectorAll('.cr-profile__section-title') ?? [])]
 			.find(el => el.textContent === 'Structured assertions');
 		const section = title?.closest('.cr-profile__section');
 		return {
-			typeBadge: document.querySelector('.cr-profile__type-badge')?.textContent ?? null,
-			name: document.querySelector('.cr-profile__header-name')?.textContent ?? '',
-			meta: document.querySelector('.cr-profile__header-meta')?.textContent ?? '',
+			typeBadge: root?.querySelector('.cr-profile__type-badge')?.textContent ?? null,
+			name: root?.querySelector('.cr-profile__header-name')?.textContent ?? '',
+			meta: root?.querySelector('.cr-profile__header-meta')?.textContent ?? '',
 			assertionText: section?.textContent ?? '',
 			materializedRows: section?.querySelectorAll('.cr-profile__assertion-item').length ?? 0,
 			predicates: [...(section?.querySelectorAll('.cr-profile__assertion-predicate') ?? [])]
@@ -401,6 +412,115 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.match(officeProfileUi.assertionText, /建安十四年/);
 
 	await session.screenshot(path.join(ARTIFACTS, 'v2-office-profile.png'));
+
+	// Exercise the real Create Place modal CRS boundary. Switching the display
+	// CRS must preserve the represented location, while saved frontmatter must
+	// remain canonical WGS84 and carry no transient source-CRS marker.
+	await session.evalInApp(`
+		const ok = app.commands.executeCommandById('charted-roots:create-place-note');
+		if (!ok) throw new Error('Create Place command was not registered.');
+		return true;
+	`);
+	await session.waitFor(
+		`document.querySelector('.crc-create-place-modal .crc-coordinate-crs')
+			&& document.querySelector('.crc-create-place-modal [aria-label="Latitude"]')
+			&& document.querySelector('.crc-create-place-modal [aria-label="Longitude"]')`
+	);
+
+	const coordinateCrsSwitch = await session.evalInApp(`
+		const modal = document.querySelector('.crc-create-place-modal');
+		if (!modal) throw new Error('Create Place modal is unavailable.');
+
+		const nameSetting = [...modal.querySelectorAll('.setting-item')]
+			.find(el => el.querySelector('.setting-item-name')?.textContent === 'Name');
+		const nameInput = nameSetting?.querySelector('input');
+		const lat = modal.querySelector('[aria-label="Latitude"]');
+		const long = modal.querySelector('[aria-label="Longitude"]');
+		const crs = modal.querySelector('.crc-coordinate-crs');
+		if (
+			!(nameInput instanceof HTMLInputElement)
+			|| !(lat instanceof HTMLInputElement)
+			|| !(long instanceof HTMLInputElement)
+			|| !(crs instanceof HTMLSelectElement)
+		) {
+			throw new Error('Create Place coordinate controls are incomplete.');
+		}
+
+		nameInput.value = 'M6 GCJ Input E2E';
+		nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+		lat.value = '34.7478004';
+		lat.dispatchEvent(new Event('input', { bubbles: true }));
+		long.value = '113.6192856';
+		long.dispatchEvent(new Event('input', { bubbles: true }));
+
+		crs.value = 'gcj02';
+		crs.dispatchEvent(new Event('change', { bubbles: true }));
+
+		return {
+			crs: crs.value,
+			lat: Number(lat.value),
+			long: Number(long.value)
+		};
+	`);
+
+	assert.equal(coordinateCrsSwitch.crs, 'gcj02');
+	assert.ok(Math.abs(coordinateCrsSwitch.lat - 34.7466173) <= 1e-5);
+	assert.ok(Math.abs(coordinateCrsSwitch.long - 113.6253334) <= 1e-5);
+
+	await session.evalInApp(`
+		const modal = document.querySelector('.crc-create-place-modal');
+		const lat = modal?.querySelector('[aria-label="Latitude"]');
+		const long = modal?.querySelector('[aria-label="Longitude"]');
+		if (!(lat instanceof HTMLInputElement) || !(long instanceof HTMLInputElement)) {
+			throw new Error('Create Place coordinate inputs are unavailable.');
+		}
+
+		// Enter the known GCJ-02 golden fixture as if copied from Amap/Gaode.
+		lat.value = '34.7466173';
+		lat.dispatchEvent(new Event('input', { bubbles: true }));
+		long.value = '113.6253334';
+		long.dispatchEvent(new Event('input', { bubbles: true }));
+
+		const createButton = [...(modal?.querySelectorAll('button') ?? [])]
+			.find(button => button.textContent?.trim() === 'Create place');
+		if (!(createButton instanceof HTMLButtonElement)) {
+			throw new Error('Create Place submit button is unavailable.');
+		}
+		createButton.click();
+		return true;
+	`);
+
+	await session.waitFor(
+		`(() => {
+			const file = app.vault.getMarkdownFiles()
+				.find(file => file.basename === 'M6 GCJ Input E2E');
+			if (!file) return false;
+			const fm = app.metadataCache.getFileCache(file)?.frontmatter;
+			return !!fm
+				&& typeof fm.coordinates_lat === 'number'
+				&& typeof fm.coordinates_long === 'number';
+		})()`
+	);
+
+	const coordinateCrsStorage = await session.evalInApp(`
+		const file = app.vault.getMarkdownFiles()
+			.find(file => file.basename === 'M6 GCJ Input E2E');
+		if (!file) throw new Error('M6 CRS test Place was not created.');
+		const fm = app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+		const result = {
+			lat: fm.coordinates_lat,
+			long: fm.coordinates_long,
+			hasSourceCrs:
+				Object.prototype.hasOwnProperty.call(fm, 'coordinateCRS')
+				|| Object.prototype.hasOwnProperty.call(fm, 'coordinate_crs')
+		};
+		await app.vault.delete(file);
+		return result;
+	`);
+
+	assert.ok(Math.abs(coordinateCrsStorage.lat - 34.7478004) <= 1e-5);
+	assert.ok(Math.abs(coordinateCrsStorage.long - 113.6192856) <= 1e-5);
+	assert.equal(coordinateCrsStorage.hasSourceCrs, false);
 
 	// Exercise the user-visible read-only migration preview command.
 	await session.evalInApp(`
@@ -963,6 +1083,8 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			return {
 				workspace: root?.querySelector('.cr-v2-timeline__workspace')?.textContent ?? '',
 				scale: root?.querySelector('.cr-v2-timeline__svg')?.getAttribute('data-scale') ?? null,
+				chronologyId: root?.querySelector('.cr-v2-timeline__svg')
+					?.getAttribute('data-chronology-id') ?? null,
 				spanIds: [...(root?.querySelectorAll('.cr-v2-timeline__span') ?? [])]
 					.map(el => el.getAttribute('data-item-id'))
 					.filter(Boolean)
@@ -1047,7 +1169,28 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 					.sort(),
 				contextSummary: root?.querySelector(
 					'.cr-map-temporal-context__summary'
-				)?.textContent ?? ''
+				)?.textContent ?? '',
+				controlActiveCount: Number(
+					mapContainer?.getAttribute('data-control-layer-active-count') ?? '0'
+				),
+				controlPossibleCount: Number(
+					mapContainer?.getAttribute('data-control-layer-possible-count') ?? '0'
+				),
+				controlIssueCount: Number(
+					mapContainer?.getAttribute('data-control-layer-issue-count') ?? '0'
+				),
+				controlFeatureIds: [...(root?.querySelectorAll(
+					'.cr-historical-control-feature[data-control-feature-id]'
+				) ?? [])]
+					.map(el => el.getAttribute('data-control-feature-id'))
+					.filter(Boolean)
+					.sort(),
+				controlStates: [...(root?.querySelectorAll(
+					'.cr-historical-control-feature[data-temporal-state]'
+				) ?? [])]
+					.map(el => el.getAttribute('data-temporal-state'))
+					.filter(Boolean)
+					.sort()
 			};
 		};
 
@@ -1265,7 +1408,314 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		);
 		await plugin.activateMapView();
 		await new Promise(resolve => window.setTimeout(resolve, 150));
+		const historyMapLeaf = app.workspace.getLeavesOfType('canvas-roots-map')[0];
+		const historyMapView = historyMapLeaf?.view;
+		if (
+			!historyMapView?.getHistoricalControlLayers
+			|| !historyMapView?.refreshHistoricalControlLayers
+		) {
+			throw new Error('Historical control-layer repository runtime is unavailable.');
+		}
+		history.controlStorage = {
+			ids: historyMapView.getHistoricalControlLayers()
+				.map(layer => layer.id)
+				.sort()
+		};
+
+		// Exercise the user-visible C4 import flow. The source fixture is GCJ-02,
+		// while the persisted GeoJSON must become canonical WGS84 inside the
+		// current History Workspace.
+		const importOpened = app.commands.executeCommandById(
+			'charted-roots:import-historical-control-layer'
+		);
+		if (!importOpened) {
+			throw new Error('Historical control-layer import command is unavailable.');
+		}
+		await new Promise(resolve => window.setTimeout(resolve, 30));
+		const importModal = document.querySelector('.cr-control-layer-import-modal');
+		const importName = importModal?.querySelector(
+			'.cr-control-layer-import__name'
+		);
+		const importCrs = importModal?.querySelector(
+			'.cr-control-layer-import__crs'
+		);
+		const importGeoJson = importModal?.querySelector(
+			'.cr-control-layer-import__geojson'
+		);
+		const importStart = importModal?.querySelector(
+			'.cr-control-layer-import__time-start'
+		);
+		const importEnd = importModal?.querySelector(
+			'.cr-control-layer-import__time-end'
+		);
+		const importSubmit = importModal?.querySelector(
+			'.cr-control-layer-import__submit'
+		);
+		if (
+			!(importName instanceof HTMLInputElement)
+			|| !(importCrs instanceof HTMLSelectElement)
+			|| !(importGeoJson instanceof HTMLTextAreaElement)
+			|| !(importStart instanceof HTMLInputElement)
+			|| !(importEnd instanceof HTMLInputElement)
+			|| !(importSubmit instanceof HTMLButtonElement)
+		) {
+			throw new Error('Historical control-layer import controls are incomplete.');
+		}
+
+		importName.value = 'M6 Imported Boundary E2E';
+		importName.dispatchEvent(new Event('input', { bubbles: true }));
+		importCrs.value = 'gcj02';
+		importCrs.dispatchEvent(new Event('change', { bubbles: true }));
+		importGeoJson.value = JSON.stringify({
+			type: 'FeatureCollection',
+			features: [{
+				type: 'Feature',
+				id: 'imported-gcj-point',
+				properties: { name: 'Imported GCJ point' },
+				geometry: {
+					type: 'Point',
+					coordinates: [113.6253334, 34.7466173]
+				}
+			}]
+		});
+		importGeoJson.dispatchEvent(new Event('input', { bubbles: true }));
+		importStart.value = 'BCE 500';
+		importStart.dispatchEvent(new Event('input', { bubbles: true }));
+		importEnd.value = 'BCE 400';
+		importEnd.dispatchEvent(new Event('input', { bubbles: true }));
+		importSubmit.click();
+
+		for (let i = 0; i < 120; i++) {
+			const imported = historyMapView.getHistoricalControlLayers()
+				.find(layer => layer.label === 'M6 Imported Boundary E2E');
+			if (imported) break;
+			await new Promise(resolve => window.setTimeout(resolve, 25));
+		}
+		const importedLayer = historyMapView.getHistoricalControlLayers()
+			.find(layer => layer.label === 'M6 Imported Boundary E2E');
+		if (!importedLayer) {
+			throw new Error('Imported control layer did not reach the open Map runtime.');
+		}
+
+		const importedManifest = app.vault.getMarkdownFiles().find(file => {
+			const fm = app.metadataCache.getFileCache(file)?.frontmatter;
+			return fm?.cr_type === 'control_layer'
+				&& fm?.name === 'M6 Imported Boundary E2E';
+		});
+		if (!importedManifest) {
+			throw new Error('Imported control-layer manifest was not created.');
+		}
+		const importedFrontmatter = app.metadataCache
+			.getFileCache(importedManifest)?.frontmatter ?? {};
+		const importedFolder = importedManifest.path
+			.split('/').slice(0, -1).join('/');
+		const importedGeoJsonPath = importedFolder + '/' + importedFrontmatter.geojson_file;
+		const importedGeoJsonFile = app.vault.getAbstractFileByPath(
+			importedGeoJsonPath
+		);
+		if (!importedGeoJsonFile || !('extension' in importedGeoJsonFile)) {
+			throw new Error('Imported canonical GeoJSON file was not created.');
+		}
+		const importedGeoJsonStored = JSON.parse(
+			await app.vault.read(importedGeoJsonFile)
+		);
+		const importedPoint = importedGeoJsonStored.features?.[0]?.geometry?.coordinates;
+		history.controlImport = {
+			manifestPath: importedManifest.path,
+			geojsonPath: importedGeoJsonPath,
+			coordinateCrs: importedFrontmatter.coordinate_crs,
+			sourceCoordinateCrs: importedFrontmatter.source_coordinate_crs,
+			point: importedPoint,
+			runtimeIds: historyMapView.getHistoricalControlLayers()
+				.map(layer => layer.id)
+				.sort(),
+			rendered: readTemporalMap()
+		};
+
+		await app.vault.delete(importedManifest);
+		await app.vault.delete(importedGeoJsonFile);
+		for (let i = 0; i < 120; i++) {
+			if (
+				!historyMapView.getHistoricalControlLayers()
+					.some(layer => layer.label === 'M6 Imported Boundary E2E')
+			) break;
+			await new Promise(resolve => window.setTimeout(resolve, 25));
+		}
+		history.controlImportAfterCleanup = {
+			ids: historyMapView.getHistoricalControlLayers()
+				.map(layer => layer.id)
+				.sort(),
+			rendered: readTemporalMap()
+		};
+
+		// C5: user-facing Map Timeline control publishes an entire CE year as
+		// shared Julian Day focus when the bridge is unambiguous.
+		const timelineToggle = historyMapView.containerEl.querySelector(
+			'button[aria-label="Timeline"]'
+		);
+		if (!(timelineToggle instanceof HTMLButtonElement)) {
+			throw new Error('Map Timeline toggle is unavailable.');
+		}
+		timelineToggle.click();
+		await new Promise(resolve => window.setTimeout(resolve, 30));
+		const mapYearSlider = historyMapView.containerEl.querySelector(
+			'.cr-map-time-slider'
+		);
+		if (!(mapYearSlider instanceof HTMLInputElement)) {
+			throw new Error('Map time slider is unavailable.');
+		}
+		history.mapSliderFocus = {
+			sliderYear: Number(mapYearSlider.value),
+			focus: plugin.getTemporalFocusService().get(),
+			bridgeStatus: historyMapView.containerEl.querySelector(
+				'.cr-map-container'
+			)?.getAttribute('data-map-temporal-bridge-status') ?? null,
+			bridgeReason: historyMapView.containerEl.querySelector(
+				'.cr-map-container'
+			)?.getAttribute('data-map-temporal-bridge-reason') ?? null
+		};
+
+		// C5 BCE bridge: add a temporary legacy person so the real MapData year
+		// range genuinely exposes -456 on the slider. This verifies the user path
+		// rather than bypassing the range input's min/max constraints.
+		const bceBridgePersonPath =
+			'Workspace-E2E/History/People/M6-BCE-Bridge-Person.md';
+		const existingBceBridgePerson =
+			app.vault.getAbstractFileByPath(bceBridgePersonPath);
+		if (existingBceBridgePerson) {
+			await app.vault.delete(existingBceBridgePerson);
+		}
+		const bceBridgePerson = await app.vault.create(
+			bceBridgePersonPath,
+			[
+				'---',
+				'cr_schema: 2',
+				'cr_type: person',
+				'cr_id: workspace-history-bce-bridge-person',
+				'name: M6 BCE Bridge Person',
+				'born: "-456"',
+				'died: "-455"',
+				'---',
+				''
+			].join('\\n')
+		);
+		await new Promise(resolve => window.setTimeout(resolve, 50));
+		await historyMapView.refreshData();
+		for (let i = 0; i < 80 && Number(mapYearSlider.min) > -456; i++) {
+			await new Promise(resolve => window.setTimeout(resolve, 25));
+		}
+
+		// The default remains reject, but an explicit BCE-display interpretation
+		// makes -456 mean 456 BCE (astronomical -455).
+		const originalLegacyYearSemantics =
+			plugin.settings.legacyNegativeYearSemantics ?? 'reject';
+		const originalMapSliderYear = Number(mapYearSlider.value);
+		plugin.settings.legacyNegativeYearSemantics = 'bce_display';
+		mapYearSlider.value = '-456';
+		mapYearSlider.dispatchEvent(new Event('input', { bubbles: true }));
+		await new Promise(resolve => window.setTimeout(resolve, 30));
+		history.mapSliderBceFocus = {
+			sliderMin: Number(mapYearSlider.min),
+			sliderYear: Number(mapYearSlider.value),
+			focus: plugin.getTemporalFocusService().get(),
+			bridgeStatus: historyMapView.containerEl.querySelector(
+				'.cr-map-container'
+			)?.getAttribute('data-map-temporal-bridge-status') ?? null,
+			bridgeReason: historyMapView.containerEl.querySelector(
+				'.cr-map-container'
+			)?.getAttribute('data-map-temporal-bridge-reason') ?? null,
+			expectedStart: historicalCalendar.solarToJulianDay({
+				year: -455,
+				month: 1,
+				day: 1
+			}),
+			expectedEndExclusive: historicalCalendar.solarToJulianDay({
+				year: -454,
+				month: 1,
+				day: 1
+			})
+		};
+
+		plugin.settings.legacyNegativeYearSemantics = originalLegacyYearSemantics;
+		mapYearSlider.value = String(originalMapSliderYear);
+		mapYearSlider.dispatchEvent(new Event('input', { bubbles: true }));
+		await app.vault.delete(bceBridgePerson);
+		await historyMapView.refreshData();
+		await new Promise(resolve => window.setTimeout(resolve, 30));
+
+		timelineToggle.click();
+		await new Promise(resolve => window.setTimeout(resolve, 20));
+		history.mapSliderFocusAfterDisable =
+			plugin.getTemporalFocusService().get();
+
+		// Restore the historical BCE fixture focus used by the rest of this
+		// scenario so the new bridge check does not disturb older assertions.
+		plugin.getTemporalFocusService().setPoint(
+			historicalCalendar.solarToJulianDay({
+				year: -456,
+				month: 6,
+				day: 1
+			}),
+			'e2e-history'
+		);
+		await new Promise(resolve => window.setTimeout(resolve, 20));
+
 		history.mapTemporal = readTemporalMap();
+
+		// Exercise M6 C2 provider hot-switching on the already-open Map. Reuse
+		// CARTO's tile URL so the test validates provider/datum plumbing without
+		// depending on a separate external tile service.
+		const mapLeafForBasemap = app.workspace.getLeavesOfType('canvas-roots-map')[0];
+		const mapViewForBasemap = mapLeafForBasemap?.view;
+		const mapControllerForBasemap = mapViewForBasemap?.mapController;
+		if (!mapControllerForBasemap) {
+			throw new Error('Map controller is unavailable for basemap E2E.');
+		}
+		const originalBasemapId = plugin.settings.geographicBasemapId;
+		const originalCustomBasemaps = [
+			...(plugin.settings.customGeographicBasemaps ?? [])
+		];
+		plugin.settings.customGeographicBasemaps = [{
+			id: 'e2e-gcj',
+			label: 'E2E GCJ',
+			coordinateCRS: 'gcj02',
+			tileUrl: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+			attribution: 'E2E',
+			maxZoom: 19,
+			miniMapMaxZoom: 13,
+			noReferrer: true
+		}];
+		plugin.settings.geographicBasemapId = 'e2e-gcj';
+		await plugin.saveSettings();
+		await mapViewForBasemap.refreshGeographicBasemapSettings();
+		const gcjDefinition = mapControllerForBasemap.getGeographicBasemapDefinition();
+		const gcjDisplay = mapControllerForBasemap.canonicalGeographicToMapLatLng(
+			34.7478004,
+			113.6192856
+		);
+		history.basemapHotSwitch = {
+			id: gcjDefinition.id,
+			crs: gcjDefinition.coordinateCRS,
+			lat: gcjDisplay.lat,
+			lng: gcjDisplay.lng
+		};
+		history.controlAfterBasemapSwitch = readTemporalMap();
+
+		plugin.settings.geographicBasemapId = originalBasemapId;
+		plugin.settings.customGeographicBasemaps = originalCustomBasemaps;
+		await plugin.saveSettings();
+		await mapViewForBasemap.refreshGeographicBasemapSettings();
+		const restoredDefinition = mapControllerForBasemap.getGeographicBasemapDefinition();
+		const restoredDisplay = mapControllerForBasemap.canonicalGeographicToMapLatLng(
+			34.7478004,
+			113.6192856
+		);
+		history.basemapRestored = {
+			id: restoredDefinition.id,
+			crs: restoredDefinition.coordinateCRS,
+			lat: restoredDisplay.lat,
+			lng: restoredDisplay.lng
+		};
 
 		plugin.getTemporalFocusService().clear();
 		await new Promise(resolve => window.setTimeout(resolve, 30));
@@ -1321,6 +1771,137 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 				day: 1
 			})
 		);
+
+		// C5 chronology-local bidirectional smoke:
+		// Map fictional slider -> shared chronology focus -> Timeline axis,
+		// then a real Timeline click -> shared chronology focus -> Map slider.
+		const chronologyPaths = [
+			'Workspace-E2E/Shushan/People/C5-Chronology-Person.md',
+			'Workspace-E2E/Shushan/Events/C5-Chronology-Early.md',
+			'Workspace-E2E/Shushan/Events/C5-Chronology-Late.md'
+		];
+		for (const path of chronologyPaths) {
+			const existing = app.vault.getAbstractFileByPath(path);
+			if (existing) await app.vault.delete(existing);
+		}
+		await app.vault.create(chronologyPaths[0], [
+			'---',
+			'cr_schema: 2',
+			'cr_type: person',
+			'cr_id: c5-chronology-person',
+			'name: C5 Chronology Person',
+			'universe: Star Wars',
+			'born: "BBY 82"',
+			'died: "BBY 78"',
+			'---',
+			''
+		].join('\\n'));
+		await app.vault.create(chronologyPaths[1], [
+			'---',
+			'cr_schema: 2',
+			'cr_type: event',
+			'cr_id: c5-chronology-early',
+			'title: C5 Chronology Early',
+			'event_type: other',
+			'universe: Star Wars',
+			'time_start: "BBY 82"',
+			'---',
+			''
+		].join('\\n'));
+		await app.vault.create(chronologyPaths[2], [
+			'---',
+			'cr_schema: 2',
+			'cr_type: event',
+			'cr_id: c5-chronology-late',
+			'title: C5 Chronology Late',
+			'event_type: other',
+			'universe: Star Wars',
+			'time_start: "BBY 79"',
+			'---',
+			''
+		].join('\\n'));
+
+		for (let i = 0; i < 80; i++) {
+			const ready = chronologyPaths.every(path =>
+				app.metadataCache.getCache(path)?.frontmatter?.cr_type
+			);
+			if (ready) break;
+			await new Promise(resolve => window.setTimeout(resolve, 25));
+		}
+
+		historyMapView.filters.universe = 'Star Wars';
+		await historyMapView.refreshData();
+		const chronologyToggle = historyMapView.containerEl.querySelector(
+			'button[aria-label="Timeline"]'
+		);
+		if (!(chronologyToggle instanceof HTMLButtonElement)) {
+			throw new Error('Chronology Map Timeline toggle is unavailable.');
+		}
+		if (!historyMapView.timeSlider.enabled) {
+			chronologyToggle.click();
+		}
+		await new Promise(resolve => window.setTimeout(resolve, 60));
+
+		const chronologySlider = historyMapView.containerEl.querySelector(
+			'.cr-map-time-slider'
+		);
+		if (!(chronologySlider instanceof HTMLInputElement)) {
+			throw new Error('Chronology Map slider is unavailable.');
+		}
+		const chronologyFocusFromMap = plugin.getTemporalFocusService().get();
+		const chronologyTimelineFromMap = readTimelineView();
+
+		// The Timeline leaf may be hidden after Profile/Map interactions. Reveal it
+		// before pointer-based clicking so getBoundingClientRect() reflects the
+		// real interactive viewport instead of a zero-width hidden leaf.
+		await plugin.activateTemporalTimelineView();
+		await new Promise(resolve => window.setTimeout(resolve, 60));
+
+		const chronologySvg = app.workspace
+			.getLeavesOfType('charted-roots-temporal-timeline')[0]
+			?.view?.containerEl?.querySelector('.cr-v2-timeline__svg');
+		if (!(chronologySvg instanceof SVGSVGElement)) {
+			throw new Error('Chronology Timeline SVG is unavailable.');
+		}
+		const chronologyBounds = chronologySvg.getBoundingClientRect();
+		chronologySvg.dispatchEvent(new MouseEvent('click', {
+			bubbles: true,
+			clientX: chronologyBounds.left + chronologyBounds.width * 0.7,
+			clientY: chronologyBounds.top + 60
+		}));
+		await new Promise(resolve => window.setTimeout(resolve, 60));
+
+		const chronologyFocusFromTimeline =
+			plugin.getTemporalFocusService().get();
+		const chronologySync = {
+			fromMap: {
+				sliderYear: Number(chronologySlider.value),
+				focus: chronologyFocusFromMap,
+				timeline: chronologyTimelineFromMap
+			},
+			fromTimeline: {
+				focus: chronologyFocusFromTimeline,
+				sliderYear: Number(chronologySlider.value),
+				followAxis: historyMapView.containerEl.querySelector(
+					'.cr-map-container'
+				)?.getAttribute('data-map-temporal-follow-axis') ?? null,
+				followYear: Number(historyMapView.containerEl.querySelector(
+					'.cr-map-container'
+				)?.getAttribute('data-map-temporal-follow-year'))
+			}
+		};
+
+		if (historyMapView.timeSlider.enabled) {
+			chronologyToggle.click();
+		}
+		plugin.getTemporalFocusService().clear();
+		historyMapView.filters.universe = undefined;
+		for (const path of chronologyPaths) {
+			const current = app.vault.getAbstractFileByPath(path);
+			if (current) await app.vault.delete(current);
+		}
+		await historyMapView.refreshData();
+		await new Promise(resolve => window.setTimeout(resolve, 40));
 
 		const shushanCreated = [
 			await eventService.createEvent({
@@ -1411,6 +1992,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			profileTemporal: shushanProfileTemporal,
 			mapAfterWorkspaceSwitch: shushanMapAfterSwitch,
 			mapFocused: shushanMapFocused,
+			chronologySync,
 			createdPaths: shushanCreated.map(file => file.path)
 		};
 
@@ -1471,6 +2053,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'Workspace-E2E/History/Assertions/History-Assertion.md',
 		'Workspace-E2E/History/Events/History-Event.md',
 		'Workspace-E2E/History/Events/History-Service-Event.md',
+		'Workspace-E2E/History/Layers/History-Control-Layer.md',
 		'Workspace-E2E/History/Organizations/History-Org.md',
 		'Workspace-E2E/History/People/History-Person.md',
 		'Workspace-E2E/History/Periods/History-Bounded.md',
@@ -1630,6 +2213,76 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		workspaceState.history.relationshipTemporal.summary,
 		'1 active · 0 possible'
 	);
+	assert.deepEqual(workspaceState.history.controlStorage, {
+		ids: ['workspace-history-control-layer']
+	});
+	assert.match(
+		workspaceState.history.controlImport.manifestPath,
+		/^Workspace-E2E\/History\/Layers\//
+	);
+	assert.match(
+		workspaceState.history.controlImport.geojsonPath,
+		/^Workspace-E2E\/History\/Layers\//
+	);
+	assert.equal(workspaceState.history.controlImport.coordinateCrs, 'wgs84');
+	assert.equal(
+		workspaceState.history.controlImport.sourceCoordinateCrs,
+		'gcj02'
+	);
+	assert.ok(
+		Math.abs(workspaceState.history.controlImport.point[0] - 113.6192856)
+			<= 1e-5
+	);
+	assert.ok(
+		Math.abs(workspaceState.history.controlImport.point[1] - 34.7478004)
+			<= 1e-5
+	);
+	assert.ok(
+		workspaceState.history.controlImport.runtimeIds.length
+			=== workspaceState.history.controlStorage.ids.length + 1
+	);
+	assert.ok(
+		workspaceState.history.controlImport.rendered.controlFeatureIds
+			.includes('imported-gcj-point')
+	);
+	assert.deepEqual(
+		workspaceState.history.controlImportAfterCleanup.ids,
+		['workspace-history-control-layer']
+	);
+	assert.equal(workspaceState.history.mapSliderFocus.sliderYear, 115);
+	assert.equal(workspaceState.history.mapSliderFocus.bridgeStatus, 'resolved');
+	assert.equal(workspaceState.history.mapSliderFocus.bridgeReason, '');
+	assert.equal(workspaceState.history.mapSliderFocus.focus.kind, 'range');
+	assert.equal(
+		workspaceState.history.mapSliderFocus.focus.source,
+		'map-time-slider'
+	);
+	assert.ok(workspaceState.history.mapSliderBceFocus.sliderMin <= -456);
+	assert.equal(workspaceState.history.mapSliderBceFocus.sliderYear, -456);
+	assert.equal(
+		workspaceState.history.mapSliderBceFocus.bridgeStatus,
+		'resolved'
+	);
+	assert.equal(workspaceState.history.mapSliderBceFocus.bridgeReason, '');
+	assert.equal(workspaceState.history.mapSliderBceFocus.focus.kind, 'range');
+	assert.equal(
+		workspaceState.history.mapSliderBceFocus.focus.source,
+		'map-time-slider'
+	);
+	assert.equal(
+		workspaceState.history.mapSliderBceFocus.focus.start,
+		workspaceState.history.mapSliderBceFocus.expectedStart
+	);
+	assert.equal(
+		workspaceState.history.mapSliderBceFocus.focus.endExclusive,
+		workspaceState.history.mapSliderBceFocus.expectedEndExclusive
+	);
+	assert.equal(workspaceState.history.mapSliderFocusAfterDisable, null);
+	assert.equal(
+		workspaceState.history.controlImportAfterCleanup.rendered.controlFeatureIds
+			.includes('imported-gcj-point'),
+		false
+	);
 	assert.deepEqual(workspaceState.history.mapTemporal, {
 		focusKind: 'point',
 		markerCount: 1,
@@ -1642,8 +2295,45 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			'workspace-history-process'
 		],
 		contextPossibleIds: ['workspace-history-bounded-period'],
-		contextSummary: '2 active · 1 possible'
+		contextSummary: '2 active · 1 possible',
+		controlActiveCount: 1,
+		controlPossibleCount: 1,
+		controlIssueCount: 0,
+		controlFeatureIds: [
+			'history-control-active',
+			'history-control-possible'
+		],
+		controlStates: ['active', 'possible']
 	});
+	assert.equal(workspaceState.history.basemapHotSwitch.id, 'e2e-gcj');
+	assert.equal(workspaceState.history.basemapHotSwitch.crs, 'gcj02');
+	assert.ok(
+		Math.abs(workspaceState.history.basemapHotSwitch.lat - 34.7466173) <= 1e-5
+	);
+	assert.ok(
+		Math.abs(workspaceState.history.basemapHotSwitch.lng - 113.6253334) <= 1e-5
+	);
+	assert.equal(
+		workspaceState.history.controlAfterBasemapSwitch.controlActiveCount,
+		1
+	);
+	assert.equal(
+		workspaceState.history.controlAfterBasemapSwitch.controlPossibleCount,
+		1
+	);
+	assert.deepEqual(
+		workspaceState.history.controlAfterBasemapSwitch.controlFeatureIds,
+		['history-control-active', 'history-control-possible']
+	);
+	assert.equal(workspaceState.history.basemapRestored.id, 'carto-voyager');
+	assert.equal(workspaceState.history.basemapRestored.crs, 'wgs84');
+	assert.ok(
+		Math.abs(workspaceState.history.basemapRestored.lat - 34.7478004) <= 1e-9
+	);
+	assert.ok(
+		Math.abs(workspaceState.history.basemapRestored.lng - 113.6192856) <= 1e-9
+	);
+
 	assert.deepEqual(workspaceState.history.mapTemporalCleared, {
 		focusKind: '',
 		markerCount: 0,
@@ -1653,7 +2343,12 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		states: [],
 		contextActiveIds: [],
 		contextPossibleIds: [],
-		contextSummary: ''
+		contextSummary: '',
+		controlActiveCount: 0,
+		controlPossibleCount: 0,
+		controlIssueCount: 0,
+		controlFeatureIds: [],
+		controlStates: []
 	});
 	assert.deepEqual(workspaceState.history.createdPaths.sort(), [
 		'Workspace-E2E/History/Events/History Created Event E2E.md',
@@ -1777,7 +2472,12 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		states: [],
 		contextActiveIds: [],
 		contextPossibleIds: [],
-		contextSummary: '0 active · 0 possible'
+		contextSummary: '0 active · 0 possible',
+		controlActiveCount: 0,
+		controlPossibleCount: 0,
+		controlIssueCount: 0,
+		controlFeatureIds: [],
+		controlStates: []
 	});
 	assert.deepEqual(workspaceState.shushan.mapFocused.contextActiveIds, [
 		'workspace-shushan-period',
@@ -1794,6 +2494,62 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		'Fiction Person',
 		'Ungrouped'
 	]);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromMap.focus?.axis?.kind,
+		'chronology_year'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromMap.focus?.axis?.chronologyId,
+		'star_wars'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromMap.focus?.source,
+		'map-time-slider'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromMap.timeline.scale,
+		'chronology-year'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromMap.timeline.chronologyId,
+		'star_wars'
+	);
+	assert.deepEqual(
+		workspaceState.shushan.chronologySync.fromMap.timeline.spanIds,
+		['c5-chronology-early', 'c5-chronology-late']
+	);
+	assert.ok(
+		workspaceState.shushan.chronologySync.fromMap.timeline.tickLabels
+			.every(label => / BBY$/.test(label))
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromTimeline.focus?.axis?.kind,
+		'chronology_year'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromTimeline.focus?.axis?.chronologyId,
+		'star_wars'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromTimeline.focus?.source,
+		'timeline'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromTimeline.focus?.kind,
+		'range'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromTimeline.sliderYear,
+		workspaceState.shushan.chronologySync.fromTimeline.focus?.start
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromTimeline.followAxis,
+		'chronology_year'
+	);
+	assert.equal(
+		workspaceState.shushan.chronologySync.fromTimeline.followYear,
+		workspaceState.shushan.chronologySync.fromTimeline.sliderYear
+	);
 	assert.deepEqual(workspaceState.shushan.relationshipTemporal.activeIds, [
 		'workspace-shushan-assertion'
 	]);
@@ -1841,5 +2597,826 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(workspaceState.finalActive, 'history-cn');
 	assert.equal(workspaceState.finalLocalSetting, 'history-cn');
 
+	// Architecture acceptance A1: mount an isolated Spring/Autumn-shaped
+	// legacy Workspace, execute only its Ready migration subset through the
+	// real plugin boundary, prove backup/audit semantics and Workspace-scoped
+	// Assertion visibility, then restore the original catalog and active scope.
+	const architectureAcceptance = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const service = plugin.getWorkspaceService();
+		if (!service) throw new Error('Workspace service unavailable for architecture acceptance.');
+
+		const previousCatalog = service.getCatalog();
+		const previousActive = service.getActiveId();
+		const acceptanceCatalog = {
+			version: 1,
+			workspaces: [
+				...previousCatalog.workspaces,
+				{
+					id: 'acceptance-history',
+					name: '架构验收',
+					rootFolder: 'Workspace-E2E/Acceptance-History',
+					mode: 'historical',
+					enabledPacks: ['core', 'chinese-history']
+				}
+			]
+		};
+
+		const originalLegacyYearSemantics =
+			plugin.settings.legacyNegativeYearSemantics ?? 'reject';
+		let snapshot;
+		try {
+			await plugin.replaceWorkspaceCatalog(acceptanceCatalog);
+			await plugin.setActiveWorkspace('acceptance-history');
+
+			const activeService = plugin.getWorkspaceService();
+			if (activeService?.getActiveId() !== 'acceptance-history') {
+				throw new Error('Acceptance Workspace did not become active.');
+			}
+			const corpusTypeCounts = {};
+			for (const file of activeService.getScope().getMarkdownFiles()) {
+				const type = app.metadataCache.getFileCache(file)?.frontmatter?.cr_type;
+				if (typeof type === 'string') {
+					corpusTypeCounts[type] = (corpusTypeCounts[type] ?? 0) + 1;
+				}
+			}
+
+			const plan = plugin.buildV2MigrationPlan();
+			const planFiles = plan.files
+				.map(file => ({
+					path: file.filePath,
+					status: file.status,
+					operations: file.operations.length
+				}))
+				.sort((a, b) => a.path.localeCompare(b.path));
+
+			const ministerPath =
+				'Workspace-E2E/Acceptance-History/People/Legacy-Minister.md';
+			const reviewPath =
+				'Workspace-E2E/Acceptance-History/People/Review-Title.md';
+			const eventPath =
+				'Workspace-E2E/Acceptance-History/Events/Legacy-Alliance.md';
+			const minister = app.vault.getFileByPath(ministerPath);
+			const review = app.vault.getFileByPath(reviewPath);
+			const event = app.vault.getFileByPath(eventPath);
+			if (!minister || !review || !event) {
+				throw new Error('Architecture acceptance fixture is incomplete.');
+			}
+
+			const originalMinister = await app.vault.read(minister);
+			const originalReview = await app.vault.read(review);
+			const originalEvent = await app.vault.read(event);
+
+			const result = await plugin.executeV2MigrationReady(plan, {
+				runId: 'spring-warring-ready',
+				assertionFolder:
+					'Workspace-E2E/Acceptance-History/Assertions/Migrated',
+				backupRoot: '.charted-roots/e2e-architecture-acceptance'
+			});
+
+			const adapter = app.vault.adapter;
+			const backupRoot =
+				'.charted-roots/e2e-architecture-acceptance/spring-warring-ready';
+			const manifest = JSON.parse(
+				await adapter.read(backupRoot + '/manifest.json')
+			);
+			const ministerBackup = await adapter.read(
+				backupRoot + '/originals/' + ministerPath
+			);
+			const eventBackup = await adapter.read(
+				backupRoot + '/originals/' + eventPath
+			);
+
+			const migratedMinister = await app.vault.read(minister);
+			const migratedReview = await app.vault.read(review);
+			const migratedEvent = await app.vault.read(event);
+
+			const allAssertions = plugin.getAssertionService().getAll();
+			const assertions = allAssertions
+				.filter(record => record.filePath.startsWith(
+					'Workspace-E2E/Acceptance-History/Assertions/Migrated/'
+				))
+				.map(record => ({
+					crId: record.assertion.cr_id,
+					predicate: record.assertion.predicate,
+					object: record.assertion.object ?? null,
+					timeStart: record.assertion.time_start ?? null,
+					timeEnd: record.assertion.time_end ?? null,
+					role: record.raw.role ?? null,
+					path: record.filePath
+				}))
+				.sort((a, b) =>
+					a.predicate.localeCompare(b.predicate)
+					|| String(a.timeStart).localeCompare(String(b.timeStart))
+				);
+			const officeHoldingRecord = allAssertions.find(record =>
+				record.filePath
+					=== 'Workspace-E2E/Acceptance-History/Assertions/Office-Holding.md'
+			);
+			if (!officeHoldingRecord) {
+				throw new Error('Acceptance office-holding Assertion is missing.');
+			}
+			const officeHolding = {
+				crId: officeHoldingRecord.assertion.cr_id,
+				predicate: officeHoldingRecord.assertion.predicate,
+				timeStart: officeHoldingRecord.assertion.time_start ?? null,
+				timeEnd: officeHoldingRecord.assertion.time_end ?? null
+			};
+
+			const sourceFile = app.vault.getFileByPath(
+				'Workspace-E2E/Acceptance-History/Sources/Zuo-Zhuan.md'
+			);
+			const citationFile = app.vault.getFileByPath(
+				'Workspace-E2E/Acceptance-History/Citations/Zuo-Zhuan-Jin-Office.md'
+			);
+			const claimFile = app.vault.getFileByPath(
+				'Workspace-E2E/Acceptance-History/Claims/Hegemony-Structure.md'
+			);
+			if (!sourceFile || !citationFile || !claimFile) {
+				throw new Error('A3 research graph fixture is incomplete.');
+			}
+			const sourceFm = app.metadataCache.getFileCache(sourceFile)?.frontmatter ?? {};
+			const citationFm = app.metadataCache.getFileCache(citationFile)?.frontmatter ?? {};
+			const claimFm = app.metadataCache.getFileCache(claimFile)?.frontmatter ?? {};
+			const acceptanceLint = plugin.getV2Linter().lint();
+
+			const byPredicate = Object.fromEntries(
+				assertions.map(assertion => [assertion.predicate, assertion.crId])
+			);
+			const membershipIds = assertions
+				.filter(assertion => assertion.predicate === 'member_of')
+				.map(assertion => assertion.crId)
+				.sort();
+
+			await plugin.activateTemporalTimelineView();
+			const timelineLeaf = app.workspace
+				.getLeavesOfType('charted-roots-temporal-timeline')[0];
+			// Earlier smoke coverage intentionally exercises grouped lanes. A
+			// relationship Assertion appears once per matching person lane, so A2
+			// must explicitly restore the ungrouped state before asserting one
+			// rendered span per migrated temporal item.
+			await timelineLeaf?.view?.setState?.({
+				...timelineLeaf?.view?.getState?.(),
+				search: '',
+				kind: 'all',
+				groupBy: 'none'
+			});
+			timelineLeaf?.view?.refresh?.();
+			await new Promise(resolve => window.setTimeout(resolve, 30));
+			const timelineRoot = timelineLeaf?.view?.containerEl;
+			const timeline = {
+				workspace: timelineRoot
+					?.querySelector('.cr-v2-timeline__workspace')?.textContent ?? '',
+				spanIds: [...(timelineRoot?.querySelectorAll(
+					'.cr-v2-timeline__span'
+				) ?? [])]
+					.map(element => element.getAttribute('data-item-id'))
+					.filter(Boolean)
+					.sort()
+			};
+
+			const calendar = plugin.getHistoricalDateService()
+				.getCalendarProvider('tyme');
+			if (!calendar) {
+				throw new Error('Historical calendar unavailable for architecture acceptance.');
+			}
+			const focusAtBce = displayYear =>
+				calendar.solarToJulianDay({
+					year: 1 - displayYear,
+					month: 6,
+					day: 1
+				});
+			const focusService = plugin.getTemporalFocusService();
+
+			const readRelationships = () => {
+				const root = app.workspace
+					.getLeavesOfType('canvas-roots-relationships')[0]
+					?.view?.containerEl;
+				return [...(root?.querySelectorAll(
+					'.cr-rv-temporal-state__item[data-temporal-state="active"]'
+				) ?? [])]
+					.map(element => element.getAttribute('data-assertion-id'))
+					.filter(Boolean)
+					.sort();
+			};
+			const readProfile = () => {
+				const root = app.workspace
+					.getLeavesOfType('charted-roots-entity-profile')[0]
+					?.view?.containerEl;
+				return [...(root?.querySelectorAll(
+					'.cr-profile__temporal-institution-item[data-temporal-state="active"]'
+				) ?? [])]
+					.map(element => ({
+						id: element.getAttribute('data-assertion-id'),
+						kind: element.getAttribute('data-relation-kind'),
+						text: element.textContent ?? ''
+					}))
+					.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+			};
+
+			focusService.setPoint(
+				focusAtBce(675),
+				'architecture-acceptance'
+			);
+			await plugin.activateRelationshipsView();
+			await new Promise(resolve => window.setTimeout(resolve, 80));
+			const relationships675 = readRelationships();
+			await plugin.activateProfileView(minister);
+			await new Promise(resolve => window.setTimeout(resolve, 100));
+			const profile675 = readProfile();
+
+			focusService.setPoint(
+				focusAtBce(665),
+				'architecture-acceptance'
+			);
+			await plugin.activateRelationshipsView();
+			await new Promise(resolve => window.setTimeout(resolve, 80));
+			const relationships665 = readRelationships();
+			await plugin.activateProfileView(minister);
+			await new Promise(resolve => window.setTimeout(resolve, 100));
+			const profile665 = readProfile();
+
+			const officeFile = app.vault.getFileByPath(
+				'Workspace-E2E/Acceptance-History/Assertions/Office-Holding.md'
+			);
+			if (!officeFile) {
+				throw new Error('Acceptance office-holding source file is missing.');
+			}
+			const sourcesBeforeSharedFocus = {
+				minister: await app.vault.read(minister),
+				event: await app.vault.read(event),
+				office: await app.vault.read(officeFile)
+			};
+
+			// A2 Map <-> Timeline historical-focus acceptance. BCE slider values
+			// are intentionally ambiguous by default, so opt into display-year BCE
+			// semantics for this test and restore the setting in finally.
+			plugin.settings.legacyNegativeYearSemantics = 'bce_display';
+			await plugin.activateMapView();
+			await new Promise(resolve => window.setTimeout(resolve, 120));
+			const acceptanceMapLeaf = app.workspace
+				.getLeavesOfType('canvas-roots-map')[0];
+			const acceptanceMapView = acceptanceMapLeaf?.view;
+			if (!acceptanceMapView?.refreshData) {
+				throw new Error('Acceptance Map runtime is unavailable.');
+			}
+			await acceptanceMapView.refreshData();
+			const acceptanceMapToggle = acceptanceMapView.containerEl.querySelector(
+				'button[aria-label="Timeline"]'
+			);
+			if (!(acceptanceMapToggle instanceof HTMLButtonElement)) {
+				throw new Error('Acceptance Map Timeline toggle is unavailable.');
+			}
+			if (!acceptanceMapView.timeSlider.enabled) {
+				acceptanceMapToggle.click();
+			}
+			await new Promise(resolve => window.setTimeout(resolve, 40));
+			const acceptanceSlider = acceptanceMapView.containerEl.querySelector(
+				'.cr-map-time-slider'
+			);
+			if (!(acceptanceSlider instanceof HTMLInputElement)) {
+				throw new Error('Acceptance Map time slider is unavailable.');
+			}
+			if (
+				Number(acceptanceSlider.min) > -675
+				|| Number(acceptanceSlider.max) < -675
+			) {
+				throw new Error(
+					'Acceptance BCE Map range does not include display year 675 BCE.'
+				);
+			}
+			acceptanceSlider.value = '-675';
+			acceptanceSlider.dispatchEvent(new Event('input', { bubbles: true }));
+			await new Promise(resolve => window.setTimeout(resolve, 50));
+			const focusFromMap = focusService.get();
+
+			await plugin.activateTemporalTimelineView();
+			await new Promise(resolve => window.setTimeout(resolve, 50));
+			const acceptanceTimelineLeaf = app.workspace
+				.getLeavesOfType('charted-roots-temporal-timeline')[0];
+			await acceptanceTimelineLeaf?.view?.setState?.({
+				...acceptanceTimelineLeaf?.view?.getState?.(),
+				search: '',
+				kind: 'all',
+				groupBy: 'none'
+			});
+			acceptanceTimelineLeaf?.view?.refresh?.();
+			await new Promise(resolve => window.setTimeout(resolve, 40));
+			const timelineFocusKindAfterMap =
+				acceptanceTimelineLeaf?.view?.containerEl?.querySelector(
+					'.cr-v2-timeline__focus [data-focus-kind]'
+				)?.getAttribute('data-focus-kind') ?? null;
+
+			const acceptanceTimelineSvg = acceptanceTimelineLeaf?.view?.containerEl
+				?.querySelector('.cr-v2-timeline__svg');
+			if (!(acceptanceTimelineSvg instanceof SVGSVGElement)) {
+				throw new Error('Acceptance Timeline SVG is unavailable.');
+			}
+			const acceptanceBounds = acceptanceTimelineSvg.getBoundingClientRect();
+			acceptanceTimelineSvg.dispatchEvent(new MouseEvent('click', {
+				bubbles: true,
+				clientX: acceptanceBounds.left + acceptanceBounds.width * 0.55,
+				clientY: acceptanceBounds.top + 60
+			}));
+			await new Promise(resolve => window.setTimeout(resolve, 50));
+			const focusFromTimeline = focusService.get();
+			const mapFocusKindAfterTimeline =
+				acceptanceMapView.containerEl.querySelector('.cr-map-container')
+					?.getAttribute('data-temporal-focus-kind') ?? null;
+
+			const sourcesAfterSharedFocus = {
+				minister: await app.vault.read(minister),
+				event: await app.vault.read(event),
+				office: await app.vault.read(officeFile)
+			};
+			const mapTimelineFocus = {
+				fromMap: {
+					sliderYear: Number(acceptanceSlider.value),
+					bridgeStatus: acceptanceMapView.containerEl.querySelector(
+						'.cr-map-container'
+					)?.getAttribute('data-map-temporal-bridge-status') ?? null,
+					focus: focusFromMap,
+					timelineFocusKind: timelineFocusKindAfterMap
+				},
+				fromTimeline: {
+					focus: focusFromTimeline,
+					mapFocusKind: mapFocusKindAfterTimeline
+				},
+				sourceUnchanged:
+					JSON.stringify(sourcesBeforeSharedFocus)
+					=== JSON.stringify(sourcesAfterSharedFocus)
+			};
+
+			if (acceptanceMapView.timeSlider.enabled) {
+				acceptanceMapToggle.click();
+			}
+
+			const crossViews = {
+				timeline,
+				ids: {
+					ally: byPredicate.ally,
+					rival: byPredicate.rival,
+					memberships: membershipIds,
+					office: officeHolding.crId
+				},
+				relationships675,
+				relationships665,
+				profile675,
+				profile665,
+				mapTimelineFocus
+			};
+
+			snapshot = {
+				activeDuringRun: activeService.getActiveId(),
+				corpus: {
+					typeCounts: corpusTypeCounts,
+					researchGraph: {
+						sourceType: sourceFm.source_type ?? null,
+						citationSource: citationFm.source ?? null,
+						citationTarget: citationFm.target ?? null,
+						citationRelation: citationFm.relation ?? null,
+						claimType: claimFm.claim_type ?? null,
+						claimAbout: Array.isArray(claimFm.about) ? claimFm.about : [],
+						claimEvidence: Array.isArray(claimFm.evidence) ? claimFm.evidence : []
+					},
+					lintErrors: acceptanceLint
+						.filter(issue => issue.severity === 'error')
+						.map(issue => issue.code)
+				},
+				plan: {
+					executableFiles: plan.executableFiles,
+					reviewFiles: plan.reviewFiles,
+					blockedFiles: plan.blockedFiles,
+					files: planFiles
+				},
+				result,
+				manifest: {
+					status: manifest.status,
+					sourceBackupCount: manifest.sourceBackups.length,
+					createdAssertionCount: manifest.createdAssertionPaths.length
+				},
+				backups: {
+					ministerExact: ministerBackup === originalMinister,
+					eventExact: eventBackup === originalEvent
+				},
+				reviewUntouched: migratedReview === originalReview,
+				minister: {
+					hasSchema2: /cr_schema:\\s*2/.test(migratedMinister),
+					hasLegacyMembership: /membership_orgs:/.test(migratedMinister),
+					hasLegacyAlly: /^ally:/m.test(migratedMinister),
+					hasLegacyRival: /^rival:/m.test(migratedMinister)
+				},
+				event: {
+					hasSchema2: /cr_schema:\\s*2/.test(migratedEvent),
+					hasTimeStart: /time_start:\\s*['"]?BCE 656/.test(migratedEvent),
+					hasTimeEnd: /time_end:\\s*['"]?BCE 655/.test(migratedEvent),
+					hasLegacyDate: /^date:/m.test(migratedEvent),
+					hasLegacyDateEnd: /^date_end:/m.test(migratedEvent)
+				},
+				assertions,
+				officeHolding,
+				crossViews
+			};
+		} finally {
+			plugin.settings.legacyNegativeYearSemantics =
+				originalLegacyYearSemantics;
+			plugin.getTemporalFocusService().clear();
+			await plugin.replaceWorkspaceCatalog(previousCatalog);
+			await plugin.setActiveWorkspace(previousActive);
+		}
+
+		return {
+			...snapshot,
+			restoredActive: plugin.getWorkspaceService()?.getActiveId() ?? null,
+			restoredWorkspaceIds: plugin.getWorkspaceService()
+				?.getCatalog().workspaces.map(workspace => workspace.id).sort() ?? []
+		};
+	`);
+
+	assert.equal(architectureAcceptance.activeDuringRun, 'acceptance-history');
+	assert.deepEqual(architectureAcceptance.corpus.typeCounts, {
+		person: 4,
+		organization: 4,
+		office: 2,
+		event: 2,
+		process: 1,
+		period: 1,
+		assertion: 3,
+		source: 1,
+		citation: 1,
+		claim: 1
+	});
+	assert.deepEqual(architectureAcceptance.corpus.researchGraph, {
+		sourceType: 'text',
+		citationSource:
+			'[[Workspace-E2E/Acceptance-History/Sources/Zuo-Zhuan|左传]]',
+		citationTarget:
+			'[[Workspace-E2E/Acceptance-History/Assertions/Jin-Office-Holding|晋国人物丙任晋卿]]',
+		citationRelation: 'supports',
+		claimType: 'causal',
+		claimAbout: [
+			'[[Workspace-E2E/Acceptance-History/Organizations/Qi|齐国]]',
+			'[[Workspace-E2E/Acceptance-History/Organizations/Jin|晋国]]'
+		],
+		claimEvidence: [
+			'[[Workspace-E2E/Acceptance-History/Assertions/Jin-Office-Holding|晋国人物丙任晋卿]]',
+			'[[Workspace-E2E/Acceptance-History/Assertions/Jin-Court-Part-Of|晋国朝廷隶属于晋国]]'
+		]
+	});
+	assert.deepEqual(architectureAcceptance.corpus.lintErrors, []);
+	assert.equal(architectureAcceptance.plan.executableFiles, 2);
+	assert.equal(architectureAcceptance.plan.reviewFiles, 1);
+	assert.equal(architectureAcceptance.plan.blockedFiles, 0);
+	assert.deepEqual(architectureAcceptance.plan.files, [
+		{
+			path: 'Workspace-E2E/Acceptance-History/Events/Legacy-Alliance.md',
+			status: 'ready',
+			operations: 1
+		},
+		{
+			path: 'Workspace-E2E/Acceptance-History/People/Legacy-Minister.md',
+			status: 'ready',
+			operations: 5
+		},
+		{
+			path: 'Workspace-E2E/Acceptance-History/People/Review-Title.md',
+			status: 'review',
+			operations: 0
+		}
+	]);
+	assert.equal(architectureAcceptance.result.success, true);
+	assert.equal(architectureAcceptance.result.rolledBack, false);
+	assert.equal(architectureAcceptance.result.filesMigrated, 2);
+	assert.equal(architectureAcceptance.result.assertionsCreated, 4);
+	assert.equal(architectureAcceptance.result.rewrittenFiles, 2);
+	assert.equal(architectureAcceptance.manifest.status, 'completed');
+	assert.equal(architectureAcceptance.manifest.sourceBackupCount, 2);
+	assert.equal(architectureAcceptance.manifest.createdAssertionCount, 4);
+	assert.deepEqual(architectureAcceptance.backups, {
+		ministerExact: true,
+		eventExact: true
+	});
+	assert.equal(architectureAcceptance.reviewUntouched, true);
+	assert.deepEqual(architectureAcceptance.minister, {
+		hasSchema2: true,
+		hasLegacyMembership: false,
+		hasLegacyAlly: false,
+		hasLegacyRival: false
+	});
+	assert.deepEqual(architectureAcceptance.event, {
+		hasSchema2: true,
+		hasTimeStart: true,
+		hasTimeEnd: true,
+		hasLegacyDate: false,
+		hasLegacyDateEnd: false
+	});
+	assert.deepEqual(
+		architectureAcceptance.assertions.map(item => ({
+			predicate: item.predicate,
+			timeStart: item.timeStart,
+			timeEnd: item.timeEnd,
+			role: item.role
+		})),
+		[
+			{ predicate: 'ally', timeStart: 'BCE 690', timeEnd: 'BCE 671', role: null },
+			{ predicate: 'member_of', timeStart: 'BCE 680', timeEnd: 'BCE 660', role: '卿' },
+			{ predicate: 'member_of', timeStart: 'BCE 700', timeEnd: 'BCE 650', role: '国人' },
+			{ predicate: 'rival', timeStart: 'BCE 670', timeEnd: 'BCE 660', role: null }
+		]
+	);
+	assert.ok(
+		architectureAcceptance.assertions.every(item =>
+			item.path.startsWith(
+				'Workspace-E2E/Acceptance-History/Assertions/Migrated/'
+			)
+		)
+	);
+
+	assert.equal(
+		architectureAcceptance.crossViews.timeline.workspace,
+		'架构验收'
+	);
+	assert.deepEqual(
+		architectureAcceptance.crossViews.timeline.spanIds,
+		[
+			'acceptance-alliance',
+			'acceptance-hegemony-process',
+			'acceptance-spring-autumn',
+			'acceptance-jin-transition',
+			'acceptance-jin-office-holding',
+			'acceptance-jin-court-part-of',
+			architectureAcceptance.officeHolding.crId,
+			...architectureAcceptance.assertions.map(item => item.crId)
+		].sort()
+	);
+	const allyId = architectureAcceptance.crossViews.ids.ally;
+	const rivalId = architectureAcceptance.crossViews.ids.rival;
+	const membershipIds = architectureAcceptance.crossViews.ids.memberships;
+	assert.ok(allyId);
+	assert.ok(rivalId);
+	assert.equal(membershipIds.length, 2);
+
+	assert.ok(
+		architectureAcceptance.crossViews.relationships675.includes(allyId)
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.relationships675.includes(rivalId),
+		false
+	);
+	assert.ok(
+		architectureAcceptance.crossViews.relationships665.includes(rivalId)
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.relationships665.includes(allyId),
+		false
+	);
+
+	const officeId = architectureAcceptance.crossViews.ids.office;
+	assert.ok(officeId);
+	const institutionIds = [...membershipIds, officeId].sort();
+	assert.deepEqual(
+		architectureAcceptance.crossViews.profile675.map(item => item.id).sort(),
+		institutionIds
+	);
+	assert.deepEqual(
+		architectureAcceptance.crossViews.profile665.map(item => item.id).sort(),
+		institutionIds
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.profile675
+			.filter(item => item.kind === 'affiliation').length,
+		2
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.profile675
+			.filter(item => item.kind === 'office_holding').length,
+		1
+	);
+	assert.ok(
+		architectureAcceptance.crossViews.profile675
+			.map(item => item.text)
+			.join(' ')
+			.includes('齐国')
+	);
+	assert.ok(
+		architectureAcceptance.crossViews.profile675
+			.map(item => item.text)
+			.join(' ')
+			.includes('齐国朝廷')
+	);
+	assert.ok(
+		architectureAcceptance.crossViews.profile675
+			.map(item => item.text)
+			.join(' ')
+			.includes('齐卿')
+	);
+
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromMap.sliderYear,
+		-675
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromMap.bridgeStatus,
+		'resolved'
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromMap.focus?.kind,
+		'range'
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromMap.focus?.source,
+		'map-time-slider'
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromMap.timelineFocusKind,
+		'range'
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromTimeline.focus?.kind,
+		'point'
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromTimeline.focus?.source,
+		'timeline'
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.fromTimeline.mapFocusKind,
+		'point'
+	);
+	assert.equal(
+		architectureAcceptance.crossViews.mapTimelineFocus.sourceUnchanged,
+		true
+	);
+
+	assert.equal(architectureAcceptance.restoredActive, 'history-cn');
+	assert.deepEqual(architectureAcceptance.restoredWorkspaceIds, [
+		'history-cn',
+		'shushan'
+	]);
+
+	// M6 C3: create a time-bounded historical Place name through the real
+	// Profile UI, then prove shared TemporalFocus changes Profile + Map display
+	// without renaming the stable Place entity.
+	await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const place = app.vault.getAbstractFileByPath(
+			'Workspace-E2E/History/Places/History-Place.md'
+		);
+		if (!place || typeof place.path !== 'string') {
+			throw new Error('History Place fixture is unavailable.');
+		}
+		await plugin.activateProfileView(place);
+		return true;
+	`);
+	await session.waitFor(
+		`document.querySelector('.cr-profile__add-historical-name')`
+	);
+	await session.evalInApp(`
+		const button = document.querySelector('.cr-profile__add-historical-name');
+		if (!(button instanceof HTMLButtonElement)) {
+			throw new Error('Add historical name button is unavailable.');
+		}
+		button.click();
+		return true;
+	`);
+	await session.waitFor(
+		`document.querySelector('.cr-historical-name-modal')`
+	);
+
+	await session.evalInApp(`
+		const modal = document.querySelector('.cr-historical-name-modal');
+		if (!modal) throw new Error('Historical name modal is unavailable.');
+
+		const field = (label) => {
+			const setting = [...modal.querySelectorAll('.setting-item')]
+				.find(el => el.querySelector('.setting-item-name')?.textContent === label);
+			return setting?.querySelector('input, textarea');
+		};
+		const setValue = (label, value) => {
+			const input = field(label);
+			if (!(input instanceof HTMLInputElement) && !(input instanceof HTMLTextAreaElement)) {
+				throw new Error('Historical name field unavailable: ' + label);
+			}
+			input.value = value;
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+		};
+
+		setValue('Historical name', 'E2E Ancient Name');
+		setValue('Start', 'BCE 500');
+		setValue('End', 'BCE 400');
+		setValue('Source reference', '[[Workspace-E2E/History/Sources/History-Source|History Source]]');
+
+		const create = [...modal.querySelectorAll('button')]
+			.find(button => button.textContent?.trim() === 'Add historical name');
+		if (!(create instanceof HTMLButtonElement)) {
+			throw new Error('Historical name create button is unavailable.');
+		}
+		create.click();
+		return true;
+	`);
+
+	await session.waitFor(
+		`(() => {
+			const plugin = app.plugins.plugins['charted-roots'];
+			const place = app.vault.getAbstractFileByPath(
+				'Workspace-E2E/History/Places/History-Place.md'
+			);
+			if (!place || typeof place.path !== 'string') return false;
+			return plugin.getAssertionService().getForFile(place).some(record =>
+				record.assertion.predicate === 'has_designation'
+				&& record.assertion.value === 'E2E Ancient Name'
+			);
+		})()`
+	);
+
+	const historicalNameFocus = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const calendar = plugin.getHistoricalDateService().getCalendarProvider('tyme');
+		if (!calendar) throw new Error('Tyme calendar is unavailable.');
+		const position = calendar.solarToJulianDay({
+			year: -450,
+			month: 6,
+			day: 1
+		});
+		plugin.getTemporalFocusService().setPoint(position, 'e2e-place-name');
+		return position;
+	`);
+	assert.equal(Number.isFinite(historicalNameFocus), true);
+
+	await session.waitFor(
+		`document.querySelector('.cr-profile__historical-name-focus-value')
+			?.textContent?.includes('E2E Ancient Name')`
+	);
+
+	await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		await plugin.activateMapView();
+		return true;
+	`);
+	await session.waitFor(
+		`app.workspace.getLeavesOfType('canvas-roots-map')[0]?.view?.mapController
+			?.currentDisplayData`
+	);
+
+	const historicalMapDisplay = await session.evalInApp(`
+		const place = app.vault.getAbstractFileByPath(
+			'Workspace-E2E/History/Places/History-Place.md'
+		);
+		const placeId = app.metadataCache.getFileCache(place)?.frontmatter?.cr_id;
+		const view = app.workspace.getLeavesOfType('canvas-roots-map')[0]?.view;
+		const data = view?.mapController?.currentDisplayData;
+		return {
+			placeId,
+			placeMarkerName: data?.placeMarkers?.find(marker => marker.placeId === placeId)
+				?.placeName ?? null,
+			eventMarkerNames: (data?.markers ?? [])
+				.filter(marker => marker.placeId === placeId)
+				.map(marker => marker.placeName),
+			journeyNames: (data?.journeyPaths ?? [])
+				.flatMap(journey => journey.waypoints)
+				.filter(waypoint => waypoint.placeId === placeId)
+				.map(waypoint => waypoint.name)
+		};
+	`);
+	assert.equal(historicalMapDisplay.placeMarkerName, 'E2E Ancient Name');
+	assert.ok(
+		historicalMapDisplay.eventMarkerNames.length === 0
+		|| historicalMapDisplay.eventMarkerNames.every(name => name === 'E2E Ancient Name')
+	);
+	assert.ok(
+		historicalMapDisplay.journeyNames.length === 0
+		|| historicalMapDisplay.journeyNames.every(name => name === 'E2E Ancient Name')
+	);
+
+	const restoredHistoricalName = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		plugin.getTemporalFocusService().clear();
+		await new Promise(resolve => window.setTimeout(resolve, 40));
+		const place = app.vault.getAbstractFileByPath(
+			'Workspace-E2E/History/Places/History-Place.md'
+		);
+		const placeId = app.metadataCache.getFileCache(place)?.frontmatter?.cr_id;
+		const view = app.workspace.getLeavesOfType('canvas-roots-map')[0]?.view;
+		const data = view?.mapController?.currentDisplayData;
+		const record = plugin.getAssertionService().getForFile(place).find(item =>
+			item.assertion.predicate === 'has_designation'
+			&& item.assertion.value === 'E2E Ancient Name'
+		);
+		const result = {
+			profileFocusPresent: !!document.querySelector(
+				'.cr-profile__historical-name-focus-value'
+			),
+			placeMarkerName: data?.placeMarkers?.find(marker => marker.placeId === placeId)
+				?.placeName ?? null,
+			canonicalName: app.metadataCache.getFileCache(place)?.frontmatter?.name ?? null
+		};
+		if (record) await app.vault.delete(record.file);
+		return result;
+	`);
+	assert.equal(restoredHistoricalName.profileFocusPresent, false);
+	assert.equal(restoredHistoricalName.placeMarkerName, 'History Place');
+	assert.equal(restoredHistoricalName.canonicalName, 'History Place');
+
+	await session.screenshot(path.join(ARTIFACTS, 'v2-historical-place-name.png'));
 	await session.screenshot(path.join(ARTIFACTS, 'v2-workspaces-foundation.png'));
 });

@@ -267,7 +267,10 @@ export async function activateProfileView(plugin: CanvasRootsPlugin, file?: TFil
 	});
 
 	if (unpinnedLeaf) {
-		void workspace.revealLeaf(unpinnedLeaf);
+		// Wait for reveal/active-leaf-change side effects before explicit
+		// navigation. ProfileView.navigateToFile() then cancels the debounced
+		// auto-sync created by that reveal, so the requested entity stays visible.
+		await workspace.revealLeaf(unpinnedLeaf);
 		if (file && unpinnedLeaf.view instanceof ProfileView) {
 			unpinnedLeaf.view.navigateToFile(file);
 		}
@@ -280,7 +283,7 @@ export async function activateProfileView(plugin: CanvasRootsPlugin, file?: TFil
 			type: VIEW_TYPE_ENTITY_PROFILE,
 			active: true
 		});
-		void workspace.revealLeaf(leaf);
+		await workspace.revealLeaf(leaf);
 		if (file && leaf.view instanceof ProfileView) {
 			leaf.view.navigateToFile(file);
 		}

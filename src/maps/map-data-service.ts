@@ -977,14 +977,16 @@ export class MapDataService {
 					lng: birthPlace.lng ?? 0,
 					pixelX: birthPlace.pixelX,
 					pixelY: birthPlace.pixelY,
-					name: birthPlace.name
+					name: birthPlace.name,
+					placeId: birthPlace.crId
 				},
 				destination: {
 					lat: deathPlace.lat ?? 0,
 					lng: deathPlace.lng ?? 0,
 					pixelX: deathPlace.pixelX,
 					pixelY: deathPlace.pixelY,
-					name: deathPlace.name
+					name: deathPlace.name,
+					placeId: deathPlace.crId
 				},
 				birthYear,
 				deathYear,

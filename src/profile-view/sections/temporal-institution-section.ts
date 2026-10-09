@@ -5,6 +5,7 @@ import type {
 	TemporalInstitutionStateSnapshot
 } from '../../v2';
 import { astronomicalYearToHistorical } from '../../v2/time/historical-year';
+import { isJulianDayFocus } from '../../v2/temporal/temporal-focus-service';
 import type {
 	EntityLinkClickFn,
 	SectionState,
@@ -84,7 +85,7 @@ export function renderTemporalInstitutionSection(
 	options: TemporalInstitutionSectionOptions
 ): void {
 	const focus = options.plugin.getTemporalFocusService().get();
-	if (!focus) return;
+	if (!isJulianDayFocus(focus)) return;
 
 	const service = options.plugin.getTemporalInstitutionStateService();
 	if (!service) return;

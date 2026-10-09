@@ -8,6 +8,7 @@ import {
 	projectTemporalBoundaryToAxis,
 	type TemporalAxisInterval
 } from './axis-projection';
+import type { ChronologyYearInterval } from './chronology-axis-projection';
 import type {
 	TemporalBoundaryProjection,
 	TemporalItem
@@ -17,8 +18,8 @@ export interface TimelineSpan {
 	item: TemporalItem;
 	start: number;
 	endExclusive: number;
-	startInterval: TemporalAxisInterval;
-	endInterval?: TemporalAxisInterval;
+	startInterval: TemporalAxisInterval | ChronologyYearInterval;
+	endInterval?: TemporalAxisInterval | ChronologyYearInterval;
 }
 
 export interface TimelineConstraintWindow {

@@ -40,6 +40,9 @@ import { renderParentSourceSection, renderChildSourcesSection, renderSiblingSour
 import { renderMembersSection } from './sections/members-section';
 import { renderResearchSection } from './sections/research-section';
 import { renderAssertionsSection } from './sections/assertions-section';
+import { HistoricalNameModal } from './historical-name-modal';
+import { PlaceDesignationService } from '../v2/maps/place-designation-service';
+import { isJulianDayFocus } from '../v2/temporal/temporal-focus-service';
 import { renderTemporalInstitutionSection } from './sections/temporal-institution-section';
 import { renderProfileSection } from './sections/section-base';
 import { detectNoteType, isPersonNote } from '../utils/note-type-detection';
@@ -152,6 +155,7 @@ export class ProfileView extends ItemView {
 						this.currentEntityData.entityType === 'person'
 						|| this.currentEntityData.entityType === 'organization'
 						|| this.currentEntityData.entityType === 'office'
+						|| this.currentEntityData.entityType === 'place'
 					)
 				) {
 					this.renderEntity(this.currentEntityData);
@@ -212,6 +216,15 @@ export class ProfileView extends ItemView {
 
 	/** Navigate the profile view to a specific file */
 	navigateToFile(file: TFile): void {
+		// Explicit navigation must win over the debounced auto-sync scheduled by
+		// revealing/activating the Profile leaf. Without this cancellation a
+		// pending sync can re-read the editor's active Person note ~150ms later
+		// and immediately overwrite an explicit Office/Organization navigation.
+		if (this.syncDebounceTimeout) {
+			window.clearTimeout(this.syncDebounceTimeout);
+			this.syncDebounceTimeout = null;
+		}
+
 		const entityType = this.detectEntityType(file);
 		if (entityType) {
 			this.breadcrumbs = [];
@@ -558,9 +571,45 @@ export class ProfileView extends ItemView {
 			sectionId: 'sources'
 		});
 
+		const temporalAssertions =
+			this.plugin.getTemporalAssertionStateService();
+		const focus = this.plugin.getTemporalFocusService().get();
+		let historicalNameFocus:
+			| {
+				active: import('../v2/maps/place-designation-service').PlaceDesignationEntry[];
+				possible: import('../v2/maps/place-designation-service').PlaceDesignationEntry[];
+			}
+			| undefined;
+
+		if (temporalAssertions && isJulianDayFocus(focus)) {
+			const designations = new PlaceDesignationService(temporalAssertions);
+			const snapshot = focus.kind === 'point'
+				? designations.getAt(data.crId, focus.position)
+				: designations.getRange(data.crId, {
+					start: focus.start,
+					endExclusive: focus.endExclusive
+				});
+			historicalNameFocus = {
+				active: snapshot.active,
+				possible: snapshot.possible
+			};
+		}
+
 		renderAssertionsSection(this.sectionsEl, data.assertions, {
 			...options,
-			entityFile: data.file
+			entityFile: data.file,
+			historicalNameFocus,
+			onAddHistoricalName: () => {
+				new HistoricalNameModal(
+					this.plugin,
+					data.file,
+					data.name,
+					async () => {
+						this.dataLoader.invalidate(data.crId);
+						this.scheduleRefresh();
+					}
+				).open();
+			}
 		});
 
 		renderMediaSection(this.sectionsEl, data.media, {

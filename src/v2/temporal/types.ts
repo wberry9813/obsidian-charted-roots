@@ -76,6 +76,11 @@ export interface TemporalItem {
 	subject?: string;
 	object?: string;
 	value?: string | number | boolean;
+	/**
+	 * Scalar Assertion qualifiers preserved from storage so temporal consumers
+	 * do not need to re-read frontmatter.
+	 */
+	qualifiers?: Record<string, string | number | boolean>;
 	groups: TemporalGroupingRef[];
 	start?: TemporalBoundaryProjection;
 	end?: TemporalBoundaryProjection;

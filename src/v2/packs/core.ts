@@ -40,6 +40,17 @@ export const CORE_V2_PACK: DefinitionPack = {
 			builtIn: true
 		},
 		{
+			kind: 'designation_type',
+			id: 'historical_name',
+			labels: { en: 'Historical name', 'zh-CN': '历史名称' },
+			descriptions: {
+				en: 'A name used for an entity during a historical interval.',
+				'zh-CN': '实体在某一历史时期使用的名称。'
+			},
+			pack: 'core',
+			builtIn: true
+		},
+		{
 			kind: 'assertion_type',
 			id: 'status',
 			labels: { en: 'Status', 'zh-CN': '身份状态' },
@@ -151,8 +162,9 @@ export const CORE_V2_PACK: DefinitionPack = {
 			labels: { en: 'Has designation', 'zh-CN': '具有名号' },
 			pack: 'core',
 			builtIn: true,
-			subjectTypes: ['person'],
-			temporal: true
+			subjectTypes: ['person', 'place'],
+			temporal: true,
+			qualifiers: ['designation_type', 'source']
 		},
 		{
 			kind: 'predicate',

@@ -92,12 +92,25 @@ import type {
 } from './types/map-types';
 import { getMarkerColor, isMarkerTypeVisible, formatPopupDateRange, coordsBelongToCRS } from './types/map-types';
 import { ImageMapManager } from './image-map-manager';
+import {
+	buildGeographicBasemapRegistry,
+	DEFAULT_GEOGRAPHIC_BASEMAP,
+	GeographicBasemapCoordinateAdapter,
+	type BasemapRegistryIssue,
+	type GeographicBasemapDefinition,
+	type GeographicBasemapRegistry
+} from '../v2/maps/basemaps';
+import {
+	CanonicalCoordinateService,
+	GcoordCoordinateTransformProvider
+} from '../v2/maps/coordinates';
+import {
+	projectCanonicalControlFeatureToBasemap,
+	type HistoricalControlVisibleFeature
+} from '../v2/maps/control-layers';
 
 const logger = getLogger('MapController');
 
-// Tile URLs — CartoDB Voyager (doesn't require referrer header, unlike tile.openstreetmap.org)
-const OSM_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
 /**
  * Controller for Leaflet map functionality
@@ -110,6 +123,11 @@ export class MapController {
 	// Leaflet instances
 	private map: L.Map | null = null;
 	private tileLayer: L.TileLayer | null = null;
+	private geographicBasemap: GeographicBasemapDefinition =
+		DEFAULT_GEOGRAPHIC_BASEMAP;
+	private geographicBasemapRegistry: GeographicBasemapRegistry;
+	private basemapRegistryIssues: BasemapRegistryIssue[] = [];
+	private basemapCoordinateAdapter: GeographicBasemapCoordinateAdapter;
 
 	// Unified cluster group for all event markers (birth, death, marriage, etc.)
 	private eventClusterGroup: L.MarkerClusterGroup | null = null;
@@ -133,6 +151,7 @@ export class MapController {
 	private zoomEndDebounceHandle: number | null = null;
 	private heatLayer: L.Layer | null = null;
 	private childMapOverlayLayer: L.LayerGroup | null = null;
+	private historicalControlLayer: L.LayerGroup | null = null;
 
 	// Controls
 	private fullscreenControl: L.Control | null = null;
@@ -160,8 +179,9 @@ export class MapController {
 	private regionEditDragStart: L.LatLng | null = null;
 	private regionEditBoundsH: number = 0;
 
-	// Current data
+	// Current canonical/source data and display-only temporal projection.
 	private currentData: MapData | null = null;
+	private currentDisplayData: MapData | null = null;
 	private currentLayers: LayerVisibility = {
 		// Core life events
 		births: true,
@@ -200,13 +220,272 @@ export class MapController {
 		this.settings = settings;
 		this.plugin = plugin;
 		this.imageMapManager = new ImageMapManager(plugin.app, settings.customMapsFolder);
+
+		const basemaps = buildGeographicBasemapRegistry(
+			settings.customGeographicBasemaps ?? []
+		);
+		this.geographicBasemapRegistry = basemaps.registry;
+		this.basemapRegistryIssues = basemaps.issues;
+		this.geographicBasemap = this.geographicBasemapRegistry.resolve(
+			settings.geographicBasemapId || DEFAULT_GEOGRAPHIC_BASEMAP.id
+		);
+		if (this.basemapRegistryIssues.length > 0) {
+			logger.warn(
+				'basemap-registry',
+				'Ignored invalid geographic basemap configuration',
+				{
+					issues: this.basemapRegistryIssues.map(issue => ({
+						basemapId: issue.basemapId,
+						code: issue.code,
+						message: issue.message
+					}))
+				}
+			);
+		}
+		this.basemapCoordinateAdapter = new GeographicBasemapCoordinateAdapter(
+			new CanonicalCoordinateService(
+				new GcoordCoordinateTransformProvider()
+			),
+			this.geographicBasemap
+		);
 	}
 
 	/**
-	 * Update settings (e.g., when heat map intensity changes)
+	 * Update settings (e.g., when heat map intensity changes).
 	 */
 	updateSettings(settings: Partial<MapSettings>): void {
 		Object.assign(this.settings, settings);
+	}
+
+	/**
+	 * Rebuild the active real-world basemap provider without changing canonical
+	 * vault coordinates. If the map is currently showing the real-world slot,
+	 * preserve its center in canonical WGS84 while replacing tiles/datum.
+	 */
+	updateGeographicBasemapSettings(
+		settings: Pick<MapSettings, 'geographicBasemapId' | 'customGeographicBasemaps'>
+	): void {
+		let canonicalCenter: { latitude: number; longitude: number } | null = null;
+		const zoom = this.map?.getZoom();
+
+		if (
+			this.map
+			&& this.currentCRS === 'geographic'
+			&& this.activeMapId === 'openstreetmap'
+		) {
+			const center = this.map.getCenter();
+			canonicalCenter = this.basemapCoordinateAdapter.fromLeafletLatLng({
+				lat: center.lat,
+				lng: center.lng
+			});
+		}
+
+		Object.assign(this.settings, settings);
+		const basemaps = buildGeographicBasemapRegistry(
+			settings.customGeographicBasemaps ?? []
+		);
+		this.geographicBasemapRegistry = basemaps.registry;
+		this.basemapRegistryIssues = basemaps.issues;
+		this.geographicBasemap = this.geographicBasemapRegistry.resolve(
+			settings.geographicBasemapId || DEFAULT_GEOGRAPHIC_BASEMAP.id
+		);
+		this.basemapCoordinateAdapter.setBasemap(this.geographicBasemap);
+
+		if (
+			!this.map
+			|| this.currentCRS !== 'geographic'
+			|| this.activeMapId !== 'openstreetmap'
+		) {
+			return;
+		}
+
+		if (this.tileLayer && this.map.hasLayer(this.tileLayer)) {
+			this.map.removeLayer(this.tileLayer);
+		}
+		this.tileLayer = this.createGeographicTileLayer().addTo(this.map);
+
+		if (this.miniMap) {
+			this.map.removeControl(this.miniMap);
+			this.miniMap = null;
+		}
+		this.initializeMiniMap();
+
+		if (canonicalCenter && zoom !== undefined) {
+			const display = this.basemapCoordinateAdapter.toLeafletLatLng(
+				canonicalCenter
+			);
+			this.map.setView([display.lat, display.lng], zoom, { animate: false });
+		}
+	}
+
+	/**
+	 * Create a geographic raster tile layer from the active basemap definition.
+	 *
+	 * All geographic basemaps must flow through this helper so the main map,
+	 * mini-map and CRS recreation cannot silently diverge in URL/attribution or
+	 * provider-specific request policy.
+	 */
+	private createGeographicTileLayer(options: { miniMap?: boolean } = {}): L.TileLayer {
+		const basemap = this.geographicBasemap;
+		const tileOptions: L.TileLayerOptions = {
+			attribution: options.miniMap ? '' : basemap.attribution,
+			maxZoom: options.miniMap
+				? (basemap.miniMapMaxZoom ?? basemap.maxZoom)
+				: basemap.maxZoom
+		};
+
+		if (!basemap.noReferrer) {
+			return L.tileLayer(basemap.tileUrl, tileOptions);
+		}
+
+		const TileLayerNoRef = L.TileLayer.extend({
+			createTile(
+				coords: unknown,
+				done: (err: Error | null, tile: HTMLImageElement) => void
+			): HTMLImageElement {
+				const tile = (
+					L.TileLayer.prototype as unknown as {
+						createTile(c: unknown, d: unknown): HTMLImageElement;
+					}
+				).createTile.call(this, coords, done) as HTMLImageElement;
+				tile.referrerPolicy = 'no-referrer';
+				return tile;
+			}
+		});
+
+		return new (TileLayerNoRef as unknown as typeof L.TileLayer)(
+			basemap.tileUrl,
+			tileOptions
+		);
+	}
+
+	getGeographicBasemapDefinition(): GeographicBasemapDefinition {
+		return { ...this.geographicBasemap };
+	}
+
+	getAvailableGeographicBasemaps(): GeographicBasemapDefinition[] {
+		return this.geographicBasemapRegistry.list();
+	}
+
+	getBasemapRegistryIssues(): BasemapRegistryIssue[] {
+		return this.basemapRegistryIssues.map(issue => ({ ...issue }));
+	}
+
+	/**
+	 * Convert canonical vault WGS84 into coordinates aligned with the active
+	 * Real-world raster basemap. Custom geographic image maps and pixel maps
+	 * keep their existing coordinate semantics.
+	 */
+	canonicalGeographicToMapLatLng(
+		lat: number,
+		lng: number
+	): { lat: number; lng: number } {
+		if (this.currentCRS !== 'geographic' || this.activeMapId !== 'openstreetmap') {
+			return { lat, lng };
+		}
+		return this.basemapCoordinateAdapter.toLeafletLatLng({
+			latitude: lat,
+			longitude: lng
+		});
+	}
+
+	/**
+	 * Convert a Real-world map interaction coordinate back to canonical WGS84.
+	 * Custom geographic image maps and pixel maps are intentionally untouched.
+	 */
+	mapLatLngToCanonicalGeographic(
+		lat: number,
+		lng: number
+	): { lat: number; lng: number } {
+		if (this.currentCRS !== 'geographic' || this.activeMapId !== 'openstreetmap') {
+			return { lat, lng };
+		}
+		const canonical = this.basemapCoordinateAdapter.fromLeafletLatLng({ lat, lng });
+		return {
+			lat: canonical.latitude,
+			lng: canonical.longitude
+		};
+	}
+
+	/**
+	 * Render temporally-filtered historical control features.
+	 *
+	 * Input geometry is canonical WGS84. Only the Real-world basemap path
+	 * applies the active basemap datum adapter; geographic custom image maps
+	 * retain their existing WGS84-aligned coordinate semantics.
+	 */
+	renderHistoricalControlFeatures(
+		entries: readonly HistoricalControlVisibleFeature[]
+	): void {
+		if (!this.historicalControlLayer) return;
+		this.historicalControlLayer.clearLayers();
+		if (!this.map || this.currentCRS !== 'geographic') return;
+
+		for (const entry of entries) {
+			const projected = this.activeMapId === 'openstreetmap'
+				? projectCanonicalControlFeatureToBasemap(
+					entry.feature,
+					this.basemapCoordinateAdapter
+				)
+				: {
+					...entry.feature,
+					properties: { ...entry.feature.properties }
+				};
+
+			if (!projected.geometry) continue;
+			const possible = entry.state === 'possible';
+			const style: L.PathOptions = {
+				weight: possible ? 2 : 3,
+				opacity: possible ? 0.58 : 0.9,
+				fillOpacity: possible ? 0.06 : 0.14,
+				dashArray: possible ? '7 5' : undefined
+			};
+			const geoLayer = L.geoJSON(projected as never, {
+				style: () => style,
+				pointToLayer: (_feature, latlng) =>
+					L.circleMarker(latlng, {
+						...style,
+						radius: possible ? 5 : 6
+					})
+			});
+
+			const annotate = (leafletLayer: L.Layer): void => {
+				const element = (
+					leafletLayer as L.Layer & { getElement?: () => HTMLElement | null }
+				).getElement?.();
+				if (!element) return;
+				element.classList.add('cr-historical-control-feature');
+				element.setAttribute('data-control-layer-id', entry.layerId);
+				element.setAttribute(
+					'data-control-feature-id',
+					String(entry.feature.id ?? '')
+				);
+				element.setAttribute('data-temporal-state', entry.state);
+			};
+			geoLayer.eachLayer(layer => {
+				layer.on('add', () => annotate(layer));
+				annotate(layer);
+			});
+
+			const popup = document.createElement('div');
+			popup.className = 'cr-historical-control-popup';
+			const title = document.createElement('strong');
+			title.textContent = entry.feature.properties.name ?? entry.layerLabel;
+			popup.appendChild(title);
+			const detail = document.createElement('div');
+			detail.textContent = `${entry.state === 'active' ? 'Active' : 'Possible'} · ${entry.layerLabel}`;
+			popup.appendChild(detail);
+			const source = entry.feature.properties.source ?? entry.layer.source;
+			if (source) {
+				const sourceEl = document.createElement('div');
+				sourceEl.textContent = Array.isArray(source)
+					? source.join(', ')
+					: source;
+				popup.appendChild(sourceEl);
+			}
+			geoLayer.bindPopup(popup);
+			this.historicalControlLayer.addLayer(geoLayer);
+		}
 	}
 
 	/**
@@ -225,19 +504,9 @@ export class MapController {
 			zoomControl: true
 		});
 
-		// Add tile layer with no-referrer policy to avoid OSM blocking
-		// (Obsidian's Electron sends app:// referrer which OSM rejects)
-		const TileLayerNoRef = L.TileLayer.extend({
-			createTile(coords: unknown, done: (err: Error | null, tile: HTMLImageElement) => void): HTMLImageElement {
-				const tile = (L.TileLayer.prototype as unknown as { createTile(c: unknown, d: unknown): HTMLImageElement }).createTile.call(this, coords, done) as HTMLImageElement;
-				tile.referrerPolicy = 'no-referrer';
-				return tile;
-			}
-		});
-		this.tileLayer = new (TileLayerNoRef as unknown as typeof L.TileLayer)(OSM_TILE_URL, {
-			attribution: OSM_ATTRIBUTION,
-			maxZoom: 19
-		}).addTo(this.map);
+		// Existing Real world basemap, now routed through the explicit provider
+		// definition so future GCJ-02/BD-09 basemaps share one tile path.
+		this.tileLayer = this.createGeographicTileLayer().addTo(this.map);
 
 		// Initialize cluster groups
 		this.initializeClusterGroups();
@@ -266,6 +535,7 @@ export class MapController {
 
 		// Initialize child map overlay layer (#361 Phase 3)
 		this.childMapOverlayLayer = L.layerGroup().addTo(this.map);
+		this.historicalControlLayer = L.layerGroup().addTo(this.map);
 
 		// Add fullscreen control
 		this.initializeFullscreen();
@@ -373,17 +643,7 @@ export class MapController {
 	private initializeMiniMap(): void {
 		if (!this.map) return;
 
-		const MiniTileLayer = L.TileLayer.extend({
-			createTile(coords: unknown, done: (err: Error | null, tile: HTMLImageElement) => void): HTMLImageElement {
-				const tile = (L.TileLayer.prototype as unknown as { createTile(c: unknown, d: unknown): HTMLImageElement }).createTile.call(this, coords, done) as HTMLImageElement;
-				tile.referrerPolicy = 'no-referrer';
-				return tile;
-			}
-		});
-		const miniMapTiles = new (MiniTileLayer as unknown as typeof L.TileLayer)(OSM_TILE_URL, {
-			attribution: '',
-			maxZoom: 13
-		});
+		const miniMapTiles = this.createGeographicTileLayer({ miniMap: true });
 
 		// @ts-expect-error - leaflet-minimap types not available
 		this.miniMap = new L.Control.MiniMap(miniMapTiles, {
@@ -465,7 +725,8 @@ export class MapController {
 			this.eventClusterGroup.eachLayer((layer) => {
 				const marker = layer as CRMarker;
 				if (marker.crData) {
-					const searchMarker = L.marker([marker.crData.lat, marker.crData.lng], {
+					const renderedLatLng = marker.getLatLng();
+					const searchMarker = L.marker(renderedLatLng, {
 						opacity: 0,
 						icon: L.divIcon({ className: 'cr-search-marker', iconSize: [1, 1] }),
 						// @ts-expect-error - custom property for search
@@ -480,22 +741,27 @@ export class MapController {
 		logger.debug('search-update', `Updated search layer with markers`);
 	}
 
+	private renderDisplayData(data: MapData): void {
+		this.renderMarkers(data.markers);
+		this.renderPlaceMarkers(data.placeMarkers);
+		this.renderPaths(data.paths);
+		this.renderJourneyPaths(data.journeyPaths);
+		this.renderHeatMap(data.markers);
+		this.updateSearchLayer();
+	}
+
 	/**
-	 * Set map data and render markers/paths
+	 * Set canonical/source map data plus an optional display-only projection.
+	 * Exports and persistence keep reading currentData; temporal labels can live
+	 * in currentDisplayData without changing source semantics.
 	 */
-	setData(data: MapData): void {
+	setData(data: MapData, displayData: MapData = data): void {
 		try {
 			this.currentData = data;
-			this.renderMarkers(data.markers);
-			this.renderPlaceMarkers(data.placeMarkers);
-			this.renderPaths(data.paths);
-			this.renderJourneyPaths(data.journeyPaths);
-			this.renderHeatMap(data.markers);
+			this.currentDisplayData = displayData;
+			this.renderDisplayData(displayData);
 
-			// Update search layer with new markers
-			this.updateSearchLayer();
-
-			// Fit bounds to show all markers
+			// Fit bounds from canonical/source coordinates.
 			this.fitBounds();
 		} catch (error) {
 			logger.error('set-data-error', 'Error setting map data', { error });
@@ -504,18 +770,42 @@ export class MapController {
 	}
 
 	/**
-	 * Set filtered data (for time slider) without changing current data reference
-	 * This updates only the visible markers/paths without fitting bounds
+	 * Re-render a display-only projection without changing currentData or view.
 	 */
-	setFilteredData(markers: MapMarker[], paths: MigrationPath[], journeyPaths?: JourneyPath[]): void {
+	setDisplayData(displayData: MapData): void {
 		try {
+			this.currentDisplayData = displayData;
+			this.renderDisplayData(displayData);
+		} catch (error) {
+			logger.error('set-display-data-error', 'Error setting map display data', { error });
+			throw error;
+		}
+	}
+
+	/**
+	 * Set filtered data (for time slider) without changing canonical currentData
+	 * or fitting bounds.
+	 */
+	setFilteredData(
+		markers: MapMarker[],
+		paths: MigrationPath[],
+		journeyPaths?: JourneyPath[],
+		placeMarkers?: PlaceMarker[],
+		displayData?: MapData
+	): void {
+		try {
+			if (displayData) this.currentDisplayData = displayData;
 			this.renderMarkers(markers);
 			this.renderPaths(paths);
 			if (journeyPaths) {
 				this.renderJourneyPaths(journeyPaths);
 			}
+			if (placeMarkers) {
+				this.renderPlaceMarkers(placeMarkers);
+			}
 			this.renderHeatMap(markers);
-			// Don't fit bounds - keep current view during animation
+			this.updateSearchLayer();
+			// Don't fit bounds - keep current view during animation.
 		} catch (error) {
 			logger.error('set-filtered-data-error', 'Error setting filtered data', { error });
 			throw error;
@@ -586,7 +876,8 @@ export class MapController {
 		if (this.currentCRS === 'pixel' && data.pixelX !== undefined && data.pixelY !== undefined) {
 			coords = [data.pixelY, data.pixelX];
 		} else if (data.lat !== undefined && data.lng !== undefined) {
-			coords = [data.lat, data.lng];
+			const display = this.canonicalGeographicToMapLatLng(data.lat, data.lng);
+			coords = [display.lat, display.lng];
 		} else {
 			// No valid coordinates - skip
 			return L.marker([0, 0], { icon });
@@ -621,10 +912,10 @@ export class MapController {
 		// Add drag end handler
 		marker.on('dragend', (e: L.DragEndEvent) => {
 			const newLatLng = e.target.getLatLng();
-			const newCoords: { lat: number; lng: number; pixelX?: number; pixelY?: number } = {
-				lat: newLatLng.lat,
-				lng: newLatLng.lng
-			};
+			const newCoords: { lat: number; lng: number; pixelX?: number; pixelY?: number } =
+				this.currentCRS === 'pixel'
+					? { lat: newLatLng.lat, lng: newLatLng.lng }
+					: this.mapLatLngToCanonicalGeographic(newLatLng.lat, newLatLng.lng);
 
 			// For pixel maps, convert to pixel coordinates
 			if (this.currentCRS === 'pixel') {
@@ -708,7 +999,8 @@ export class MapController {
 			// For L.CRS.Simple: [y, x] where y=0 is at bottom
 			coords = [data.pixelY, data.pixelX];
 		} else {
-			coords = [data.lat, data.lng];
+			const display = this.canonicalGeographicToMapLatLng(data.lat, data.lng);
+			coords = [display.lat, display.lng];
 		}
 
 		const marker = L.marker(coords, { icon }) as CRMarker;
@@ -1103,9 +1395,17 @@ export class MapController {
 				[data.destination.pixelY, data.destination.pixelX]
 			];
 		} else {
+			const origin = this.canonicalGeographicToMapLatLng(
+				data.origin.lat,
+				data.origin.lng
+			);
+			const destination = this.canonicalGeographicToMapLatLng(
+				data.destination.lat,
+				data.destination.lng
+			);
 			latlngs = [
-				[data.origin.lat, data.origin.lng],
-				[data.destination.lat, data.destination.lng]
+				[origin.lat, origin.lng],
+				[destination.lat, destination.lng]
 			];
 		}
 
@@ -1232,7 +1532,8 @@ export class MapController {
 			if (this.currentCRS === 'pixel' && wp.pixelX !== undefined && wp.pixelY !== undefined) {
 				return [wp.pixelY, wp.pixelX] as L.LatLngTuple;
 			}
-			return [wp.lat, wp.lng] as L.LatLngTuple;
+			const display = this.canonicalGeographicToMapLatLng(wp.lat, wp.lng);
+			return [display.lat, display.lng] as L.LatLngTuple;
 		});
 
 		const polyline = L.polyline(latlngs, {
@@ -1280,7 +1581,8 @@ export class MapController {
 				if (this.currentCRS === 'pixel' && wp.pixelX !== undefined && wp.pixelY !== undefined) {
 					return L.latLng(wp.pixelY, wp.pixelX);
 				}
-				return L.latLng(wp.lat, wp.lng);
+				const display = this.canonicalGeographicToMapLatLng(wp.lat, wp.lng);
+				return L.latLng(display.lat, display.lng);
 			});
 
 			// Create decorator for arrows at each segment midpoint
@@ -1414,7 +1716,8 @@ export class MapController {
 				if (this.currentCRS === 'pixel') {
 					return [m.pixelY!, m.pixelX!, 1] as [number, number, number];
 				}
-				return [m.lat, m.lng, 1] as [number, number, number];
+				const display = this.canonicalGeographicToMapLatLng(m.lat, m.lng);
+				return [display.lat, display.lng, 1] as [number, number, number];
 			});
 
 		if (heatData.length === 0) return;
@@ -2000,8 +2303,9 @@ export class MapController {
 		// Re-render event markers with updated visibility filters
 		// All event types share a single cluster group (#343),
 		// so we re-render to add/remove individual markers
-		if (this.currentData) {
-			this.renderMarkers(this.currentData.markers);
+		const displayData = this.currentDisplayData ?? this.currentData;
+		if (displayData) {
+			this.renderMarkers(displayData.markers);
 		}
 
 		// Migration paths (birth → death)
@@ -2058,7 +2362,10 @@ export class MapController {
 	 * Set the map view center and zoom
 	 */
 	setView(center: { lat: number; lng: number }, zoom: number): void {
-		this.map?.setView([center.lat, center.lng], zoom);
+		const display = this.currentCRS === 'pixel'
+			? center
+			: this.canonicalGeographicToMapLatLng(center.lat, center.lng);
+		this.map?.setView([display.lat, display.lng], zoom);
 	}
 
 	/**
@@ -2090,10 +2397,7 @@ export class MapController {
 			}
 
 			if (!this.tileLayer) {
-				this.tileLayer = L.tileLayer(OSM_TILE_URL, {
-					attribution: OSM_ATTRIBUTION,
-					maxZoom: 19
-				});
+				this.tileLayer = this.createGeographicTileLayer();
 			}
 
 			if (!this.map.hasLayer(this.tileLayer)) {
@@ -2101,10 +2405,7 @@ export class MapController {
 			}
 
 			// Reset to default view
-			this.map.setView(
-				[this.settings.defaultCenter.lat, this.settings.defaultCenter.lng],
-				this.settings.defaultZoom
-			);
+			this.setView(this.settings.defaultCenter, this.settings.defaultZoom);
 		} else {
 			// Switch to custom image map (same CRS)
 			if (this.tileLayer && this.map.hasLayer(this.tileLayer)) {
@@ -2161,8 +2462,9 @@ export class MapController {
 	private async switchCRS(mapId: string, targetCRS: 'geographic' | 'pixel'): Promise<void> {
 		logger.debug('switch-crs', `Switching CRS from ${this.currentCRS} to ${targetCRS}`);
 
-		// Save current data to restore after map recreation
+		// Save canonical/source + display projection across map recreation.
 		const savedData = this.currentData;
+		const savedDisplayData = this.currentDisplayData;
 		const savedLayers = { ...this.currentLayers };
 
 		// Clean up existing map layers
@@ -2182,6 +2484,8 @@ export class MapController {
 
 		this.childMapOverlayLayer?.clearLayers();
 		this.childMapOverlayLayer = null;
+		this.historicalControlLayer?.clearLayers();
+		this.historicalControlLayer = null;
 
 		if (this.currentImageOverlay && this.map) {
 			this.map.removeLayer(this.currentImageOverlay);
@@ -2236,20 +2540,15 @@ export class MapController {
 
 		this.map = L.map(this.container, mapOptions);
 		this.currentCRS = targetCRS;
+		this.activeMapId = mapId;
 
 		// Set up layers based on new CRS
 		if (targetCRS === 'geographic') {
 			// Geographic mode - add OSM tiles or custom image overlay
 			if (mapId === 'openstreetmap') {
-				this.tileLayer = L.tileLayer(OSM_TILE_URL, {
-					attribution: OSM_ATTRIBUTION,
-					maxZoom: 19
-				}).addTo(this.map);
+				this.tileLayer = this.createGeographicTileLayer().addTo(this.map);
 
-				this.map.setView(
-					[this.settings.defaultCenter.lat, this.settings.defaultCenter.lng],
-					this.settings.defaultZoom
-				);
+				this.setView(this.settings.defaultCenter, this.settings.defaultZoom);
 			} else {
 				// Geographic mode custom map
 				const overlay = await this.imageMapManager.createImageOverlay(mapId);
@@ -2289,6 +2588,7 @@ export class MapController {
 		this.pathLayer = L.layerGroup().addTo(this.map);
 		this.journeyLayer = L.layerGroup();  // Not added by default
 		this.childMapOverlayLayer = L.layerGroup().addTo(this.map);
+		this.historicalControlLayer = L.layerGroup().addTo(this.map);
 
 		// Reinitialize controls
 		this.initializeFullscreen();
@@ -2302,7 +2602,7 @@ export class MapController {
 
 		// Restore data and layer visibility
 		if (savedData) {
-			this.setData(savedData);
+			this.setData(savedData, savedDisplayData ?? savedData);
 		}
 		this.setLayerVisibility(savedLayers);
 
@@ -2419,11 +2719,9 @@ export class MapController {
 			};
 		}
 
-		// Geographic map - return lat/lng
-		return {
-			lat: latlng.lat,
-			lng: latlng.lng
-		};
+		// Real-world geographic map interactions are normalized back to the
+		// canonical WGS84 storage datum before callers create/update Places.
+		return this.mapLatLngToCanonicalGeographic(latlng.lat, latlng.lng);
 	}
 
 	// ========================================================================
@@ -2857,7 +3155,8 @@ export class MapController {
 			if (this.currentCRS === 'pixel' && m.pixelX !== undefined && m.pixelY !== undefined) {
 				return [m.pixelY, m.pixelX] as L.LatLngTuple;
 			}
-			return [m.lat, m.lng] as L.LatLngTuple;
+			const display = this.canonicalGeographicToMapLatLng(m.lat, m.lng);
+			return [display.lat, display.lng] as L.LatLngTuple;
 		});
 
 		const bounds = L.latLngBounds(coords);
@@ -2868,11 +3167,16 @@ export class MapController {
 	 * Get current map state
 	 */
 	getState(): MapState {
-		const center = this.map?.getCenter() || L.latLng(this.settings.defaultCenter.lat, this.settings.defaultCenter.lng);
+		const center = this.map?.getCenter();
+		const canonicalCenter = center
+			? (this.currentCRS === 'pixel'
+				? { lat: center.lat, lng: center.lng }
+				: this.mapLatLngToCanonicalGeographic(center.lat, center.lng))
+			: { ...this.settings.defaultCenter };
 		const zoom = this.map?.getZoom() || this.settings.defaultZoom;
 
 		return {
-			center: { lat: center.lat, lng: center.lng },
+			center: canonicalCenter,
 			zoom,
 			filters: {},
 			layers: this.currentLayers,
@@ -2978,8 +3282,16 @@ export class MapController {
 
 		// Migration paths
 		for (const path of paths) {
-			const start = project(path.origin.lat, path.origin.lng);
-			const end = project(path.destination.lat, path.destination.lng);
+			const startDisplay = this.canonicalGeographicToMapLatLng(
+				path.origin.lat,
+				path.origin.lng
+			);
+			const endDisplay = this.canonicalGeographicToMapLatLng(
+				path.destination.lat,
+				path.destination.lng
+			);
+			const start = project(startDisplay.lat, startDisplay.lng);
+			const end = project(endDisplay.lat, endDisplay.lng);
 
 			// Bezier curve for nicer paths
 			const midX = (start.x + end.x) / 2;
@@ -2999,7 +3311,8 @@ export class MapController {
 
 		// Markers
 		for (const marker of markers) {
-			const pos = project(marker.lat, marker.lng);
+			const display = this.canonicalGeographicToMapLatLng(marker.lat, marker.lng);
+			const pos = project(display.lat, display.lng);
 			const color = this.getMarkerColorForType(marker.type);
 
 			svg += `  <circle cx="${pos.x}" cy="${pos.y}" r="6" fill="${color}" stroke="white" stroke-width="1"/>\n`;
@@ -3070,6 +3383,11 @@ export class MapController {
 		} catch (error) {
 			logger.warn('destroy', 'Journey layer clearLayers failed (suppressed)', { error });
 		}
+		try {
+			this.historicalControlLayer?.clearLayers();
+		} catch (error) {
+			logger.warn('destroy', 'Historical control layer clearLayers failed (suppressed)', { error });
+		}
 
 		// Clean up distortable overlay if active
 		if (this.currentDistortableOverlay && this.map) {
@@ -3108,6 +3426,7 @@ export class MapController {
 		this.placesClusterGroup = null;
 		this.pathLayer = null;
 		this.journeyLayer = null;
+		this.historicalControlLayer = null;
 	}
 }
 
