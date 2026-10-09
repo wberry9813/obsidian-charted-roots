@@ -3401,7 +3401,7 @@ export class MapView extends ItemView {
 		// TODO: Add full map settings to plugin settings when implementing map settings tab
 		return {
 			tileProvider: 'openstreetmap',
-			geographicBasemapId: this.plugin.settings.geographicBasemapId || 'carto-voyager',
+			geographicBasemapId: this.plugin.settings.geographicBasemapId || 'openstreetmap-standard',
 			customGeographicBasemaps: this.plugin.settings.customGeographicBasemaps || [],
 			legacyNegativeYearSemantics:
 				this.plugin.settings.legacyNegativeYearSemantics ?? 'reject',

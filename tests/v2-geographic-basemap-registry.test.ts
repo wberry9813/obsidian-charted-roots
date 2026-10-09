@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	buildGeographicBasemapRegistry,
 	CARTO_VOYAGER_BASEMAP,
+	OPENSTREETMAP_STANDARD_BASEMAP,
 	materializeCustomGeographicBasemap,
 	validateGeographicBasemapDefinition,
 	type GeographicBasemapDefinition
@@ -11,8 +12,8 @@ describe('M6 geographic basemap registry', () => {
 	it('starts with the stable built-in Real world basemap', () => {
 		const { registry, issues } = buildGeographicBasemapRegistry();
 		expect(issues).toEqual([]);
-		expect(registry.resolve().id).toBe(CARTO_VOYAGER_BASEMAP.id);
-		expect(registry.list().map(item => item.id)).toEqual(['carto-voyager']);
+		expect(registry.resolve().id).toBe(OPENSTREETMAP_STANDARD_BASEMAP.id);
+		expect(registry.list().map(item => item.id)).toEqual(['openstreetmap-standard']);
 	});
 
 	it('registers a user XYZ provider with explicit datum metadata', () => {
@@ -36,14 +37,14 @@ describe('M6 geographic basemap registry', () => {
 
 	it('rejects duplicate IDs without replacing the built-in provider', () => {
 		const { registry, issues } = buildGeographicBasemapRegistry([{
-			id: 'carto-voyager',
+			id: 'openstreetmap-standard',
 			label: 'Collision',
 			coordinateCRS: 'gcj02',
 			tileUrl: 'https://tiles.example.invalid/{z}/{x}/{y}.png'
 		}]);
 
 		expect(issues.map(issue => issue.code)).toContain('duplicate_id');
-		expect(registry.resolve('carto-voyager').coordinateCRS).toBe('wgs84');
+		expect(registry.resolve('openstreetmap-standard').coordinateCRS).toBe('wgs84');
 	});
 
 	it('rejects URLs that are not ordinary XYZ templates', () => {
@@ -87,6 +88,8 @@ describe('M6 geographic basemap registry', () => {
 	it('falls back to the built-in provider for unknown saved IDs', () => {
 		const { registry } = buildGeographicBasemapRegistry();
 		expect(registry.resolve('removed-provider').id)
-			.toBe(CARTO_VOYAGER_BASEMAP.id);
+			.toBe(OPENSTREETMAP_STANDARD_BASEMAP.id);
+		expect(registry.resolve('carto-voyager').id)
+			.toBe(OPENSTREETMAP_STANDARD_BASEMAP.id);
 	});
 });

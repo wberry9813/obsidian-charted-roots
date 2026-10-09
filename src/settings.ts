@@ -874,7 +874,7 @@ export const DEFAULT_SETTINGS: CanvasRootsSettings = {
 		high: { radius: 0.9, blur: 0.7, opacity: 0.18 },
 	},
 	pathLabelStroke: 'none' as const,        // Map path label outline (none / white / black)
-	geographicBasemapId: 'carto-voyager', // Provider inside the Real-world map slot
+	geographicBasemapId: 'openstreetmap-standard', // Keyless provider inside the Real-world map slot
 	customGeographicBasemaps: [],         // User-configured XYZ/WebMercator providers
 	legacyNegativeYearSemantics: 'reject', // Do not guess legacy BCE/year-zero semantics
 	// Custom relationship types
@@ -1348,7 +1348,7 @@ export class CanvasRootsSettingTab extends PluginSettingTab {
 						removed
 						&& this.plugin.settings.geographicBasemapId === removed.id
 					) {
-						this.plugin.settings.geographicBasemapId = 'carto-voyager';
+						this.plugin.settings.geographicBasemapId = 'openstreetmap-standard';
 					}
 					await this.plugin.saveSettings();
 					await this.refreshOpenGeographicBasemaps();
