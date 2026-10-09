@@ -2708,6 +2708,14 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			await plugin.activateTemporalTimelineView();
 			const timelineLeaf = app.workspace
 				.getLeavesOfType('charted-roots-temporal-timeline')[0];
+			// Earlier smoke coverage intentionally exercises grouped lanes. A
+			// relationship Assertion appears once per matching person lane, so A2
+			// must explicitly restore the ungrouped state before asserting one
+			// rendered span per migrated temporal item.
+			await timelineLeaf?.view?.setState?.({
+				...timelineLeaf?.view?.getState?.(),
+				groupBy: 'none'
+			});
 			timelineLeaf?.view?.refresh?.();
 			await new Promise(resolve => window.setTimeout(resolve, 30));
 			const timelineRoot = timelineLeaf?.view?.containerEl;
