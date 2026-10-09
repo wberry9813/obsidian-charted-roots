@@ -2597,6 +2597,226 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(workspaceState.finalActive, 'history-cn');
 	assert.equal(workspaceState.finalLocalSetting, 'history-cn');
 
+	// Architecture acceptance A1: mount an isolated Spring/Autumn-shaped
+	// legacy Workspace, execute only its Ready migration subset through the
+	// real plugin boundary, prove backup/audit semantics and Workspace-scoped
+	// Assertion visibility, then restore the original catalog and active scope.
+	const architectureAcceptance = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const service = plugin.getWorkspaceService();
+		if (!service) throw new Error('Workspace service unavailable for architecture acceptance.');
+
+		const previousCatalog = service.getCatalog();
+		const previousActive = service.getActiveId();
+		const acceptanceCatalog = {
+			version: 1,
+			workspaces: [
+				...previousCatalog.workspaces,
+				{
+					id: 'acceptance-history',
+					name: '架构验收',
+					rootFolder: 'Workspace-E2E/Acceptance-History',
+					mode: 'historical',
+					enabledPacks: ['core', 'chinese-history']
+				}
+			]
+		};
+
+		let snapshot;
+		try {
+			await plugin.replaceWorkspaceCatalog(acceptanceCatalog);
+			await plugin.setActiveWorkspace('acceptance-history');
+
+			const activeService = plugin.getWorkspaceService();
+			if (activeService?.getActiveId() !== 'acceptance-history') {
+				throw new Error('Acceptance Workspace did not become active.');
+			}
+
+			const plan = plugin.buildV2MigrationPlan();
+			const planFiles = plan.files
+				.map(file => ({
+					path: file.filePath,
+					status: file.status,
+					operations: file.operations.length
+				}))
+				.sort((a, b) => a.path.localeCompare(b.path));
+
+			const ministerPath =
+				'Workspace-E2E/Acceptance-History/People/Legacy-Minister.md';
+			const reviewPath =
+				'Workspace-E2E/Acceptance-History/People/Review-Title.md';
+			const eventPath =
+				'Workspace-E2E/Acceptance-History/Events/Legacy-Alliance.md';
+			const minister = app.vault.getFileByPath(ministerPath);
+			const review = app.vault.getFileByPath(reviewPath);
+			const event = app.vault.getFileByPath(eventPath);
+			if (!minister || !review || !event) {
+				throw new Error('Architecture acceptance fixture is incomplete.');
+			}
+
+			const originalMinister = await app.vault.read(minister);
+			const originalReview = await app.vault.read(review);
+			const originalEvent = await app.vault.read(event);
+
+			const result = await plugin.executeV2MigrationReady(plan, {
+				runId: 'spring-warring-ready',
+				assertionFolder:
+					'Workspace-E2E/Acceptance-History/Assertions/Migrated',
+				backupRoot: '.charted-roots/e2e-architecture-acceptance'
+			});
+
+			const adapter = app.vault.adapter;
+			const backupRoot =
+				'.charted-roots/e2e-architecture-acceptance/spring-warring-ready';
+			const manifest = JSON.parse(
+				await adapter.read(backupRoot + '/manifest.json')
+			);
+			const ministerBackup = await adapter.read(
+				backupRoot + '/originals/' + ministerPath
+			);
+			const eventBackup = await adapter.read(
+				backupRoot + '/originals/' + eventPath
+			);
+
+			const migratedMinister = await app.vault.read(minister);
+			const migratedReview = await app.vault.read(review);
+			const migratedEvent = await app.vault.read(event);
+
+			const assertions = plugin.getAssertionService().getAll()
+				.map(record => ({
+					predicate: record.assertion.predicate,
+					object: record.assertion.object ?? null,
+					timeStart: record.assertion.time_start ?? null,
+					timeEnd: record.assertion.time_end ?? null,
+					role: record.raw.role ?? null,
+					path: record.filePath
+				}))
+				.sort((a, b) =>
+					a.predicate.localeCompare(b.predicate)
+					|| String(a.timeStart).localeCompare(String(b.timeStart))
+				);
+
+			snapshot = {
+				activeDuringRun: activeService.getActiveId(),
+				plan: {
+					executableFiles: plan.executableFiles,
+					reviewFiles: plan.reviewFiles,
+					blockedFiles: plan.blockedFiles,
+					files: planFiles
+				},
+				result,
+				manifest: {
+					status: manifest.status,
+					sourceBackupCount: manifest.sourceBackups.length,
+					createdAssertionCount: manifest.createdAssertionPaths.length
+				},
+				backups: {
+					ministerExact: ministerBackup === originalMinister,
+					eventExact: eventBackup === originalEvent
+				},
+				reviewUntouched: migratedReview === originalReview,
+				minister: {
+					hasSchema2: /cr_schema:\\s*2/.test(migratedMinister),
+					hasLegacyMembership: /membership_orgs:/.test(migratedMinister),
+					hasLegacyAlly: /^ally:/m.test(migratedMinister),
+					hasLegacyRival: /^rival:/m.test(migratedMinister)
+				},
+				event: {
+					hasSchema2: /cr_schema:\\s*2/.test(migratedEvent),
+					hasTimeStart: /time_start:\\s*['"]?BCE 656/.test(migratedEvent),
+					hasTimeEnd: /time_end:\\s*['"]?BCE 655/.test(migratedEvent),
+					hasLegacyDate: /^date:/m.test(migratedEvent),
+					hasLegacyDateEnd: /^date_end:/m.test(migratedEvent)
+				},
+				assertions
+			};
+		} finally {
+			await plugin.replaceWorkspaceCatalog(previousCatalog);
+			await plugin.setActiveWorkspace(previousActive);
+		}
+
+		return {
+			...snapshot,
+			restoredActive: plugin.getWorkspaceService()?.getActiveId() ?? null,
+			restoredWorkspaceIds: plugin.getWorkspaceService()
+				?.getCatalog().workspaces.map(workspace => workspace.id).sort() ?? []
+		};
+	`);
+
+	assert.equal(architectureAcceptance.activeDuringRun, 'acceptance-history');
+	assert.equal(architectureAcceptance.plan.executableFiles, 2);
+	assert.equal(architectureAcceptance.plan.reviewFiles, 1);
+	assert.equal(architectureAcceptance.plan.blockedFiles, 0);
+	assert.deepEqual(architectureAcceptance.plan.files, [
+		{
+			path: 'Workspace-E2E/Acceptance-History/Events/Legacy-Alliance.md',
+			status: 'ready',
+			operations: 1
+		},
+		{
+			path: 'Workspace-E2E/Acceptance-History/People/Legacy-Minister.md',
+			status: 'ready',
+			operations: 5
+		},
+		{
+			path: 'Workspace-E2E/Acceptance-History/People/Review-Title.md',
+			status: 'review',
+			operations: 0
+		}
+	]);
+	assert.equal(architectureAcceptance.result.success, true);
+	assert.equal(architectureAcceptance.result.rolledBack, false);
+	assert.equal(architectureAcceptance.result.filesMigrated, 2);
+	assert.equal(architectureAcceptance.result.assertionsCreated, 4);
+	assert.equal(architectureAcceptance.result.rewrittenFiles, 2);
+	assert.equal(architectureAcceptance.manifest.status, 'completed');
+	assert.equal(architectureAcceptance.manifest.sourceBackupCount, 2);
+	assert.equal(architectureAcceptance.manifest.createdAssertionCount, 4);
+	assert.deepEqual(architectureAcceptance.backups, {
+		ministerExact: true,
+		eventExact: true
+	});
+	assert.equal(architectureAcceptance.reviewUntouched, true);
+	assert.deepEqual(architectureAcceptance.minister, {
+		hasSchema2: true,
+		hasLegacyMembership: false,
+		hasLegacyAlly: false,
+		hasLegacyRival: false
+	});
+	assert.deepEqual(architectureAcceptance.event, {
+		hasSchema2: true,
+		hasTimeStart: true,
+		hasTimeEnd: true,
+		hasLegacyDate: false,
+		hasLegacyDateEnd: false
+	});
+	assert.deepEqual(
+		architectureAcceptance.assertions.map(item => ({
+			predicate: item.predicate,
+			timeStart: item.timeStart,
+			timeEnd: item.timeEnd,
+			role: item.role
+		})),
+		[
+			{ predicate: 'ally', timeStart: 'BCE 690', timeEnd: 'BCE 671', role: null },
+			{ predicate: 'member_of', timeStart: 'BCE 680', timeEnd: 'BCE 660', role: '卿' },
+			{ predicate: 'member_of', timeStart: 'BCE 700', timeEnd: 'BCE 650', role: '国人' },
+			{ predicate: 'rival', timeStart: 'BCE 670', timeEnd: 'BCE 660', role: null }
+		]
+	);
+	assert.ok(
+		architectureAcceptance.assertions.every(item =>
+			item.path.startsWith(
+				'Workspace-E2E/Acceptance-History/Assertions/Migrated/'
+			)
+		)
+	);
+	assert.equal(architectureAcceptance.restoredActive, 'history-cn');
+	assert.deepEqual(architectureAcceptance.restoredWorkspaceIds, [
+		'history-cn',
+		'shushan'
+	]);
+
 	// M6 C3: create a time-bounded historical Place name through the real
 	// Profile UI, then prove shared TemporalFocus changes Profile + Map display
 	// without renaming the stable Place entity.
