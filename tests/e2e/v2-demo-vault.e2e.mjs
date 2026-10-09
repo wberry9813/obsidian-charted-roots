@@ -101,18 +101,39 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 		await plugin.activateMapView();
 		return true;
 	`);
-	await session.waitFor(
-		`[...document.querySelectorAll('select.cr-map-select[aria-label="Select map"] option')]
-			.some(option => option.value === 'shushan-world-map')
-		&& [...document.querySelectorAll('select.cr-map-select[aria-label="Select map"] option')]
-			.some(option => option.value === 'emei-region-map')`
-	);
 	const showcase = await session.evalInApp(`
+		const mapPaths = [
+			'示例/蜀山/Maps/蜀山全图.md',
+			'示例/蜀山/Maps/峨眉山区域.md'
+		];
+		const files = mapPaths.map(path => {
+			const file = app.vault.getAbstractFileByPath(path);
+			const cache = file && file.extension === 'md'
+				? app.metadataCache.getFileCache(file)
+				: null;
+			return {
+				path,
+				exists: !!file,
+				frontmatter: cache?.frontmatter ?? null
+			};
+		});
+		const leaves = app.workspace.getLeavesOfType('canvas-roots-map');
+		const view = leaves[0]?.view;
+		const controllerMaps = view?.mapController?.getCustomMaps?.().map(map => ({
+			id: map.id,
+			name: map.name,
+			universe: map.universe,
+			imagePath: map.imagePath,
+			coordinateSystem: map.coordinateSystem
+		})) ?? null;
 		const mapSelect = document.querySelector(
 			'select.cr-map-select[aria-label="Select map"]'
 		);
 		return {
-			maps: [...(mapSelect?.options ?? [])].map(option => ({
+			files,
+			leafCount: leaves.length,
+			controllerMaps,
+			options: [...(mapSelect?.options ?? [])].map(option => ({
 				value: option.value,
 				text: option.textContent
 			})),
@@ -120,11 +141,22 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 			start: app.vault.getAbstractFileByPath('00-开始这里.md') !== null
 		};
 	`);
-	assert.ok(showcase.maps.some(item =>
+	console.log('DEMO_MAP_DIAGNOSTICS', JSON.stringify(showcase));
+	assert.equal(showcase.files[0]?.exists, true);
+	assert.equal(showcase.files[1]?.exists, true);
+	assert.equal(showcase.files[0]?.frontmatter?.cr_type, 'map');
+	assert.equal(showcase.files[1]?.frontmatter?.cr_type, 'map');
+	assert.ok(showcase.controllerMaps?.some(item =>
+		item.id === 'shushan-world-map'
+	));
+	assert.ok(showcase.controllerMaps?.some(item =>
+		item.id === 'emei-region-map'
+	));
+	assert.ok(showcase.options.some(item =>
 		item.value === 'shushan-world-map'
 		&& item.text?.includes('蜀山全图')
 	));
-	assert.ok(showcase.maps.some(item =>
+	assert.ok(showcase.options.some(item =>
 		item.value === 'emei-region-map'
 		&& item.text?.includes('峨眉山区域')
 	));
