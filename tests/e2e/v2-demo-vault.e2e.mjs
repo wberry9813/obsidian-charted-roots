@@ -96,17 +96,36 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 	assert.equal(fiction.calendar, '蜀山纪年');
 	assert.equal(fiction.dna, true);
 
+	await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		await plugin.activateMapView();
+		return true;
+	`);
+	await session.waitFor(
+		`[...document.querySelectorAll('select.cr-map-select[aria-label="Select map"] option')]
+			.some(option => option.textContent === '蜀山全图')
+		&& [...document.querySelectorAll('select.cr-map-select[aria-label="Select map"] option')]
+			.some(option => option.textContent === '峨眉山区域')`
+	);
 	const showcase = await session.evalInApp(`
-		const manager = app.plugins.plugins['charted-roots'].imageMapManager;
+		const mapSelect = document.querySelector(
+			'select.cr-map-select[aria-label="Select map"]'
+		);
 		return {
-			worldMap: manager?.getMapConfig?.('shushan-world-map')?.name ?? null,
-			childMap: manager?.getMapConfig?.('emei-region-map')?.name ?? null,
+			maps: [...(mapSelect?.options ?? [])].map(option => ({
+				value: option.value,
+				text: option.textContent
+			})),
 			li: app.vault.getAbstractFileByPath('示例/蜀山/People/李英琼.md') !== null,
 			start: app.vault.getAbstractFileByPath('00-开始这里.md') !== null
 		};
 	`);
-	assert.equal(showcase.worldMap, '蜀山全图');
-	assert.equal(showcase.childMap, '峨眉山区域');
+	assert.ok(showcase.maps.some(item =>
+		item.value === 'shushan-world-map' && item.text === '蜀山全图'
+	));
+	assert.ok(showcase.maps.some(item =>
+		item.value === 'emei-region-map' && item.text === '峨眉山区域'
+	));
 	assert.equal(showcase.li, true);
 	assert.equal(showcase.start, true);
 });
