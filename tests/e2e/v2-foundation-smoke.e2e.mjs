@@ -2622,6 +2622,8 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			]
 		};
 
+		const originalLegacyYearSemantics =
+			plugin.settings.legacyNegativeYearSemantics ?? 'reject';
 		let snapshot;
 		try {
 			await plugin.replaceWorkspaceCatalog(acceptanceCatalog);
@@ -2657,8 +2659,6 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 			const originalMinister = await app.vault.read(minister);
 			const originalReview = await app.vault.read(review);
 			const originalEvent = await app.vault.read(event);
-			const originalLegacyYearSemantics =
-				plugin.settings.legacyNegativeYearSemantics ?? 'reject';
 
 			const result = await plugin.executeV2MigrationReady(plan, {
 				runId: 'spring-warring-ready',
