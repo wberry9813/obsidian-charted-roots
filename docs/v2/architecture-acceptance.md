@@ -50,8 +50,11 @@ into the ordinary History/Shushan scenarios.
   temporal focus points (ally at 675 BCE, rival at 665 BCE);
 - [x] Profile exposes concurrent affiliation and office-holding state without
   flattening those facts back onto the Person note;
-- [ ] Map and Timeline share historical focus without changing stored source
-  semantics.
+- [x] Map and Timeline share historical JDN focus in both directions:
+  an explicit BCE Map slider action publishes a shared range consumed by
+  Timeline, and a Timeline point focus is consumed by Map temporal layers,
+  while migrated Person / Event / Assertion source files remain byte-for-byte
+  unchanged by navigation.
 
 ### A3 — representative research corpus
 
