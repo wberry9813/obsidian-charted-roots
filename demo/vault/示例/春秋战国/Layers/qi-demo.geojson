@@ -1,0 +1,41 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "demo-qi-zone",
+      "properties": {
+        "name": "齐国示意范围（非史学边界）",
+        "time_start": "BCE 700",
+        "time_end": "BCE 600"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              117.7,
+              36.1
+            ],
+            [
+              119.1,
+              36.1
+            ],
+            [
+              119.1,
+              37
+            ],
+            [
+              117.7,
+              37
+            ],
+            [
+              117.7,
+              36.1
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

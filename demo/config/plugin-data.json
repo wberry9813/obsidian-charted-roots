@@ -1,0 +1,33 @@
+{
+  "uiLanguage": "zh-CN",
+  "activeWorkspaceId": "history-cn-demo",
+  "legacyNegativeYearSemantics": "bce_display",
+  "geographicBasemapId": "carto-voyager",
+  "enableFictionalDates": true,
+  "showBuiltInDateSystems": false,
+  "fictionalDateSystems": [
+    {
+      "id": "shushan-calendar",
+      "name": "蜀山纪年",
+      "universe": "蜀山世界",
+      "eras": [
+        {
+          "id": "before-shushan",
+          "name": "旧纪",
+          "abbrev": "BY",
+          "epoch": 0,
+          "direction": "backward"
+        },
+        {
+          "id": "shushan-era",
+          "name": "蜀历",
+          "abbrev": "SY",
+          "epoch": 0,
+          "direction": "forward"
+        }
+      ],
+      "defaultEra": "shushan-era",
+      "source": "custom"
+    }
+  ]
+}

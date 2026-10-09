@@ -3,6 +3,7 @@ export type ResolvedUiLanguage = 'en' | 'zh-CN';
 
 const ZH_CN_TEXT: Record<string, string> = {
 	'Language': '界面语言',
+	'Choose the Charted Roots interface language. Auto follows Obsidian / system language.': '选择 Charted Roots 的界面语言；“自动”会跟随 Obsidian / 系统语言。',
 	'Follow Obsidian / system': '跟随 Obsidian / 系统',
 	'English': 'English',
 	'Simplified Chinese': '简体中文',
@@ -211,9 +212,10 @@ export function resolveUiLanguage(
 ): ResolvedUiLanguage {
 	if (preference === 'en' || preference === 'zh-CN') return preference;
 
-	const detected = (detectedLanguage
-		?? (typeof document !== 'undefined' ? document.documentElement.lang : '')
-		?? (typeof navigator !== 'undefined' ? navigator.language : '')
+	const detected = (
+		detectedLanguage
+		|| (typeof document !== 'undefined' ? document.documentElement.lang : '')
+		|| (typeof navigator !== 'undefined' ? navigator.language : '')
 	).trim().toLowerCase();
 
 	return detected === 'zh'
