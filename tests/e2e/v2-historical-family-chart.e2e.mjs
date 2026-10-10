@@ -152,7 +152,7 @@ test('Historical Family Chart follows shared Timeline focus in real Obsidian', a
 	await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
 		plugin.getTemporalFocusService().setPoint(
-			setup.point201,
+			${JSON.stringify(setup.point201)},
 			'map-time-slider'
 		);
 		return true;
@@ -294,8 +294,8 @@ test('Historical Family Chart follows shared Timeline focus in real Obsidian', a
 		const plugin = app.plugins.plugins['charted-roots'];
 		plugin.getTemporalFocusService().clear();
 		for (const path of [
-			setup.allyPath,
-			setup.rivalPath
+			${JSON.stringify(setup.allyPath)},
+			${JSON.stringify(setup.rivalPath)}
 		]) {
 			const file = app.vault.getAbstractFileByPath(path);
 			if (file) await app.vault.delete(file);
