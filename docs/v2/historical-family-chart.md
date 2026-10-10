@@ -285,24 +285,25 @@ Expected behavior:
 
 ### F1 — historical relationship projector
 
-- [ ] project materialized `relationship` Assertions;
-- [ ] require Person→Person endpoints;
-- [ ] preserve predicate label/direction/symmetry;
-- [ ] skip structural family predicates;
-- [ ] support All-time projection;
-- [ ] support JDN point/range active + possible state;
-- [ ] reject reinterpretation of chronology-local focus;
-- [ ] unit tests.
+- [x] project materialized `relationship` Assertions;
+- [x] require Person→Person endpoints;
+- [x] preserve predicate label/direction/symmetry;
+- [x] skip structural family predicates;
+- [x] support All-time projection;
+- [x] support JDN point/range active + possible state;
+- [x] reject reinterpretation of chronology-local focus;
+- [x] unit tests.
 
 ### F2 — Family Chart Historical mode
 
-- [ ] view-state `mode: family | historical`;
-- [ ] toolbar mode control;
-- [ ] historical overlay layer;
-- [ ] active/possible styling;
+- [x] view-state `mode: family | historical`;
+- [x] toolbar mode control;
+- [x] historical overlay reuses the mature Family Chart curve renderer;
+- [x] possible-state adapter uses distinct dotted styling;
 - [ ] predicate filter menu;
-- [ ] pane state persistence;
-- [ ] family mode behavior unchanged.
+- [x] pane state persistence;
+- [x] historical mode keeps genealogy editing read-only;
+- [x] family mode behavior remains the default.
 
 ### F3 — shared TemporalFocus
 
