@@ -33,6 +33,7 @@ export type NoteType =
 	| 'assertion'
 	| 'claim'
 	| 'control_layer'
+	| 'raster_layer'
 	| 'schema'
 	| 'universe'
 	| 'proof_summary'
@@ -63,6 +64,7 @@ export const ALL_NOTE_TYPES: readonly NoteType[] = [
 	'assertion',
 	'claim',
 	'control_layer',
+	'raster_layer',
 	'schema',
 	'universe',
 	'proof_summary',
