@@ -1,0 +1,145 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "cao-jingzhou-208",
+      "properties": {
+        "name": "曹操集团已接收的荆州北部节点（示意）",
+        "time_start": "208 CE",
+        "time_end": "208 CE",
+        "confidence": "medium",
+        "source": [
+          "[[示例/三国赤壁/Sources/三国志·武帝纪|三国志·武帝纪]]",
+          "[[示例/三国赤壁/Sources/资治通鉴·卷六十五|资治通鉴·卷六十五]]"
+        ]
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              111.2,
+              30.1
+            ],
+            [
+              113.1,
+              30.1
+            ],
+            [
+              113.1,
+              32.4
+            ],
+            [
+              111.2,
+              32.4
+            ],
+            [
+              111.2,
+              30.1
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "sun-east-208",
+      "properties": {
+        "name": "孙权江东控制核心（示意）",
+        "time_start": "208 CE",
+        "time_end": "208 CE",
+        "confidence": "medium",
+        "source": [
+          "[[示例/三国赤壁/Sources/三国志·吴主传|三国志·吴主传]]"
+        ]
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              115,
+              28.1
+            ],
+            [
+              120.4,
+              28.1
+            ],
+            [
+              120.4,
+              31.9
+            ],
+            [
+              115,
+              31.9
+            ],
+            [
+              115,
+              28.1
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "cao-route-208",
+      "properties": {
+        "name": "曹操南下至赤壁方向（示意路线）",
+        "time_start": "208 CE",
+        "confidence": "low",
+        "source": [
+          "[[示例/三国赤壁/Sources/资治通鉴·卷六十五|资治通鉴·卷六十五]]"
+        ]
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            112.12,
+            32.01
+          ],
+          [
+            112.19,
+            30.35
+          ],
+          [
+            113.47,
+            29.83
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "sun-liu-route-208",
+      "properties": {
+        "name": "孙刘联军接敌方向（示意路线）",
+        "time_start": "208 CE",
+        "confidence": "low",
+        "source": [
+          "[[示例/三国赤壁/Sources/三国志·周瑜鲁肃吕蒙传|三国志·周瑜鲁肃吕蒙传]]",
+          "[[示例/三国赤壁/Sources/资治通鉴·卷六十五|资治通鉴·卷六十五]]"
+        ]
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            115.99,
+            29.71
+          ],
+          [
+            114.88,
+            30.4
+          ],
+          [
+            113.88,
+            29.72
+          ]
+        ]
+      }
+    }
+  ]
+}

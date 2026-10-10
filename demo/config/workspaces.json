@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "workspaces": [
+    {
+      "id": "genealogy-demo",
+      "name": "林氏家族 · 家谱研究",
+      "rootFolder": "示例/林氏家族",
+      "mode": "genealogy",
+      "enabledPacks": [
+        "core"
+      ]
+    },
+    {
+      "id": "history-cn-demo",
+      "name": "三国·赤壁专题 · 历史研究",
+      "rootFolder": "示例/三国赤壁",
+      "mode": "historical",
+      "enabledPacks": [
+        "core",
+        "chinese-history"
+      ]
+    },
+    {
+      "id": "shushan-demo",
+      "name": "蜀山 · 世界观",
+      "rootFolder": "示例/蜀山",
+      "mode": "worldbuilding",
+      "enabledPacks": [
+        "core"
+      ]
+    }
+  ]
+}

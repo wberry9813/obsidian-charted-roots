@@ -1,0 +1,117 @@
+filters:
+  and:
+    - 'cr_type == "person"'
+formulas:
+  display_name: 'name || file.name'
+  spouses_all: '[spouse, spouse1, spouse2, spouse3, spouse4, spouse5].flat().filter(!value.isEmpty())'
+properties:
+  formula.display_name:
+    displayName: 姓名
+  note.born:
+    displayName: 出生
+  note.died:
+    displayName: 去世
+  note.father:
+    displayName: 父亲
+  note.mother:
+    displayName: 母亲
+  formula.spouses_all:
+    displayName: 配偶
+  note.research_level:
+    displayName: 研究等级
+  note.collection:
+    displayName: Collection
+  note.lineage:
+    displayName: Lineage
+  note.generation:
+    displayName: 世代
+  note.ahnentafel:
+    displayName: Ahnentafel
+  note.daboville:
+    displayName: d'Aboville
+  note.dna_shared_cm:
+    displayName: Shared cM
+views:
+  - type: table
+    name: 全部人物
+    order:
+      - formula.display_name
+      - note.born
+      - note.father
+      - note.mother
+      - formula.spouses_all
+      - note.research_level
+      - note.collection
+  - type: table
+    name: 多次婚姻
+    filters:
+      and:
+        - 'formula.spouses_all.length > 1'
+    order:
+      - formula.display_name
+      - formula.spouses_all
+  - type: table
+    name: 缺父母信息
+    filters:
+      and:
+        - 'father.isEmpty() && mother.isEmpty()'
+    order:
+      - formula.display_name
+      - note.born
+  - type: table
+    name: 按研究等级
+    filters:
+      and:
+        - '!research_level.isEmpty()'
+    groupBy:
+      property: note.research_level
+      direction: ASC
+    order:
+      - note.research_level
+      - formula.display_name
+  - type: table
+    name: 需要继续研究
+    filters:
+      and:
+        - 'research_level <= 2'
+    order:
+      - note.research_level
+      - formula.display_name
+  - type: table
+    name: DNA Matches
+    filters:
+      and:
+        - '!dna_shared_cm.isEmpty()'
+    order:
+      - note.dna_shared_cm DESC
+      - formula.display_name
+      - note.dna_match_type
+      - note.dna_testing_company
+  - type: table
+    name: Ahnentafel
+    filters:
+      and:
+        - '!ahnentafel.isEmpty()'
+    order:
+      - note.ahnentafel
+      - formula.display_name
+  - type: table
+    name: d'Aboville
+    filters:
+      and:
+        - '!daboville.isEmpty()'
+    order:
+      - note.daboville
+      - formula.display_name
+  - type: table
+    name: 按 Lineage
+    filters:
+      and:
+        - '!lineage.isEmpty()'
+    groupBy:
+      property: note.lineage
+      direction: ASC
+    order:
+      - note.lineage
+      - note.generation
+      - formula.display_name

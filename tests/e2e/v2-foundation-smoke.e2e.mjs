@@ -2325,7 +2325,7 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		workspaceState.history.controlAfterBasemapSwitch.controlFeatureIds,
 		['history-control-active', 'history-control-possible']
 	);
-	assert.equal(workspaceState.history.basemapRestored.id, 'carto-voyager');
+	assert.equal(workspaceState.history.basemapRestored.id, 'openstreetmap-standard');
 	assert.equal(workspaceState.history.basemapRestored.crs, 'wgs84');
 	assert.ok(
 		Math.abs(workspaceState.history.basemapRestored.lat - 34.7478004) <= 1e-9

@@ -1,0 +1,49 @@
+filters:
+  or:
+    - 'cr_type == "source"'
+    - 'cr_type == "citation"'
+    - 'cr_type == "claim"'
+formulas:
+  display_name: 'title || statement || file.name'
+  evidence_type: 'cr_type'
+properties:
+  formula.display_name:
+    displayName: 名称 / 判断
+  formula.evidence_type:
+    displayName: 类型
+  note.source:
+    displayName: Source
+  note.target:
+    displayName: Target
+  note.relation:
+    displayName: 证据关系
+  note.confidence:
+    displayName: Confidence
+  note.research_status:
+    displayName: 状态
+views:
+  - type: table
+    name: 全部证据实体
+    order:
+      - formula.evidence_type
+      - formula.display_name
+      - note.confidence
+  - type: table
+    name: Citations
+    filters:
+      and:
+        - 'cr_type == "citation"'
+    order:
+      - formula.display_name
+      - note.source
+      - note.target
+      - note.relation
+  - type: table
+    name: Claims
+    filters:
+      and:
+        - 'cr_type == "claim"'
+    order:
+      - formula.display_name
+      - note.confidence
+      - note.research_status

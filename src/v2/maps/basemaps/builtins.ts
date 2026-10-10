@@ -1,14 +1,33 @@
 import type { GeographicBasemapDefinition } from './types';
 
 /**
- * Existing Charted Roots "Real world" basemap.
+ * Keyless OpenStreetMap Standard raster tiles.
  *
- * CARTO Voyager uses the standard WebMercator tile grid and is aligned to
- * ordinary WGS84 geographic coordinates as consumed by Leaflet markers.
+ * This is the built-in Real world provider because it works without requiring
+ * users to create or store a third-party API key. Place coordinates remain
+ * canonical WGS84 and Leaflet renders the XYZ/WebMercator tile grid.
+ */
+export const OPENSTREETMAP_STANDARD_BASEMAP: GeographicBasemapDefinition = {
+	id: 'openstreetmap-standard',
+	label: 'OpenStreetMap Standard',
+	coordinateCRS: 'wgs84',
+	tileScheme: 'xyz-web-mercator',
+	tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+	attribution:
+		'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+	maxZoom: 19,
+	miniMapMaxZoom: 13
+};
+
+/**
+ * Legacy CARTO Voyager definition retained as a source-level compatibility
+ * export only. CARTO's former unauthenticated raster endpoint now returns
+ * "API KEY REQUIRED", so this definition is intentionally NOT registered as
+ * a built-in provider. Saved legacy IDs therefore fall back to OSM.
  */
 export const CARTO_VOYAGER_BASEMAP: GeographicBasemapDefinition = {
 	id: 'carto-voyager',
-	label: 'Real world',
+	label: 'CARTO Voyager (legacy)',
 	coordinateCRS: 'wgs84',
 	tileScheme: 'xyz-web-mercator',
 	tileUrl:
@@ -20,10 +39,10 @@ export const CARTO_VOYAGER_BASEMAP: GeographicBasemapDefinition = {
 	noReferrer: true
 };
 
-export const DEFAULT_GEOGRAPHIC_BASEMAP = CARTO_VOYAGER_BASEMAP;
+export const DEFAULT_GEOGRAPHIC_BASEMAP = OPENSTREETMAP_STANDARD_BASEMAP;
 
 export const BUILT_IN_GEOGRAPHIC_BASEMAPS: readonly GeographicBasemapDefinition[] = [
-	CARTO_VOYAGER_BASEMAP
+	OPENSTREETMAP_STANDARD_BASEMAP
 ];
 
 export function getBuiltInGeographicBasemap(

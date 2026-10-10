@@ -94,6 +94,18 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Build ready-to-open demo vault
+        run: node scripts/build-demo-vault.mjs
+
+      - name: Upload ready-to-open demo vault
+        uses: actions/upload-artifact@v4
+        with:
+          name: charted-roots-demo-vault-${{ github.sha }}
+          path: dist/Charted-Roots-Demo-Vault/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Run real Obsidian smoke test
         shell: bash
         run: |
@@ -102,6 +114,8 @@ jobs:
           xvfb-run -a node --test tests/e2e/v2-foundation-smoke.e2e.mjs \
             2>&1 | tee tests/e2e/artifacts/e2e.log
           xvfb-run -a node --test tests/e2e/v2-workspace-ui.e2e.mjs \
+            2>&1 | tee -a tests/e2e/artifacts/e2e.log
+          xvfb-run -a node --test tests/e2e/v2-demo-vault.e2e.mjs \
             2>&1 | tee -a tests/e2e/artifacts/e2e.log
 
       - name: Upload Obsidian E2E artifacts

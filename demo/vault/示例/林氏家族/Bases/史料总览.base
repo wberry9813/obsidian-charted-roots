@@ -1,0 +1,67 @@
+filters:
+  and:
+    - 'cr_type == "source"'
+formulas:
+  display_name: 'title || file.name'
+properties:
+  formula.display_name:
+    displayName: 来源
+  note.source_type:
+    displayName: 类型
+  note.source_repository:
+    displayName: 仓储
+  note.source_date:
+    displayName: 日期
+  note.confidence:
+    displayName: 可信度
+  note.media:
+    displayName: 媒体
+views:
+  - type: table
+    name: 全部史料
+    order:
+      - formula.display_name
+      - note.source_type
+      - note.source_repository
+      - note.source_date
+      - note.confidence
+  - type: table
+    name: 按类型
+    groupBy:
+      property: note.source_type
+      direction: ASC
+    order:
+      - formula.display_name
+  - type: table
+    name: 按可信度
+    groupBy:
+      property: note.confidence
+      direction: ASC
+    order:
+      - formula.display_name
+  - type: table
+    name: 有媒体
+    filters:
+      and:
+        - '!media.isEmpty()'
+    order:
+      - formula.display_name
+      - note.media
+  - type: table
+    name: 缺媒体
+    filters:
+      and:
+        - 'media.isEmpty()'
+    order:
+      - formula.display_name
+  - type: cards
+    name: 媒体画廊
+    filters:
+      and:
+        - '!media.isEmpty()'
+    image: note.media
+    imageFit: contain
+    order:
+      - formula.display_name
+      - note.source_type
+      - note.source_date

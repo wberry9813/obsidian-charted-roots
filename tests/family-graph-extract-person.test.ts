@@ -74,6 +74,37 @@ describe('FamilyGraphService.extractPersonNode — non-person cr_type rejection 
 		expect(result?.isPlace).toBe(true);
 	});
 
+	it('keeps the Family Chart node set person-only when the vault mixes entity types', () => {
+		const { service, app } = makeService();
+
+		const fixtures = [
+			{ path: 'people/Ada.md', basename: 'Ada', cr_id: 'person-ada', cr_type: 'person', name: 'Ada' },
+			{ path: 'events/Battle.md', basename: 'Battle', cr_id: 'event-battle', cr_type: 'event', title: 'Battle' },
+			{ path: 'sources/Chronicle.md', basename: 'Chronicle', cr_id: 'source-chronicle', cr_type: 'source', title: 'Chronicle' },
+			{ path: 'places/Capital.md', basename: 'Capital', cr_id: 'place-capital', cr_type: 'place', name: 'Capital' },
+			{ path: 'organizations/Court.md', basename: 'Court', cr_id: 'org-court', cr_type: 'organization', name: 'Court' },
+			{ path: 'citations/Citation.md', basename: 'Citation', cr_id: 'citation-1', cr_type: 'citation' },
+			{ path: 'universes/World.md', basename: 'World', cr_id: 'universe-1', cr_type: 'universe', name: 'World' }
+		] as const;
+
+		for (const fixture of fixtures) {
+			const file = makeFile(fixture.path, fixture.basename);
+			app.vault.files.set(file.path, file);
+			app.metadataCache._setFrontmatter(file, {
+				cr_id: fixture.cr_id,
+				cr_type: fixture.cr_type,
+				name: 'name' in fixture ? fixture.name : undefined,
+				title: 'title' in fixture ? fixture.title : undefined
+			});
+		}
+
+		const people = service.getAllPeople();
+
+		expect(people.map(person => person.crId)).toEqual(['person-ada']);
+		expect(people.every(person =>
+			app.metadataCache.getFileCache(person.file)?.frontmatter?.cr_type === 'person'
+		)).toBe(true);
+	});
 	it('returns a PersonNode for cr_type: person', () => {
 		const { service, app } = makeService();
 		const file = makeFile('people/Cliegg Lars.md', 'Cliegg Lars');

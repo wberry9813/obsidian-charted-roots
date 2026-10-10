@@ -1,0 +1,73 @@
+filters:
+  or:
+    - 'cr_type == "research_project"'
+    - 'cr_type == "research_report"'
+    - 'cr_type == "individual_research_note"'
+    - 'cr_type == "research_journal"'
+    - 'cr_type == "research_log_entry"'
+formulas:
+  display_name: 'title || file.name'
+  entity_type: 'if(cr_type == "research_project", "Project", if(cr_type == "research_report", "Report", if(cr_type == "individual_research_note", "IRN", if(cr_type == "research_journal", "Journal", "Log Entry"))))'
+properties:
+  formula.display_name:
+    displayName: 名称
+  formula.entity_type:
+    displayName: 类型
+  note.status:
+    displayName: 状态
+  note.date:
+    displayName: 日期
+  note.subject:
+    displayName: Subject
+  note.project:
+    displayName: Project
+  note.result:
+    displayName: Result
+views:
+  - type: table
+    name: 全部研究
+    order:
+      - formula.display_name
+      - formula.entity_type
+      - note.status
+      - note.date
+  - type: table
+    name: Research Projects
+    filters:
+      and:
+        - 'cr_type == "research_project"'
+    order:
+      - formula.display_name
+      - note.status
+      - note.research_level
+  - type: table
+    name: Reports 与 IRN
+    filters:
+      or:
+        - 'cr_type == "research_report"'
+        - 'cr_type == "individual_research_note"'
+    order:
+      - formula.entity_type
+      - formula.display_name
+      - note.status
+  - type: table
+    name: Research Logs
+    filters:
+      and:
+        - 'cr_type == "research_log_entry"'
+    order:
+      - note.date
+      - note.project
+      - note.source
+      - note.searched_for
+      - note.result
+  - type: table
+    name: Negative Findings
+    filters:
+      and:
+        - 'result == "negative"'
+    order:
+      - note.date
+      - note.project
+      - note.source
+      - note.searched_for

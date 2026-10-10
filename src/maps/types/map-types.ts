@@ -731,7 +731,7 @@ export interface MapSettings {
  */
 export const DEFAULT_MAP_SETTINGS: MapSettings = {
 	tileProvider: 'openstreetmap',
-	geographicBasemapId: 'carto-voyager',
+	geographicBasemapId: 'openstreetmap-standard',
 	customGeographicBasemaps: [],
 	legacyNegativeYearSemantics: 'reject',
 	defaultCenter: { lat: 40, lng: -40 },

@@ -3,32 +3,34 @@ import {
 	BUILT_IN_GEOGRAPHIC_BASEMAPS,
 	CARTO_VOYAGER_BASEMAP,
 	DEFAULT_GEOGRAPHIC_BASEMAP,
+	OPENSTREETMAP_STANDARD_BASEMAP,
 	getBuiltInGeographicBasemap
 } from '../src/v2';
 
 describe('M6 geographic basemap definitions', () => {
-	it('declares the current Real world basemap as explicit WGS84', () => {
+	it('uses keyless OpenStreetMap Standard as the Real world default', () => {
+		expect(OPENSTREETMAP_STANDARD_BASEMAP.id).toBe('openstreetmap-standard');
+		expect(OPENSTREETMAP_STANDARD_BASEMAP.coordinateCRS).toBe('wgs84');
+		expect(OPENSTREETMAP_STANDARD_BASEMAP.tileScheme).toBe('xyz-web-mercator');
+		expect(OPENSTREETMAP_STANDARD_BASEMAP.tileUrl)
+			.toBe('https://tile.openstreetmap.org/{z}/{x}/{y}.png');
+		expect(OPENSTREETMAP_STANDARD_BASEMAP.maxZoom).toBe(19);
+		expect(OPENSTREETMAP_STANDARD_BASEMAP.miniMapMaxZoom).toBe(13);
+		expect(DEFAULT_GEOGRAPHIC_BASEMAP).toBe(OPENSTREETMAP_STANDARD_BASEMAP);
+	});
+
+	it('keeps the old CARTO definition only as a compatibility export', () => {
 		expect(CARTO_VOYAGER_BASEMAP.id).toBe('carto-voyager');
-		expect(CARTO_VOYAGER_BASEMAP.coordinateCRS).toBe('wgs84');
-		expect(CARTO_VOYAGER_BASEMAP.tileScheme).toBe('xyz-web-mercator');
 		expect(CARTO_VOYAGER_BASEMAP.tileUrl).toContain('cartocdn.com');
-		expect(CARTO_VOYAGER_BASEMAP.maxZoom).toBe(19);
-		expect(CARTO_VOYAGER_BASEMAP.miniMapMaxZoom).toBe(13);
-		expect(CARTO_VOYAGER_BASEMAP.noReferrer).toBe(true);
+		expect(getBuiltInGeographicBasemap('carto-voyager')).toBeUndefined();
 	});
 
-	it('keeps Carto Voyager as the default geographic basemap', () => {
-		expect(DEFAULT_GEOGRAPHIC_BASEMAP).toBe(CARTO_VOYAGER_BASEMAP);
-	});
-
-	it('resolves built-in basemaps by stable ID', () => {
-		expect(getBuiltInGeographicBasemap('carto-voyager'))
-			.toBe(CARTO_VOYAGER_BASEMAP);
+	it('registers only the keyless built-in provider', () => {
+		expect(BUILT_IN_GEOGRAPHIC_BASEMAPS.map(item => item.id))
+			.toEqual(['openstreetmap-standard']);
+		expect(getBuiltInGeographicBasemap('openstreetmap-standard'))
+			.toBe(OPENSTREETMAP_STANDARD_BASEMAP);
 		expect(getBuiltInGeographicBasemap('missing')).toBeUndefined();
-	});
-
-	it('does not define an untested GCJ-02 or BD-09 basemap yet', () => {
-		expect(BUILT_IN_GEOGRAPHIC_BASEMAPS).toHaveLength(1);
 		expect(
 			BUILT_IN_GEOGRAPHIC_BASEMAPS.every(item => item.coordinateCRS === 'wgs84')
 		).toBe(true);

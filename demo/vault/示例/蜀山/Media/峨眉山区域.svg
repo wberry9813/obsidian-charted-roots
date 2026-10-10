@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="700" viewBox="0 0 900 700">
+<rect width="900" height="700" fill="#f1ead9"/>
+<path d="M75 620 L205 315 L330 520 L475 170 L610 470 L760 260 L840 620 Z" fill="#b9b19b" stroke="#383838" stroke-width="8"/>
+<circle cx="475" cy="300" r="16" fill="#762d27"/><text x="505" y="310" font-size="28">峨眉主峰</text>
+<circle cx="650" cy="470" r="13" fill="#39465d"/><text x="675" y="478" font-size="24">凝碧崖</text>
+<text x="35" y="55" font-size="38" font-weight="bold">峨眉山区域 · Demo</text>
+</svg>

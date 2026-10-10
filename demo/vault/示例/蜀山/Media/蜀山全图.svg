@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+<rect width="1200" height="800" fill="#eee8d8"/>
+<path d="M70 680 C190 480 260 520 350 300 C430 100 560 250 640 125 C750 330 835 210 925 355 C1025 470 1080 590 1135 720" fill="none" stroke="#343434" stroke-width="18"/>
+<path d="M145 680 C330 560 500 610 700 485 C840 395 960 460 1110 325" fill="none" stroke="#6d6a62" stroke-width="7"/>
+<circle cx="320" cy="360" r="18" fill="#6f2b25"/><text x="350" y="370" font-size="30">峨眉</text>
+<circle cx="820" cy="300" r="18" fill="#28324a"/><text x="850" y="310" font-size="30">紫云宫</text>
+<text x="45" y="62" font-size="42" font-weight="bold">蜀山全图 · Demo</text>
+<text x="45" y="102" font-size="22">Custom pixel map / drill-down / worldbuilding showcase</text>
+</svg>

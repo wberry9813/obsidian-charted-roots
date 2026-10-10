@@ -22,6 +22,25 @@ The Interactive Family Chart View is a persistent, interactive visualization pan
 
 ---
 
+## Scope: People and Person-to-Person Relationships Only
+
+The Family Chart is intentionally a **person-only graph**. Its job is to answer questions such as “who is related to whom?”, “how?”, and “what did that person-to-person relationship look like at a given time?”
+
+**Nodes are always person notes.** Event, Source, Citation, Place, Organization, Office, Claim, Period, Process, Universe, and other entity types do **not** become Family Chart cards.
+
+Those entities still enrich the people shown in the chart:
+
+- Sources can drive source indicators, research coverage, and person details.
+- Events can contribute dates, marriages, life-history context, and timeline information.
+- Places can appear in person details and geographic views.
+- Organizations and offices belong in Entity Profile / Organization views and temporal research views.
+- Claims, citations, and assertions belong in the evidence/research layer.
+
+For broader heterogeneous knowledge graphs, use Obsidian Graph View, Canvas, Entity Profile, Timeline, Map, and the dedicated research/source views.
+
+Custom relationship overlays follow the same boundary: an overlay line is drawn **only when both endpoints are people already visible as cards in the current Family Chart**. A person-to-organization or person-to-event relation never introduces a non-person card.
+
+---
 ## Opening the Family Chart
 
 **Method 1: Command palette**

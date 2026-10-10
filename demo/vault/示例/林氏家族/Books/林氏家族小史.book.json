@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "metadata": {
+    "title": "林氏家族小史 · Showcase",
+    "subtitle": "Charted Roots Book Builder 演示",
+    "author": "Demo Vault",
+    "date": "2026-10-09",
+    "coverNotes": "由预置 Demo 数据生成；内容仅用于功能展示。"
+  },
+  "chapters": [
+    {
+      "id": "intro",
+      "type": "vault-note",
+      "title": "Showcase 导读",
+      "pageBreakBefore": false,
+      "config": {
+        "notePath": "00-开始这里.md"
+      }
+    },
+    {
+      "id": "summary",
+      "type": "report",
+      "title": "林晨个人摘要",
+      "pageBreakBefore": true,
+      "config": {
+        "reportType": "individual-summary",
+        "subjectCrId": "demo-lin-chen",
+        "subjectName": "林晨",
+        "reportOptions": {
+          "outputMethod": "download",
+          "includeSources": true,
+          "personCrId": "demo-lin-chen",
+          "includeEvents": true,
+          "includeFamily": true,
+          "includeAttributes": true
+        }
+      }
+    },
+    {
+      "id": "pedigree",
+      "type": "visual-tree",
+      "title": "林晨祖先树",
+      "pageBreakBefore": true,
+      "config": {
+        "chartType": "pedigree",
+        "rootPersonCrId": "demo-lin-chen",
+        "rootPersonName": "林晨",
+        "maxGenerations": 4
+      }
+    },
+    {
+      "id": "research",
+      "type": "vault-note",
+      "title": "林国梁居住地分析",
+      "pageBreakBefore": true,
+      "config": {
+        "notePath": "示例/林氏家族/Research/林国梁居住地分析报告.md"
+      }
+    }
+  ],
+  "outputOptions": {
+    "format": "pdf",
+    "pageSize": "A4",
+    "fontStyle": "serif",
+    "dateFormat": "ymd",
+    "includeCoverPage": true,
+    "includeTableOfContents": true,
+    "includeBibliography": true,
+    "includeNameIndex": true,
+    "chapterNumbering": "numeric"
+  }
+}
