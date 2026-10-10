@@ -108,6 +108,7 @@ import {
 	projectCanonicalControlFeatureToBasemap,
 	type HistoricalControlVisibleFeature
 } from '../v2/maps/control-layers';
+import type { HistoricalRasterVisibleLayer } from '../v2/maps/raster-layers';
 
 const logger = getLogger('MapController');
 
@@ -152,6 +153,7 @@ export class MapController {
 	private heatLayer: L.Layer | null = null;
 	private childMapOverlayLayer: L.LayerGroup | null = null;
 	private historicalControlLayer: L.LayerGroup | null = null;
+	private readonly historicalRasterTileLayers = new Map<string, L.TileLayer>();
 
 	// Controls
 	private fullscreenControl: L.Control | null = null;
@@ -327,15 +329,29 @@ export class MapController {
 	 */
 	private createGeographicTileLayer(options: { miniMap?: boolean } = {}): L.TileLayer {
 		const basemap = this.geographicBasemap;
-		const tileOptions: L.TileLayerOptions = {
-			attribution: options.miniMap ? '' : basemap.attribution,
-			maxZoom: options.miniMap
-				? (basemap.miniMapMaxZoom ?? basemap.maxZoom)
-				: basemap.maxZoom
-		};
+		return this.createRasterTileLayer(
+			basemap.tileUrl,
+			{
+				attribution: options.miniMap ? '' : basemap.attribution,
+				maxZoom: options.miniMap
+					? (basemap.miniMapMaxZoom ?? basemap.maxZoom)
+					: basemap.maxZoom
+			},
+			Boolean(basemap.noReferrer)
+		);
+	}
 
-		if (!basemap.noReferrer) {
-			return L.tileLayer(basemap.tileUrl, tileOptions);
+	/**
+	 * Shared tile constructor for the ordinary Real-world basemap and
+	 * Workspace-scoped historical raster overlays.
+	 */
+	private createRasterTileLayer(
+		tileUrl: string,
+		options: L.TileLayerOptions,
+		noReferrer = false
+	): L.TileLayer {
+		if (!noReferrer) {
+			return L.tileLayer(tileUrl, options);
 		}
 
 		const TileLayerNoRef = L.TileLayer.extend({
@@ -354,9 +370,61 @@ export class MapController {
 		});
 
 		return new (TileLayerNoRef as unknown as typeof L.TileLayer)(
-			basemap.tileUrl,
-			tileOptions
+			tileUrl,
+			options
 		);
+	}
+
+	private clearHistoricalRasterLayers(): void {
+		if (this.map) {
+			for (const layer of this.historicalRasterTileLayers.values()) {
+				if (this.map.hasLayer(layer)) {
+					this.map.removeLayer(layer);
+				}
+			}
+		}
+		this.historicalRasterTileLayers.clear();
+	}
+
+	/**
+	 * Render the time-filtered historical raster stack above the normal
+	 * Real-world basemap. Terrain can remain timeless while dated historical
+	 * maps appear/disappear as shared temporal focus changes.
+	 */
+	renderHistoricalRasterLayers(
+		entries: readonly HistoricalRasterVisibleLayer[]
+	): void {
+		this.clearHistoricalRasterLayers();
+		if (
+			!this.map
+			|| this.currentCRS !== 'geographic'
+			|| this.activeMapId !== 'openstreetmap'
+		) {
+			return;
+		}
+
+		const ordered = [...entries].sort(
+			(a, b) => a.layer.zIndex - b.layer.zIndex
+		);
+		for (const entry of ordered) {
+			const definition = entry.layer;
+			const opacity = entry.state === 'possible'
+				? definition.opacity * 0.45
+				: definition.opacity;
+			const layer = this.createRasterTileLayer(
+				definition.tileUrl,
+				{
+					attribution: definition.attribution,
+					minZoom: definition.minZoom,
+					maxZoom: definition.maxZoom,
+					opacity,
+					zIndex: definition.zIndex
+				},
+				Boolean(definition.noReferrer)
+			);
+			layer.addTo(this.map);
+			this.historicalRasterTileLayers.set(definition.id, layer);
+		}
 	}
 
 	getGeographicBasemapDefinition(): GeographicBasemapDefinition {
@@ -2377,6 +2445,10 @@ export class MapController {
 
 		logger.debug('set-active-map', `Switching to map: ${mapId}`);
 
+		if (mapId !== 'openstreetmap') {
+			this.clearHistoricalRasterLayers();
+		}
+
 		// Determine if we need to switch CRS
 		const targetCRS = mapId === 'openstreetmap'
 			? 'geographic'
@@ -2486,6 +2558,7 @@ export class MapController {
 		this.childMapOverlayLayer = null;
 		this.historicalControlLayer?.clearLayers();
 		this.historicalControlLayer = null;
+		this.clearHistoricalRasterLayers();
 
 		if (this.currentImageOverlay && this.map) {
 			this.map.removeLayer(this.currentImageOverlay);
@@ -3387,6 +3460,11 @@ export class MapController {
 			this.historicalControlLayer?.clearLayers();
 		} catch (error) {
 			logger.warn('destroy', 'Historical control layer clearLayers failed (suppressed)', { error });
+		}
+		try {
+			this.clearHistoricalRasterLayers();
+		} catch (error) {
+			logger.warn('destroy', 'Historical raster layer cleanup failed (suppressed)', { error });
 		}
 
 		// Clean up distortable overlay if active
