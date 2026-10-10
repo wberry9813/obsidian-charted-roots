@@ -3806,9 +3806,9 @@ export class FamilyChartView extends ItemView {
 		layer.setAttribute('class', 'cr-fcv-historical-expansion-layer');
 		layer.setAttribute('data-depth', String(expansion.appliedDepth));
 
-		const minStructuralY = Math.min(...structuralPositions.values().map(p => p.y));
+		const minStructuralY = Math.min(...[...structuralPositions.values()].map(p => p.y));
 		const minHistoricalY = Math.min(...layout.nodes.map(node => node.y));
-		const maxStructuralY = Math.max(...structuralPositions.values().map(p => p.y));
+		const maxStructuralY = Math.max(...[...structuralPositions.values()].map(p => p.y));
 		const maxHistoricalY = Math.max(...layout.nodes.map(node => node.y));
 		const top = Math.min(minStructuralY, minHistoricalY) - dimensions.h / 2 - 48;
 		const bottom = Math.max(maxStructuralY, maxHistoricalY) + dimensions.h / 2 + 28;
