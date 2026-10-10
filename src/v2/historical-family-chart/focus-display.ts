@@ -2,7 +2,6 @@ import type { CalendarProvider } from '../time/calendar-provider';
 import { astronomicalYearToHistorical } from '../time/historical-year';
 import {
 	isChronologyYearFocus,
-	isJulianDayFocus,
 	type TemporalFocus
 } from '../temporal/temporal-focus-service';
 
@@ -62,15 +61,6 @@ export function describeHistoricalFamilyChartFocus(
 			label: `${chronology} · chronology-local focus unsupported`,
 			kind: focus.kind,
 			axis: 'chronology_year',
-			supported: false
-		};
-	}
-
-	if (!isJulianDayFocus(focus)) {
-		return {
-			label: 'Unsupported temporal focus',
-			kind: focus.kind,
-			axis: 'none',
 			supported: false
 		};
 	}
