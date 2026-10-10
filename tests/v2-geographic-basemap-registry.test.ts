@@ -19,7 +19,7 @@ describe('M6 geographic basemap registry', () => {
 			'opentopomap-terrain'
 		]);
 		expect(registry.resolve('opentopomap-terrain'))
-			.toBe(OPENTOPOMAP_TERRAIN_BASEMAP);
+			.toStrictEqual(OPENTOPOMAP_TERRAIN_BASEMAP);
 	});
 
 	it('registers a user XYZ provider with explicit datum metadata', () => {
