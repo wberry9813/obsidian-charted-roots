@@ -5,3 +5,5 @@ export * from './historical-place-labels';
 export * from './control-layers';
 
 export * from './raster-layers';
+
+export * from './gazetteer-layers';
