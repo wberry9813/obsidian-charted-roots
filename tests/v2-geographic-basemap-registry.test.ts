@@ -3,6 +3,7 @@ import {
 	buildGeographicBasemapRegistry,
 	CARTO_VOYAGER_BASEMAP,
 	OPENSTREETMAP_STANDARD_BASEMAP,
+	OPENTOPOMAP_TERRAIN_BASEMAP,
 	materializeCustomGeographicBasemap,
 	validateGeographicBasemapDefinition,
 	type GeographicBasemapDefinition
@@ -13,7 +14,12 @@ describe('M6 geographic basemap registry', () => {
 		const { registry, issues } = buildGeographicBasemapRegistry();
 		expect(issues).toEqual([]);
 		expect(registry.resolve().id).toBe(OPENSTREETMAP_STANDARD_BASEMAP.id);
-		expect(registry.list().map(item => item.id)).toEqual(['openstreetmap-standard']);
+		expect(registry.list().map(item => item.id)).toEqual([
+			'openstreetmap-standard',
+			'opentopomap-terrain'
+		]);
+		expect(registry.resolve('opentopomap-terrain'))
+			.toBe(OPENTOPOMAP_TERRAIN_BASEMAP);
 	});
 
 	it('registers a user XYZ provider with explicit datum metadata', () => {
