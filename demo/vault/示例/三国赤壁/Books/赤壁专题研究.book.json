@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "metadata": {
+    "title": "赤壁专题：建安十三年前后的荆州权力重组",
+    "subtitle": "Charted Roots 历史研究 Showcase",
+    "author": "Demo Vault",
+    "date": "2026-10-10",
+    "coverNotes": "结构化历史研究演示；控制层与部分研究结论带有示意/争议性质。"
+  },
+  "chapters": [
+    {
+      "id": "overview",
+      "type": "vault-note",
+      "title": "研究总览",
+      "pageBreakBefore": false,
+      "config": {
+        "notePath": "示例/三国赤壁/00-研究总览.md"
+      }
+    },
+    {
+      "id": "report",
+      "type": "vault-note",
+      "title": "阶段研究报告",
+      "pageBreakBefore": true,
+      "config": {
+        "notePath": "示例/三国赤壁/Research/赤壁专题阶段报告.md"
+      }
+    },
+    {
+      "id": "evidence",
+      "type": "vault-note",
+      "title": "证据链方法",
+      "pageBreakBefore": true,
+      "config": {
+        "notePath": "示例/三国赤壁/05-证据链怎么读.md"
+      }
+    },
+    {
+      "id": "map",
+      "type": "vault-note",
+      "title": "历史地图方法",
+      "pageBreakBefore": true,
+      "config": {
+        "notePath": "示例/三国赤壁/06-历史地图怎么读.md"
+      }
+    },
+    {
+      "id": "time",
+      "type": "vault-note",
+      "title": "纪年与伪精度",
+      "pageBreakBefore": true,
+      "config": {
+        "notePath": "示例/三国赤壁/07-纪年与伪精度.md"
+      }
+    }
+  ],
+  "outputOptions": {
+    "format": "pdf",
+    "pageSize": "A4",
+    "fontStyle": "serif",
+    "dateFormat": "ymd",
+    "includeCoverPage": true,
+    "includeTableOfContents": true,
+    "includeBibliography": true,
+    "includeNameIndex": true,
+    "chapterNumbering": "numeric"
+  }
+}

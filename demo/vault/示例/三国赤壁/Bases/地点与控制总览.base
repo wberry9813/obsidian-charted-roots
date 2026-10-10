@@ -1,0 +1,65 @@
+filters:
+  or:
+    - 'cr_type == "place"'
+    - 'assertion_type == "control"'
+    - 'assertion_type == "designation"'
+    - 'cr_type == "control_layer"'
+formulas:
+  display_name: 'title || name || value || file.name'
+  spatial_type: 'if(cr_type == "place", "Place", if(cr_type == "control_layer", "Control Layer", assertion_type))'
+properties:
+  formula.display_name:
+    displayName: 名称
+  formula.spatial_type:
+    displayName: 类型
+  note.subject:
+    displayName: Subject
+  note.object:
+    displayName: Object
+  note.value:
+    displayName: 历史名称
+  note.time_start:
+    displayName: 开始
+  note.time_end:
+    displayName: 结束
+  note.confidence:
+    displayName: Confidence
+  note.uncertainty:
+    displayName: Uncertainty
+views:
+  - type: table
+    name: 全部空间实体
+    order:
+      - formula.spatial_type
+      - formula.display_name
+      - note.time_start
+      - note.time_end
+  - type: table
+    name: 控制权
+    filters:
+      and:
+        - 'assertion_type == "control"'
+    order:
+      - note.time_start
+      - note.subject
+      - note.object
+      - note.confidence
+  - type: table
+    name: 历史名称
+    filters:
+      and:
+        - 'assertion_type == "designation"'
+    order:
+      - note.subject
+      - note.value
+      - note.time_start
+  - type: table
+    name: Historical Control Layers
+    filters:
+      and:
+        - 'cr_type == "control_layer"'
+    order:
+      - note.time_start
+      - formula.display_name
+      - note.confidence
+      - note.uncertainty

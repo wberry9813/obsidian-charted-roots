@@ -1,0 +1,66 @@
+filters:
+  or:
+    - 'cr_type == "event"'
+    - 'cr_type == "process"'
+    - 'cr_type == "period"'
+    - 'cr_type == "assertion"'
+formulas:
+  display_name: 'title || name || file.name'
+  temporal_type: 'cr_type'
+properties:
+  formula.display_name:
+    displayName: 名称
+  formula.temporal_type:
+    displayName: 层级
+  note.time_start:
+    displayName: 开始
+  note.time_end:
+    displayName: 结束
+  note.time_not_before:
+    displayName: 不早于
+  note.time_not_after:
+    displayName: 不晚于
+  note.time_start_certainty:
+    displayName: 开始可信度
+  note.time_end_certainty:
+    displayName: 结束可信度
+  note.research_status:
+    displayName: 研究状态
+views:
+  - type: table
+    name: 全部时间对象
+    order:
+      - formula.temporal_type
+      - formula.display_name
+      - note.time_start
+      - note.time_end
+      - note.research_status
+  - type: table
+    name: Event
+    filters:
+      and:
+        - 'cr_type == "event"'
+    order:
+      - note.time_start
+      - formula.display_name
+  - type: table
+    name: Process 与 Period
+    filters:
+      or:
+        - 'cr_type == "process"'
+        - 'cr_type == "period"'
+    order:
+      - note.time_start
+      - note.time_end
+      - formula.display_name
+  - type: table
+    name: 有争议的 Assertion
+    filters:
+      and:
+        - 'cr_type == "assertion"'
+        - 'research_status == "disputed" || research_status == "needs_review"'
+    order:
+      - formula.display_name
+      - note.time_not_before
+      - note.time_not_after
+      - note.confidence
