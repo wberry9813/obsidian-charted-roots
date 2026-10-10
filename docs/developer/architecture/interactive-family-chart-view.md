@@ -31,6 +31,20 @@ The **Canvas API** was considered but rejected (see roadmap) due to:
 
 ---
 
+## Semantic Boundary: Person-Only Graph
+
+The Interactive Family Chart has a deliberately narrow domain boundary:
+
+- **Node type:** PersonNode only.
+- **Structural edges:** person-to-person family relationships (parent, child, spouse, adopted, step, foster, and other configured family mappings).
+- **Overlay edges:** person-to-person custom relationships only, and only when both people are already present in the visible family tree.
+- **Non-person entities:** Events, Sources, Citations, Places, Organizations, Offices, Claims, Processes, Periods, and Universes may enrich card metadata or linked detail surfaces, but they must never become Family Chart nodes.
+
+This is intentional separation of concerns. Obsidian Graph / Canvas and Charted Roots' Entity Profile, Timeline, Map, Source, Research, and Organization views are the appropriate heterogeneous-entity surfaces.
+
+The FamilyGraphService therefore treats isPersonNote(...) as an inclusion gate rather than merely relying on a list of exclusions. Regression tests must keep mixed-entity vaults person-only at the Family Chart node boundary.
+
+---
 ## Decision Drivers
 
 1. **User Experience**: Graph View-like exploration is familiar to Obsidian users
