@@ -47,10 +47,13 @@ import { unwrapWikilinkDisplay } from '../../utils/wikilink-resolver';
 import { ensureVisibleLineColor } from '../../utils/color-contrast';
 import {
 	HistoricalFamilyChartProjector,
-	adaptHistoricalEdgesToRelationshipOverlay
+	adaptHistoricalEdgesToRelationshipOverlay,
+	describeHistoricalFamilyChartFocus
 } from '../../v2/historical-family-chart';
+import type { TemporalFocus } from '../../v2/temporal/temporal-focus-service';
 
 const logger = getLogger('FamilyChartView');
+const HISTORICAL_FAMILY_CHART_FOCUS_SOURCE = 'historical-family-chart';
 
 // Overlay types that map directly onto a structural parent-child link in the
 // tree. When enabled, we restyle the existing structural link with the
@@ -239,6 +242,8 @@ export class FamilyChartView extends ItemView {
 	// Services
 	private familyGraphService: FamilyGraphService;
 	private historicalProjector: HistoricalFamilyChartProjector;
+	private temporalFocus: TemporalFocus | null = null;
+	private temporalFocusUnsubscribe: (() => void) | null = null;
 
 	// Data cache
 	private chartData: FamilyChartPerson[] = [];
@@ -262,6 +267,7 @@ export class FamilyChartView extends ItemView {
 			plugin.getV2OntologyRegistry(),
 			plugin.getTemporalAssertionStateService()
 		);
+		this.temporalFocus = plugin.getTemporalFocusService().get();
 	}
 
 	getViewType(): string {
@@ -299,10 +305,13 @@ export class FamilyChartView extends ItemView {
 
 		// Register event handlers
 		this.registerEventHandlers();
+		this.bindTemporalFocus();
 	}
 
 	async onClose(): Promise<void> {
 		logger.debug('view-close', 'Closing FamilyChartView');
+		this.temporalFocusUnsubscribe?.();
+		this.temporalFocusUnsubscribe = null;
 		this.destroyChart();
 	}
 
@@ -365,6 +374,16 @@ export class FamilyChartView extends ItemView {
 				modeSelect.value === 'historical' ? 'historical' : 'family'
 			);
 		});
+
+		if (this.mode === 'historical') {
+			const focus = modeGroup.createSpan({
+				cls: 'cr-fcv-historical-focus',
+				attr: {
+					'aria-label': 'Historical temporal focus'
+				}
+			});
+			this.updateHistoricalFocusIndicator(focus);
+		}
 
 		// Zoom controls group
 		const zoomGroup = leftControls.createDiv({ cls: 'cr-fcv-control-group cr-fcv-zoom-group' });
@@ -4220,7 +4239,7 @@ export class FamilyChartView extends ItemView {
 	private collectHistoricalOverlayRelationships(
 		cardPositions: Map<string, { x: number; y: number }>
 	): Array<{ rel: ParsedRelationship; type: RelationshipTypeDefinition }> {
-		const projection = this.historicalProjector.project(null);
+		const projection = this.historicalProjector.project(this.temporalFocus);
 		const relationshipTypes = getAllRelationshipTypesWithCustomizations(
 			this.plugin.settings.customRelationshipTypes || [],
 			true,
@@ -4240,6 +4259,9 @@ export class FamilyChartView extends ItemView {
 		if (this.mode === mode) return;
 
 		this.mode = mode;
+		if (mode === 'historical') {
+			this.temporalFocus = this.plugin.getTemporalFocusService().get();
+		}
 		if (mode === 'historical' && this.infoPanelEditMode) {
 			this.infoPanelEditMode = false;
 			this.infoPanelEditData = null;
@@ -5553,6 +5575,55 @@ export class FamilyChartView extends ItemView {
 		this.f3Chart = null;
 		this.f3Card = null;
 		this.chartData = [];
+	}
+
+	private bindTemporalFocus(): void {
+		this.temporalFocusUnsubscribe?.();
+		const service = this.plugin.getTemporalFocusService();
+		this.temporalFocus = service.get();
+		this.temporalFocusUnsubscribe = service.subscribe(focus => {
+			this.temporalFocus = focus;
+			if (this.mode !== 'historical') return;
+
+			this.updateHistoricalFocusIndicator();
+
+			// Historical Family Chart does not publish focus in F3 yet, but keep
+			// the source guard now so later dated-edge interactions cannot create
+			// self-triggered redraw loops.
+			if (focus?.source === HISTORICAL_FAMILY_CHART_FOCUS_SOURCE) {
+				return;
+			}
+
+			// Shared focus changes only alter the historical overlay semantic
+			// layer. The structural genealogy layout and card positions stay put.
+			this.renderRelationshipOverlay();
+		});
+	}
+
+	private updateHistoricalFocusIndicator(
+		target?: HTMLElement
+	): void {
+		const element = target
+			?? this.toolbarEl?.querySelector<HTMLElement>(
+				'.cr-fcv-historical-focus'
+			);
+		if (!element) return;
+
+		const calendar = this.plugin
+			.getHistoricalDateService()
+			.getCalendarProvider('tyme') ?? undefined;
+		const display = describeHistoricalFamilyChartFocus(
+			this.temporalFocus,
+			calendar
+		);
+		element.textContent = display.label;
+		element.dataset.focusKind = display.kind;
+		element.dataset.focusAxis = display.axis;
+		element.dataset.focusSupported = String(display.supported);
+		element.dataset.focusSource = this.temporalFocus?.source ?? '';
+		element.title = display.supported
+			? 'Historical Family Chart follows the shared temporal focus'
+			: 'Historical Family Chart cannot interpret this temporal axis';
 	}
 
 	/**

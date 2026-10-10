@@ -307,11 +307,11 @@ Expected behavior:
 
 ### F3 — shared TemporalFocus
 
-- [ ] subscribe Historical mode to `TemporalFocusService`;
-- [ ] render current focus in toolbar;
-- [ ] refresh edges on point/range changes;
-- [ ] refresh on Workspace switch;
-- [ ] ignore own-source focus loops;
+- [x] subscribe Historical mode to `TemporalFocusService`;
+- [x] render current focus in toolbar;
+- [x] refresh edges on point/range/clear changes without rebuilding genealogy layout;
+- [x] refresh on Workspace switch through `TemporalFocusService.refresh()`;
+- [x] ignore own-source focus loops;
 - [ ] Real Obsidian smoke with Timeline -> chart round trip.
 
 ### F4 — historical person expansion
