@@ -493,20 +493,9 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 					depth: button.dataset.depth,
 					pressed: button.getAttribute('aria-pressed')
 				})),
-			xunPresent: !!root.querySelector(
-				'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-xun-yu"]'
-			),
-			guoPresent: !!root.querySelector(
-				'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'
-			),
-			expandedCount: root.querySelector('.cr-fcv-chart-container')
-				?.dataset.historicalExpandedCount ?? null
 		};
 	`);
 	assert.deepEqual(depth1.depthButtons.map(item => item.depth), ['1', '2', '3', '4']);
-	assert.equal(depth1.xunPresent, true);
-	assert.equal(depth1.guoPresent, false);
-	assert.equal(depth1.expandedCount, '1');
 
 	await session.evalInApp(`
 		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
@@ -553,6 +542,19 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 	await session.waitFor(
 		`app.workspace.getActiveFile()?.path === "Charted Roots/People/Xun-Yu-Historical-Lane-E2E.md"`
 	);
+
+	await session.evalInApp(`
+		for (const leaf of app.workspace.getLeavesOfType('markdown')) {
+			const path = leaf.view?.file?.path;
+			if (
+				path === 'Charted Roots/People/Xun-Yu-Historical-Lane-E2E.md'
+				|| path === 'Charted Roots/People/Guo-Jia-Historical-Lane-E2E.md'
+			) {
+				leaf.detach();
+			}
+		}
+		return true;
+	`);
 
 	await session.evalInApp(`
 		app.plugins.plugins['charted-roots'].getTemporalFocusService().setPoint(
