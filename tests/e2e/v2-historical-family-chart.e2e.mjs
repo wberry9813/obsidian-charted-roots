@@ -543,7 +543,7 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		const card = root?.querySelector(
 			'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-xun-yu"]'
 		);
-		if (!(card instanceof SVGGElement)) {
+		if (!card) {
 			throw new Error('Historical 荀彧 card is unavailable.');
 		}
 		card.dispatchEvent(new MouseEvent('click', { bubbles: true }));
