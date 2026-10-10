@@ -3,3 +3,5 @@ export * from './basemaps';
 export * from './place-designation-service';
 export * from './historical-place-labels';
 export * from './control-layers';
+
+export * from './raster-layers';

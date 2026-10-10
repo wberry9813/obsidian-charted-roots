@@ -48,9 +48,11 @@ import {
 	canonicalizeHistoricalControlLayer,
 	GcoordCoordinateTransformProvider,
 	HistoricalControlLayerStateService,
+	HistoricalRasterLayerStateService,
 	PlaceDesignationService,
 	type CanonicalHistoricalControlLayer,
-	type HistoricalControlLayerDefinition
+	type HistoricalControlLayerDefinition,
+	type HistoricalRasterLayerDefinition
 } from '../v2/maps';
 
 const logger = getLogger('MapView');
@@ -91,6 +93,8 @@ export class MapView extends ItemView {
 	private temporalFocusUnsubscribe: (() => void) | null = null;
 	private historicalControlLayers: CanonicalHistoricalControlLayer[] = [];
 	private historicalControlStateService: HistoricalControlLayerStateService | null = null;
+	private historicalRasterLayers: HistoricalRasterLayerDefinition[] = [];
+	private historicalRasterStateService: HistoricalRasterLayerStateService | null = null;
 	private readonly controlLayerCoordinates = new CanonicalCoordinateService(
 		new GcoordCoordinateTransformProvider()
 	);
@@ -181,6 +185,11 @@ export class MapView extends ItemView {
 					plugin.getHistoricalDateService(),
 					calendar
 				);
+			this.historicalRasterStateService =
+				new HistoricalRasterLayerStateService(
+					plugin.getHistoricalDateService(),
+					calendar
+				);
 		}
 	}
 
@@ -241,11 +250,43 @@ export class MapView extends ItemView {
 		);
 	}
 
+	async refreshHistoricalRasterLayers(): Promise<void> {
+		const result = await this.plugin
+			.getHistoricalRasterLayerRepository()
+			.loadAll();
+		this.historicalRasterLayers = result.layers;
+
+		if (this.mapContainerEl) {
+			this.mapContainerEl.dataset.rasterLayerIssueCount =
+				String(result.issues.length);
+		}
+		if (result.issues.length > 0) {
+			logger.warn(
+				'raster-layer-storage',
+				'Historical raster-layer storage issues detected',
+				{
+					issues: result.issues.map(issue => ({
+						code: issue.code,
+						manifestPath: issue.manifestPath,
+						message: issue.message
+					}))
+				}
+			);
+		}
+
+		this.renderHistoricalRasterLayers(
+			this.plugin.getTemporalFocusService().get()
+		);
+	}
+
 	/**
 	 * Refresh every Map dataset whose boundary is the Active Workspace.
 	 */
 	async refreshWorkspaceScopedData(): Promise<void> {
-		await this.refreshHistoricalControlLayers();
+		await Promise.all([
+			this.refreshHistoricalControlLayers(),
+			this.refreshHistoricalRasterLayers()
+		]);
 		await this.refreshData();
 	}
 
@@ -273,9 +314,12 @@ export class MapView extends ItemView {
 		// Initialize map
 		await this.initializeMap();
 
-		// Load Workspace-scoped persisted historical control layers before
+		// Load Workspace-scoped historical vector + raster layers before
 		// binding shared focus so the first temporal render is complete.
-		await this.refreshHistoricalControlLayers();
+		await Promise.all([
+			this.refreshHistoricalControlLayers(),
+			this.refreshHistoricalRasterLayers()
+		]);
 
 		// Shared Timeline/Relationships temporal focus drives a read-only
 		// place-state overlay without mutating the legacy Map data model.
@@ -2618,6 +2662,7 @@ export class MapView extends ItemView {
 			this.renderTemporalPlaceOverlay(focus);
 			this.renderTemporalContextOverlay(focus);
 			this.renderHistoricalControlLayers(focus);
+			this.renderHistoricalRasterLayers(focus);
 		});
 		const focus = focusService.get();
 		this.syncSharedChronologyFocusToTimeSlider(focus);
@@ -2625,6 +2670,7 @@ export class MapView extends ItemView {
 		this.renderTemporalPlaceOverlay(focus);
 		this.renderTemporalContextOverlay(focus);
 		this.renderHistoricalControlLayers(focus);
+		this.renderHistoricalRasterLayers(focus);
 	}
 
 	private unbindTemporalFocus(): void {
@@ -2677,6 +2723,63 @@ export class MapView extends ItemView {
 				String(snapshot.active.length);
 			this.mapContainerEl.dataset.controlLayerPossibleCount =
 				String(snapshot.possible.length);
+		}
+	}
+
+	private renderHistoricalRasterLayers(
+		focus: TemporalFocus | null
+	): void {
+		if (!this.mapController || !this.historicalRasterStateService) return;
+
+		if (
+			this.mapController.getCurrentCRS() !== 'geographic'
+			|| this.mapController.getActiveMapId() !== 'openstreetmap'
+		) {
+			this.mapController.renderHistoricalRasterLayers([]);
+			if (this.mapContainerEl) {
+				this.mapContainerEl.dataset.rasterLayerActiveCount = '0';
+				this.mapContainerEl.dataset.rasterLayerPossibleCount = '0';
+				this.mapContainerEl.dataset.rasterLayerActiveIds = '';
+				this.mapContainerEl.dataset.rasterLayerPossibleIds = '';
+			}
+			return;
+		}
+
+		const universe = this.filters.universe;
+		const historicalFocus = isJulianDayFocus(focus) ? focus : null;
+		const snapshot = !historicalFocus
+			? this.historicalRasterStateService.getWithoutFocus(
+				this.historicalRasterLayers,
+				universe
+			)
+			: historicalFocus.kind === 'point'
+				? this.historicalRasterStateService.getAt(
+					this.historicalRasterLayers,
+					historicalFocus.position,
+					universe
+				)
+				: this.historicalRasterStateService.getRange(
+					this.historicalRasterLayers,
+					{
+						start: historicalFocus.start,
+						endExclusive: historicalFocus.endExclusive
+					},
+					universe
+				);
+
+		this.mapController.renderHistoricalRasterLayers([
+			...snapshot.active,
+			...snapshot.possible
+		]);
+		if (this.mapContainerEl) {
+			this.mapContainerEl.dataset.rasterLayerActiveCount =
+				String(snapshot.active.length);
+			this.mapContainerEl.dataset.rasterLayerPossibleCount =
+				String(snapshot.possible.length);
+			this.mapContainerEl.dataset.rasterLayerActiveIds =
+				snapshot.active.map(entry => entry.layer.id).join(',');
+			this.mapContainerEl.dataset.rasterLayerPossibleIds =
+				snapshot.possible.map(entry => entry.layer.id).join(',');
 		}
 	}
 
@@ -2972,6 +3075,8 @@ export class MapView extends ItemView {
 				const temporalFocus = this.plugin.getTemporalFocusService().get();
 				this.renderTemporalPlaceOverlay(temporalFocus);
 				this.renderTemporalContextOverlay(temporalFocus);
+				this.renderHistoricalControlLayers(temporalFocus);
+				this.renderHistoricalRasterLayers(temporalFocus);
 			});
 
 			// Register edit mode change callback
@@ -3251,6 +3356,7 @@ export class MapView extends ItemView {
 		this.registerEvent(
 			this.plugin.app.metadataCache.on('resolved', () => {
 				this.loadCustomMaps();
+				void this.refreshHistoricalRasterLayers();
 				void this.refreshData();
 			})
 		);
@@ -3278,6 +3384,8 @@ export class MapView extends ItemView {
 					);
 				} else if (crType === 'control_layer') {
 					void this.refreshHistoricalControlLayers();
+				} else if (crType === 'raster_layer') {
+					void this.refreshHistoricalRasterLayers();
 				}
 
 				if (this.isRelevantFile(file.path)) {
@@ -3308,11 +3416,14 @@ export class MapView extends ItemView {
 		// GeoJSON removals/renames prevents stale "ghost" boundaries.
 		this.registerEvent(
 			this.plugin.app.vault.on('delete', file => {
-				if (
-					file instanceof TFile
-					&& ['md', 'geojson'].includes(file.extension.toLowerCase())
-				) {
-					void this.refreshHistoricalControlLayers();
+				if (file instanceof TFile) {
+					const extension = file.extension.toLowerCase();
+					if (['md', 'geojson'].includes(extension)) {
+						void this.refreshHistoricalControlLayers();
+					}
+					if (extension === 'md') {
+						void this.refreshHistoricalRasterLayers();
+					}
 				}
 			})
 		);
@@ -3327,6 +3438,9 @@ export class MapView extends ItemView {
 					|| ['md', 'geojson'].includes(newExtension)
 				) {
 					void this.refreshHistoricalControlLayers();
+				}
+				if (oldExtension === 'md' || newExtension === 'md') {
+					void this.refreshHistoricalRasterLayers();
 				}
 			})
 		);
