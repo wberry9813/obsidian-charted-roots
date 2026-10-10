@@ -320,7 +320,8 @@ Expected behavior:
 - [x] bounded depth policy (default 1, hard max 4);
 - [x] family-context inclusion policy without turning family context into traversal seeds;
 - [ ] integrate expanded people into the view;
-- [ ] evaluate historical-network layout vs genealogy layout;
+- [x] layout decision: hybrid genealogy + historical expansion lanes (deterministic, no fake kinship edges);
+- [ ] integrate lane rendering into Family Chart;
 - [x] large-network performance guard (default 40 people, hard max 100).
 
 ### F5 — historical person-card state
