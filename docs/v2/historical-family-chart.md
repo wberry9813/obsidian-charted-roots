@@ -316,11 +316,12 @@ Expected behavior:
 
 ### F4 — historical person expansion
 
-- [ ] root-person historical-neighbor traversal;
-- [ ] depth control;
-- [ ] family + historical inclusion policy;
-- [ ] evaluate network layout vs genealogy layout;
-- [ ] large-network performance guard.
+- [x] root-person historical-neighbor traversal model;
+- [x] bounded depth policy (default 1, hard max 4);
+- [x] family-context inclusion policy without turning family context into traversal seeds;
+- [ ] integrate expanded people into the view;
+- [ ] evaluate historical-network layout vs genealogy layout;
+- [x] large-network performance guard (default 40 people, hard max 100).
 
 ### F5 — historical person-card state
 
