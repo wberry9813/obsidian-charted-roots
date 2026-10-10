@@ -306,3 +306,299 @@ test('Historical Family Chart follows shared Timeline focus in real Obsidian', a
 		return true;
 	`);
 });
+
+
+test('Historical Family Chart expands unrelated people into depth lanes', async (t) => {
+	await mkdir(ARTIFACTS, { recursive: true });
+	const session = await launchObsidian({ vault: VAULT });
+	t.after(async () => session.close());
+
+	const xunPath = 'Charted Roots/People/Xun-Yu-Historical-Lane-E2E.md';
+	const guoPath = 'Charted Roots/People/Guo-Jia-Historical-Lane-E2E.md';
+
+	await session.waitFor(
+		`app.metadataCache.getCache('Charted Roots/People/Cao-Cao.md')?.frontmatter?.cr_id === 'person-cao-cao'`
+	);
+
+	const setup = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		if (!plugin) throw new Error('Charted Roots plugin is unavailable.');
+
+		const workspace = plugin.getWorkspaceService();
+		if (!workspace || workspace.getActive().rootFolder !== 'Charted Roots') {
+			throw new Error('Historical lane E2E requires the default Charted Roots Workspace.');
+		}
+
+		const fixtures = [
+			{
+				path: "Charted Roots/People/Xun-Yu-Historical-Lane-E2E.md",
+				content: [
+					'---',
+					'cr_schema: 2',
+					'cr_type: person',
+					'cr_id: e2e-historical-xun-yu',
+					'name: 荀彧',
+					'born: "163 CE"',
+					'died: "212 CE"',
+					'---',
+					'# 荀彧',
+					'',
+					'Temporary E2E historical-lane fixture. No genealogy fields.'
+				].join('\\n')
+			},
+			{
+				path: "Charted Roots/People/Guo-Jia-Historical-Lane-E2E.md",
+				content: [
+					'---',
+					'cr_schema: 2',
+					'cr_type: person',
+					'cr_id: e2e-historical-guo-jia',
+					'name: 郭嘉',
+					'born: "170 CE"',
+					'died: "207 CE"',
+					'---',
+					'# 郭嘉',
+					'',
+					'Temporary E2E historical-lane fixture. No genealogy fields.'
+				].join('\\n')
+			}
+		];
+
+		for (const fixture of fixtures) {
+			const existing = app.vault.getAbstractFileByPath(fixture.path);
+			if (existing) await app.vault.delete(existing);
+			await app.vault.create(fixture.path, fixture.content);
+		}
+
+		return true;
+	`);
+
+	assert.equal(setup, true);
+
+	await session.waitFor(
+		`app.metadataCache.getCache("Charted Roots/People/Xun-Yu-Historical-Lane-E2E.md")?.frontmatter?.cr_id === 'e2e-historical-xun-yu'
+			&& app.metadataCache.getCache("Charted Roots/People/Guo-Jia-Historical-Lane-E2E.md")?.frontmatter?.cr_id === 'e2e-historical-guo-jia'`
+	);
+
+	const assertionSetup = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const assertionService = plugin.getAssertionService();
+		const created = [];
+
+		created.push(await assertionService.createAssertion({
+			assertionType: 'relationship',
+			subject: '[[Charted Roots/People/Cao-Cao|曹操]]',
+			predicate: 'ally_of',
+			object: '[[Charted Roots/People/Xun-Yu-Historical-Lane-E2E|荀彧]]',
+			timeStart: '196 CE',
+			timeEnd: '199 CE',
+			timeStartPrecision: 'year',
+			timeEndPrecision: 'year',
+			timeStartCertainty: 'certain',
+			timeEndCertainty: 'certain',
+			notes: 'E2E non-family historical lane depth 1',
+			title: '曹操与荀彧历史关系 E2E'
+		}, { folder: 'Charted Roots/Assertions' }));
+
+		created.push(await assertionService.createAssertion({
+			assertionType: 'relationship',
+			subject: '[[Charted Roots/People/Xun-Yu-Historical-Lane-E2E|荀彧]]',
+			predicate: 'ally_of',
+			object: '[[Charted Roots/People/Guo-Jia-Historical-Lane-E2E|郭嘉]]',
+			timeStart: '196 CE',
+			timeEnd: '199 CE',
+			timeStartPrecision: 'year',
+			timeEndPrecision: 'year',
+			timeStartCertainty: 'certain',
+			timeEndCertainty: 'certain',
+			notes: 'E2E non-family historical lane depth 2',
+			title: '荀彧与郭嘉历史关系 E2E'
+		}, { folder: 'Charted Roots/Assertions' }));
+
+		const calendar = plugin.getHistoricalDateService().getCalendarProvider('tyme');
+		if (!calendar) throw new Error('Tyme historical calendar is unavailable.');
+		const point197 = calendar.solarToJulianDay({ year: 197, month: 6, day: 1 });
+		const point201 = calendar.solarToJulianDay({ year: 201, month: 6, day: 1 });
+
+		plugin.getTemporalFocusService().setPoint(point197, 'e2e-historical-lanes');
+		await plugin.activateFamilyChartView('person-cao-cao', true, true);
+
+		return {
+			assertionPaths: created.map(file => file.path),
+			point197,
+			point201
+		};
+	`);
+
+	for (const assertionPath of assertionSetup.assertionPaths) {
+		await session.waitFor(
+			`app.metadataCache.getCache(${JSON.stringify(assertionPath)})?.frontmatter?.assertion_type === 'relationship'`
+		);
+	}
+
+	await session.waitFor(
+		`(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			if (!root) return false;
+			const structuralIds = [...root.querySelectorAll('.card_cont')]
+				.map(card => card.__data__?.data?.id)
+				.filter(Boolean);
+			return structuralIds.includes('person-cao-cao')
+				&& !structuralIds.includes('e2e-historical-xun-yu')
+				&& !structuralIds.includes('e2e-historical-guo-jia');
+		})()`
+	);
+
+	await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		const select = view?.containerEl.querySelector('.cr-fcv-mode-select');
+		if (!(select instanceof HTMLSelectElement)) {
+			throw new Error('Family Chart mode selector is unavailable.');
+		}
+		select.value = 'historical';
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		return true;
+	`);
+
+	await session.waitFor(
+		`(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			if (!root) return false;
+			const depthButtons = root.querySelectorAll('.cr-fcv-historical-depth-btn');
+			const xun = root.querySelector(
+				'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-xun-yu"][data-depth="1"]'
+			);
+			const guo = root.querySelector(
+				'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'
+			);
+			const edge = root.querySelector(
+				'.cr-relationship-overlay-line--ally_of'
+				+ '[data-source-cr-id="person-cao-cao"]'
+				+ '[data-target-cr-id="e2e-historical-xun-yu"]'
+			);
+			return depthButtons.length === 4
+				&& root.querySelector('.cr-fcv-historical-depth-btn[data-depth="1"]')?.getAttribute('aria-pressed') === 'true'
+				&& !!xun
+				&& !guo
+				&& !!edge
+				&& root.querySelector('.cr-fcv-chart-container')?.dataset.historicalExpandedCount === '1';
+		})()`
+	);
+
+	const depth1 = await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		return {
+			depthButtons: [...root.querySelectorAll('.cr-fcv-historical-depth-btn')]
+				.map(button => ({
+					depth: button.dataset.depth,
+					pressed: button.getAttribute('aria-pressed')
+				})),
+			xunPresent: !!root.querySelector(
+				'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-xun-yu"]'
+			),
+			guoPresent: !!root.querySelector(
+				'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'
+			),
+			expandedCount: root.querySelector('.cr-fcv-chart-container')
+				?.dataset.historicalExpandedCount ?? null
+		};
+	`);
+	assert.deepEqual(depth1.depthButtons.map(item => item.depth), ['1', '2', '3', '4']);
+	assert.equal(depth1.xunPresent, true);
+	assert.equal(depth1.guoPresent, false);
+	assert.equal(depth1.expandedCount, '1');
+
+	await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const button = root?.querySelector('.cr-fcv-historical-depth-btn[data-depth="2"]');
+		if (!(button instanceof HTMLButtonElement)) {
+			throw new Error('Historical depth 2 button is unavailable.');
+		}
+		button.click();
+		return true;
+	`);
+
+	await session.waitFor(
+		`(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			return root?.querySelector('.cr-fcv-historical-depth-btn[data-depth="2"]')
+					?.getAttribute('aria-pressed') === 'true'
+				&& !!root?.querySelector(
+					'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-xun-yu"][data-depth="1"]'
+				)
+				&& !!root?.querySelector(
+					'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"][data-depth="2"]'
+				)
+				&& root?.querySelector('.cr-fcv-chart-container')
+					?.dataset.historicalExpandedCount === '2';
+		})()`
+	);
+
+	await session.screenshot(
+		path.join(ARTIFACTS, 'v2-historical-family-chart-expansion-depth2.png')
+	);
+
+	await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const card = root?.querySelector(
+			'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-xun-yu"]'
+		);
+		if (!(card instanceof SVGGElement)) {
+			throw new Error('Historical 荀彧 card is unavailable.');
+		}
+		card.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		return true;
+	`);
+
+	await session.waitFor(
+		`app.workspace.getActiveFile()?.path === "Charted Roots/People/Xun-Yu-Historical-Lane-E2E.md"`
+	);
+
+	await session.evalInApp(`
+		app.plugins.plugins['charted-roots'].getTemporalFocusService().setPoint(
+			${JSON.stringify(assertionSetup.point201)},
+			'e2e-historical-lanes-201'
+		);
+		return true;
+	`);
+
+	await session.waitFor(
+		`(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			if (!root) return false;
+			return !root.querySelector(
+					'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-xun-yu"]'
+				)
+				&& !root.querySelector(
+					'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'
+				)
+				&& root.querySelector('.cr-fcv-chart-container')
+					?.dataset.historicalExpandedCount === '0'
+				&& !root.querySelector(
+					'.cr-relationship-overlay-line--ally_of'
+					+ '[data-source-cr-id="person-cao-cao"]'
+					+ '[data-target-cr-id="e2e-historical-xun-yu"]'
+				);
+		})()`
+	);
+
+	await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		plugin.getTemporalFocusService().clear();
+		for (const path of ${JSON.stringify(assertionSetup.assertionPaths)}) {
+			const file = app.vault.getAbstractFileByPath(path);
+			if (file) await app.vault.delete(file);
+		}
+		for (const path of [
+			"Charted Roots/People/Xun-Yu-Historical-Lane-E2E.md",
+			"Charted Roots/People/Guo-Jia-Historical-Lane-E2E.md"
+		]) {
+			const file = app.vault.getAbstractFileByPath(path);
+			if (file) await app.vault.delete(file);
+		}
+		for (const leaf of app.workspace.getLeavesOfType('canvas-roots-family-chart')) {
+			leaf.detach();
+		}
+		return true;
+	`);
+});
