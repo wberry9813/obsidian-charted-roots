@@ -1,6 +1,6 @@
 # Historical Family Chart
 
-> Status: **F0/F1 implementation started on `feat/v2-historical-family-chart`**
+> Status: **F0–F4 implemented on `feat/v2-historical-family-chart`; F5 card-state enrichment next**
 >
 > This document defines a historical-research mode for the existing Interactive
 > Family Chart. The mode reuses the person-card surface and layout machinery,
@@ -319,10 +319,16 @@ Expected behavior:
 - [x] root-person historical-neighbor traversal model;
 - [x] bounded depth policy (default 1, hard max 4);
 - [x] family-context inclusion policy without turning family context into traversal seeds;
-- [ ] integrate expanded people into the view;
+- [x] integrate expanded people into the view;
 - [x] layout decision: hybrid genealogy + historical expansion lanes (deterministic, no fake kinship edges);
-- [ ] integrate lane rendering into Family Chart;
+- [x] integrate lane rendering into Family Chart;
 - [x] large-network performance guard (default 40 people, hard max 100).
+- [x] Historical toolbar exposes Depth 1/2/3/4 controls.
+- [x] historical-only people render in independent right-side SVG lanes rather than fake genealogy nodes.
+- [x] historical relationship overlay connects structural genealogy cards and expanded lane cards.
+- [x] shared TemporalFocus recomputes lane membership so historical-only cards appear/disappear with time.
+- [x] clicking an expanded historical card opens its Person note.
+- [x] expansion depth persists as pane state.
 
 ### F5 — historical person-card state
 
@@ -357,6 +363,28 @@ A root such as 曹操 should make it possible to inspect:
 
 The acceptance test is not "a line exists". It is whether changing historical
 time changes the visible interpretation without mutating source notes.
+
+### Automated real-Obsidian acceptance
+
+The E2E suite now creates temporary Person notes for **荀彧** and **郭嘉** with
+no parent/spouse/child genealogy fields, then creates only historical
+relationship Assertions:
+
+- 曹操 → 荀彧, active 196–199 CE;
+- 荀彧 → 郭嘉, active 196–199 CE.
+
+The real Obsidian test proves that:
+
+1. neither 荀彧 nor 郭嘉 exists in the structural family-chart cards;
+2. Historical Depth 1 adds 荀彧 as a right-side lane card;
+3. Historical Depth 2 adds 郭嘉 as a second-hop lane card;
+4. the 曹操 → 荀彧 historical relationship line crosses from a genealogy card
+   to the historical expansion lane;
+5. clicking 荀彧 opens the temporary 荀彧 Person note;
+6. moving shared TemporalFocus to 201 CE removes both historical-only cards and
+   their inactive relationship edges;
+7. the following Workspace/UI smoke still passes, proving temporary lane
+   fixtures are fully cleaned up and do not leak test state.
 
 ## 14. Non-goals
 
