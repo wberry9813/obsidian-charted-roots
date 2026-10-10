@@ -1,0 +1,126 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "cao-north-209",
+      "properties": {
+        "name": "曹操集团北部荆州控制（示意）",
+        "time_start": "209 CE",
+        "time_end": "210 CE",
+        "confidence": "medium",
+        "source": [
+          "[[示例/三国赤壁/Sources/资治通鉴·卷六十五|资治通鉴·卷六十五]]"
+        ]
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              111.2,
+              31.1
+            ],
+            [
+              113.2,
+              31.1
+            ],
+            [
+              113.2,
+              32.5
+            ],
+            [
+              111.2,
+              32.5
+            ],
+            [
+              111.2,
+              31.1
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "sun-nanjun-209",
+      "properties": {
+        "name": "孙权集团南郡/江陵控制（示意）",
+        "time_start": "209 CE",
+        "time_end": "210 CE",
+        "confidence": "medium",
+        "source": [
+          "[[示例/三国赤壁/Sources/三国志·周瑜鲁肃吕蒙传|三国志·周瑜鲁肃吕蒙传]]"
+        ]
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              111.4,
+              29.7
+            ],
+            [
+              113.5,
+              29.7
+            ],
+            [
+              113.5,
+              31
+            ],
+            [
+              111.4,
+              31
+            ],
+            [
+              111.4,
+              29.7
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "liu-south-209",
+      "properties": {
+        "name": "刘备集团向荆南扩展（示意）",
+        "time_start": "209 CE",
+        "time_end": "210 CE",
+        "confidence": "low",
+        "source": [
+          "[[示例/三国赤壁/Sources/三国志·先主传|三国志·先主传]]",
+          "[[示例/三国赤壁/Sources/资治通鉴·卷六十五|资治通鉴·卷六十五]]"
+        ]
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              110,
+              25
+            ],
+            [
+              114.5,
+              25
+            ],
+            [
+              114.5,
+              29.7
+            ],
+            [
+              110,
+              29.7
+            ],
+            [
+              110,
+              25
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}
