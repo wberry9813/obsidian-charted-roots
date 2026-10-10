@@ -312,7 +312,7 @@ Expected behavior:
 - [x] refresh edges on point/range/clear changes without rebuilding genealogy layout;
 - [x] refresh on Workspace switch through `TemporalFocusService.refresh()`;
 - [x] ignore own-source focus loops;
-- [ ] Real Obsidian smoke with Timeline -> chart round trip.
+- [x] Real Obsidian smoke with Timeline -> chart round trip.
 
 ### F4 — historical person expansion
 
