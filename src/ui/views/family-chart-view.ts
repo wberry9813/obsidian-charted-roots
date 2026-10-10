@@ -45,8 +45,20 @@ import { arePersonsSpouses } from './family-chart-kinship';
 import { pluralize } from '../../utils/format-utils';
 import { unwrapWikilinkDisplay } from '../../utils/wikilink-resolver';
 import { ensureVisibleLineColor } from '../../utils/color-contrast';
+import {
+	HistoricalFamilyChartProjector,
+	adaptHistoricalEdgesToRelationshipOverlay,
+	describeHistoricalFamilyChartFocus,
+	expandHistoricalFamilyChartPeople,
+	layoutHistoricalFamilyChartLanes,
+	DEFAULT_HISTORICAL_EXPANSION_DEPTH,
+	MAX_HISTORICAL_EXPANSION_DEPTH,
+	type HistoricalFamilyChartPersonRef
+} from '../../v2/historical-family-chart';
+import type { TemporalFocus } from '../../v2/temporal/temporal-focus-service';
 
 const logger = getLogger('FamilyChartView');
+const HISTORICAL_FAMILY_CHART_FOCUS_SOURCE = 'historical-family-chart';
 
 // Overlay types that map directly onto a structural parent-child link in the
 // tree. When enabled, we restyle the existing structural link with the
@@ -96,11 +108,16 @@ type CardStyle = 'rectangle' | 'circle' | 'compact' | 'mini';
  */
 type NameDisplayMode = 'full' | 'split';
 
+/** Which semantic layer the person chart is presenting. */
+type FamilyChartMode = 'family' | 'historical';
+
 /**
  * View state that gets persisted
  */
 interface FamilyChartViewState {
 	rootPersonId: string | null;
+	mode?: FamilyChartMode;
+	historicalExpansionDepth?: number;
 	colorScheme: ColorScheme;
 	editMode: boolean;
 	nodeSpacing?: number;
@@ -146,6 +163,8 @@ export class FamilyChartView extends ItemView {
 
 	// View state
 	private rootPersonId: string | null = null;
+	private mode: FamilyChartMode = 'family';
+	private historicalExpansionDepth: number = DEFAULT_HISTORICAL_EXPANSION_DEPTH;
 	private colorScheme: ColorScheme = 'sex';
 	private editMode: boolean = false;
 	private nodeSpacing: number = 250; // X spacing between nodes
@@ -229,6 +248,9 @@ export class FamilyChartView extends ItemView {
 
 	// Services
 	private familyGraphService: FamilyGraphService;
+	private historicalProjector: HistoricalFamilyChartProjector;
+	private temporalFocus: TemporalFocus | null = null;
+	private temporalFocusUnsubscribe: (() => void) | null = null;
 
 	// Data cache
 	private chartData: FamilyChartPerson[] = [];
@@ -246,6 +268,13 @@ export class FamilyChartView extends ItemView {
 		super(leaf);
 		this.plugin = plugin;
 		this.familyGraphService = plugin.createFamilyGraphService();
+		this.historicalProjector = new HistoricalFamilyChartProjector(
+			plugin.app,
+			plugin.getSemanticAssertionService(),
+			plugin.getV2OntologyRegistry(),
+			plugin.getTemporalAssertionStateService()
+		);
+		this.temporalFocus = plugin.getTemporalFocusService().get();
 	}
 
 	getViewType(): string {
@@ -283,10 +312,13 @@ export class FamilyChartView extends ItemView {
 
 		// Register event handlers
 		this.registerEventHandlers();
+		this.bindTemporalFocus();
 	}
 
 	async onClose(): Promise<void> {
 		logger.debug('view-close', 'Closing FamilyChartView');
+		this.temporalFocusUnsubscribe?.();
+		this.temporalFocusUnsubscribe = null;
 		this.destroyChart();
 	}
 
@@ -324,6 +356,63 @@ export class FamilyChartView extends ItemView {
 
 		// Left side controls
 		const leftControls = toolbar.createDiv({ cls: 'cr-fcv-toolbar-left' });
+
+		// Semantic mode: the same person-card surface can show either the
+		// structural genealogy layer or v2 historical relationship Assertions.
+		const modeGroup = leftControls.createDiv({
+			cls: 'cr-fcv-control-group cr-fcv-mode-group'
+		});
+		modeGroup.createSpan({ cls: 'cr-fcv-label', text: 'Mode' });
+		const modeSelect = modeGroup.createEl('select', {
+			cls: 'cr-fcv-select cr-fcv-mode-select',
+			attr: { 'aria-label': 'Family Chart mode' }
+		});
+		modeSelect.createEl('option', {
+			text: 'Family',
+			attr: { value: 'family' }
+		});
+		modeSelect.createEl('option', {
+			text: 'Historical',
+			attr: { value: 'historical' }
+		});
+		modeSelect.value = this.mode;
+		modeSelect.addEventListener('change', () => {
+			this.setChartMode(
+				modeSelect.value === 'historical' ? 'historical' : 'family'
+			);
+		});
+
+		if (this.mode === 'historical') {
+			const depthGroup = leftControls.createDiv({
+				cls: 'cr-fcv-control-group cr-fcv-historical-depth-group'
+			});
+			depthGroup.createSpan({ cls: 'cr-fcv-label', text: 'Depth' });
+			for (let depth = 1; depth <= MAX_HISTORICAL_EXPANSION_DEPTH; depth++) {
+				const depthButton = depthGroup.createEl('button', {
+					text: String(depth),
+					cls: 'cr-fcv-btn cr-fcv-historical-depth-btn',
+					attr: {
+						'aria-label': `Historical expansion depth ${depth}`,
+						'aria-pressed': String(this.historicalExpansionDepth === depth),
+						'data-depth': String(depth)
+					}
+				});
+				if (this.historicalExpansionDepth === depth) {
+					depthButton.addClass('is-active');
+				}
+				depthButton.addEventListener('click', () => {
+					this.setHistoricalExpansionDepth(depth);
+				});
+			}
+
+			const focus = modeGroup.createSpan({
+				cls: 'cr-fcv-historical-focus',
+				attr: {
+					'aria-label': 'Historical temporal focus'
+				}
+			});
+			this.updateHistoricalFocusIndicator(focus);
+		}
 
 		// Zoom controls group
 		const zoomGroup = leftControls.createDiv({ cls: 'cr-fcv-control-group cr-fcv-zoom-group' });
@@ -622,7 +711,9 @@ export class FamilyChartView extends ItemView {
 		// Description (left side)
 		this.infoPanelActionsEl.createDiv({
 			cls: 'cr-fcv-info-panel-actions-description',
-			text: 'View or edit this person'
+			text: this.mode === 'historical'
+				? 'Historical mode is read-only; edit Person and Assertion notes directly'
+				: 'View or edit this person'
 		});
 
 		// Buttons container (right side)
@@ -640,12 +731,15 @@ export class FamilyChartView extends ItemView {
 			}
 		});
 
-		// Edit button (primary action)
-		const editBtn = buttonsContainer.createEl('button', {
-			text: 'Edit',
-			cls: 'mod-cta'
-		});
-		editBtn.addEventListener('click', () => this.enterInfoPanelEditMode(personData));
+		if (this.mode === 'family') {
+			// Editing here mutates genealogy/frontmatter. Historical relations
+			// are v2 Assertion notes and deliberately use their own editors.
+			const editBtn = buttonsContainer.createEl('button', {
+				text: 'Edit',
+				cls: 'mod-cta'
+			});
+			editBtn.addEventListener('click', () => this.enterInfoPanelEditMode(personData));
+		}
 	}
 
 	/**
@@ -1281,6 +1375,7 @@ export class FamilyChartView extends ItemView {
 				.setBeforeUpdate(() => {
 					this.clearKinshipLabelsForUpdate();
 					this.clearRelationshipOverlayForUpdate();
+					this.clearHistoricalExpansionLayer();
 				})
 				// Re-render overlays after tree animation completes (#195, #386, #379)
 				.setAfterUpdate(() => {
@@ -2584,30 +2679,38 @@ export class FamilyChartView extends ItemView {
 				.onClick(() => this.toggleKinshipLabels());
 		});
 
-		menu.addItem((item) => {
-			item.setTitle(`${this.showCustomRelationships ? '✓ ' : ''}Show custom relationships`)
-				.setIcon('waypoints')
-				.onClick(() => this.toggleCustomRelationships());
-		});
+		if (this.mode === 'family') {
+			menu.addItem((item) => {
+				item.setTitle(`${this.showCustomRelationships ? '✓ ' : ''}Show custom relationships`)
+					.setIcon('waypoints')
+					.onClick(() => this.toggleCustomRelationships());
+			});
 
-		// Per-type overlay toggles (shown when master toggle is on and >1 type exists)
-		if (this.showCustomRelationships) {
-			const overlayTypes = getAllRelationshipTypesWithCustomizations(
-				this.plugin.settings.customRelationshipTypes || [],
-				true,
-				this.plugin.settings.relationshipTypeCustomizations,
-				[]
-			).filter(t => t.includeOnFamilyChartOverlay);
+			// Per-type overlay toggles (shown when master toggle is on and >1 type exists)
+			if (this.showCustomRelationships) {
+				const overlayTypes = getAllRelationshipTypesWithCustomizations(
+					this.plugin.settings.customRelationshipTypes || [],
+					true,
+					this.plugin.settings.relationshipTypeCustomizations,
+					[]
+				).filter(t => t.includeOnFamilyChartOverlay);
 
-			if (overlayTypes.length > 1) {
-				for (const type of overlayTypes) {
-					const visible = this.customRelationshipTypeVisibility[type.id] !== false;
-					menu.addItem((item) => {
-						item.setTitle(`    ${visible ? '✓ ' : ''}${type.name}`)
-							.onClick(() => this.toggleCustomRelationshipType(type.id));
-					});
+				if (overlayTypes.length > 1) {
+					for (const type of overlayTypes) {
+						const visible = this.customRelationshipTypeVisibility[type.id] !== false;
+						menu.addItem((item) => {
+							item.setTitle(`    ${visible ? '✓ ' : ''}${type.name}`)
+								.onClick(() => this.toggleCustomRelationshipType(type.id));
+						});
+					}
 				}
 			}
+		} else {
+			menu.addItem((item) => {
+				item.setTitle('Historical relationships are shown automatically')
+					.setIcon('waypoints')
+					.setDisabled(true);
+			});
 		}
 
 		menu.addSeparator();
@@ -3597,15 +3700,232 @@ export class FamilyChartView extends ItemView {
 
 	// ─── Custom Relationships Overlay (#386) ────────────────────────────
 
+	private clearHistoricalExpansionLayer(): void {
+		if (!this.chartContainerEl) return;
+		this.chartContainerEl
+			.querySelectorAll('.cr-fcv-historical-expansion-layer')
+			.forEach(element => element.remove());
+		this.chartContainerEl.dataset.historicalExpandedCount = '0';
+	}
+
+	private resolveHistoricalPersonRef(
+		crId: string
+	): HistoricalFamilyChartPersonRef | null {
+		const files = this.plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
+			?? this.app.vault.getMarkdownFiles();
+		for (const file of files) {
+			const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+			if (frontmatter?.cr_id !== crId) continue;
+			const name = typeof frontmatter.name === 'string' && frontmatter.name.trim()
+				? frontmatter.name.trim()
+				: file.basename;
+			return {
+				crId,
+				name,
+				filePath: file.path,
+				file
+			};
+		}
+		return null;
+	}
+
+	private getHistoricalLaneCardPositions(): Map<string, { x: number; y: number }> {
+		const positions = new Map<string, { x: number; y: number }>();
+		if (!this.chartContainerEl) return positions;
+		for (const card of Array.from(
+			this.chartContainerEl.querySelectorAll<SVGGElement>(
+				'.cr-fcv-historical-person-card'
+			)
+		)) {
+			const crId = card.getAttribute('data-cr-id');
+			const x = Number(card.getAttribute('data-x'));
+			const y = Number(card.getAttribute('data-y'));
+			if (crId && Number.isFinite(x) && Number.isFinite(y)) {
+				positions.set(crId, { x, y });
+			}
+		}
+		return positions;
+	}
+
+	private getRelationshipCardPositions(): Map<string, { x: number; y: number }> {
+		const positions = this.getCardPositions();
+		if (this.mode !== 'historical') return positions;
+		for (const [crId, position] of this.getHistoricalLaneCardPositions()) {
+			positions.set(crId, position);
+		}
+		return positions;
+	}
+
+	private renderHistoricalExpansionLanes(): void {
+		this.clearHistoricalExpansionLayer();
+		if (
+			this.mode !== 'historical'
+			|| !this.rootPersonId
+			|| !this.chartContainerEl
+		) {
+			return;
+		}
+
+		const svg = this.chartContainerEl.querySelector<SVGSVGElement>('svg.main_svg');
+		const viewGroup = svg?.querySelector<SVGGElement>('.view');
+		if (!svg || !viewGroup) return;
+
+		const structuralPositions = this.getCardPositions();
+		if (!structuralPositions.has(this.rootPersonId)) return;
+
+		const root = this.resolveHistoricalPersonRef(this.rootPersonId);
+		if (!root) return;
+
+		const projection = this.historicalProjector.project(this.temporalFocus);
+		const expansion = expandHistoricalFamilyChartPeople(root, projection, {
+			depth: this.historicalExpansionDepth
+		});
+		const dimensions = this.getCardDimensions(this.cardStyle);
+		const layout = layoutHistoricalFamilyChartLanes(
+			expansion,
+			structuralPositions,
+			this.rootPersonId,
+			{
+				cardWidth: dimensions.w,
+				cardHeight: dimensions.h,
+				laneGap: 110,
+				rowGap: 28
+			}
+		);
+
+		this.chartContainerEl.dataset.historicalExpandedCount =
+			String(layout.nodes.length);
+		this.chartContainerEl.dataset.historicalExpansionDepth =
+			String(expansion.appliedDepth);
+		this.chartContainerEl.dataset.historicalExpansionTruncated =
+			String(expansion.truncated);
+
+		if (layout.nodes.length === 0) return;
+
+		const layer = createSvg('g');
+		layer.setAttribute('class', 'cr-fcv-historical-expansion-layer');
+		layer.setAttribute('data-depth', String(expansion.appliedDepth));
+
+		const minStructuralY = Math.min(...[...structuralPositions.values()].map(p => p.y));
+		const minHistoricalY = Math.min(...layout.nodes.map(node => node.y));
+		const maxStructuralY = Math.max(...[...structuralPositions.values()].map(p => p.y));
+		const maxHistoricalY = Math.max(...layout.nodes.map(node => node.y));
+		const top = Math.min(minStructuralY, minHistoricalY) - dimensions.h / 2 - 48;
+		const bottom = Math.max(maxStructuralY, maxHistoricalY) + dimensions.h / 2 + 28;
+
+		const lanes = new Map<number, number>();
+		for (const node of layout.nodes) {
+			if (!lanes.has(node.historicalDepth)) {
+				lanes.set(node.historicalDepth, node.x);
+			}
+		}
+		for (const [depth, x] of [...lanes.entries()].sort((a, b) => a[0] - b[0])) {
+			const guide = createSvg('line');
+			guide.setAttribute('class', 'cr-fcv-historical-lane-guide');
+			guide.setAttribute('x1', String(x - dimensions.w / 2 - 55));
+			guide.setAttribute('x2', String(x - dimensions.w / 2 - 55));
+			guide.setAttribute('y1', String(top + 18));
+			guide.setAttribute('y2', String(bottom));
+			layer.appendChild(guide);
+
+			const label = createSvg('text');
+			label.setAttribute('class', 'cr-fcv-historical-lane-label');
+			label.setAttribute('x', String(x));
+			label.setAttribute('y', String(top));
+			label.setAttribute('text-anchor', 'middle');
+			label.textContent = `Depth ${depth}`;
+			layer.appendChild(label);
+		}
+
+		for (const node of layout.nodes) {
+			const card = createSvg('g');
+			card.setAttribute(
+				'class',
+				'cr-fcv-historical-person-card'
+			);
+			card.setAttribute('data-cr-id', node.person.crId);
+			card.setAttribute('data-depth', String(node.historicalDepth));
+			card.setAttribute('data-x', String(node.x));
+			card.setAttribute('data-y', String(node.y));
+			card.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+			card.setAttribute('role', 'button');
+			card.setAttribute('tabindex', '0');
+			card.setAttribute('aria-label', `Open historical person ${node.person.name}`);
+
+			const body = createSvg('rect');
+			body.setAttribute('class', 'cr-fcv-historical-person-card__body');
+			body.setAttribute('x', String(-dimensions.w / 2));
+			body.setAttribute('y', String(-dimensions.h / 2));
+			body.setAttribute('width', String(dimensions.w));
+			body.setAttribute('height', String(dimensions.h));
+			body.setAttribute('rx', '8');
+			body.setAttribute('ry', '8');
+			card.appendChild(body);
+
+			const depthBadge = createSvg('text');
+			depthBadge.setAttribute('class', 'cr-fcv-historical-person-card__depth');
+			depthBadge.setAttribute('x', String(-dimensions.w / 2 + 12));
+			depthBadge.setAttribute('y', String(-dimensions.h / 2 + 20));
+			depthBadge.textContent = `H${node.historicalDepth}`;
+			card.appendChild(depthBadge);
+
+			const name = createSvg('text');
+			name.setAttribute('class', 'cr-fcv-historical-person-card__name');
+			name.setAttribute('x', '0');
+			name.setAttribute('y', '4');
+			name.setAttribute('text-anchor', 'middle');
+			name.textContent = node.person.name;
+			card.appendChild(name);
+
+			const hint = createSvg('text');
+			hint.setAttribute('class', 'cr-fcv-historical-person-card__hint');
+			hint.setAttribute('x', '0');
+			hint.setAttribute('y', '26');
+			hint.setAttribute('text-anchor', 'middle');
+			hint.textContent = 'Historical relation';
+			card.appendChild(hint);
+
+			const tooltip = createSvg('title');
+			tooltip.textContent =
+				`${node.person.name} · historical depth ${node.historicalDepth} · click to open note`;
+			card.appendChild(tooltip);
+
+			const open = () => void this.openPersonNote(node.person.crId);
+			card.addEventListener('click', event => {
+				event.stopPropagation();
+				open();
+			});
+			card.addEventListener('keydown', event => {
+				if (event.key === 'Enter' || event.key === ' ') {
+					event.preventDefault();
+					event.stopPropagation();
+					open();
+				}
+			});
+
+			layer.appendChild(card);
+		}
+
+		viewGroup.appendChild(layer);
+	}
+
+	private renderHistoricalExpansionAndOverlay(): void {
+		if (this.mode === 'historical') {
+			this.renderHistoricalExpansionLanes();
+		} else {
+			this.clearHistoricalExpansionLayer();
+		}
+		this.renderRelationshipOverlay();
+	}
+
 	/**
 	 * Clear the custom-relationships overlay before a tree update.
 	 * Called by setBeforeUpdate to prevent stale lines during animation.
 	 */
 	private clearRelationshipOverlayForUpdate(): void {
-		if (this.showCustomRelationships && this.chartContainerEl) {
-			const existing = this.chartContainerEl.querySelectorAll('.cr-relationship-overlay');
-			existing.forEach(el => el.remove());
-		}
+		if (!this.chartContainerEl) return;
+		const existing = this.chartContainerEl.querySelectorAll('.cr-relationship-overlay');
+		existing.forEach(el => el.remove());
 	}
 
 	/**
@@ -3622,9 +3942,9 @@ export class FamilyChartView extends ItemView {
 	 * Small trees stabilize quickly; large trees wait through the stagger.
 	 */
 	private scheduleRelationshipOverlayRerender(): void {
-		if (!this.showCustomRelationships) return;
+		if (!this.shouldRenderRelationshipOverlay()) return;
 		this.waitForCardPositionStability(() => {
-			this.renderRelationshipOverlay();
+			this.renderHistoricalExpansionAndOverlay();
 
 			// #615 backstop. The stability poll can occasionally fire against an
 			// intermediate card position when f3's entrance animation stalls
@@ -3641,10 +3961,10 @@ export class FamilyChartView extends ItemView {
 			const drawnPositions = this.getCardPositions();
 			const BACKSTOP_CHECK_DELAY_MS = 750;
 			window.setTimeout(() => {
-				if (!this.showCustomRelationships) return;
+				if (!this.shouldRenderRelationshipOverlay()) return;
 				const current = this.getCardPositions();
 				if (!this.cardPositionsEqual(current, drawnPositions)) {
-					this.waitForCardPositionStability(() => this.renderRelationshipOverlay());
+					this.waitForCardPositionStability(() => this.renderHistoricalExpansionAndOverlay());
 				}
 			}, BACKSTOP_CHECK_DELAY_MS);
 		});
@@ -3730,21 +4050,32 @@ export class FamilyChartView extends ItemView {
 		// re-apply below if the current state still calls for it (#404).
 		this.revertStructuralLinkRestyling();
 
-		if (!this.showCustomRelationships) return;
+		if (!this.shouldRenderRelationshipOverlay()) return;
 
 		const svg = this.chartContainerEl.querySelector('svg.main_svg');
 		if (!svg) return;
 
-		// Build a set of overlay-eligible type ids and a lookup to their definitions
-		const overlayTypes = this.getOverlayRelationshipTypes();
-		if (overlayTypes.size === 0) return;
-
 		// Card positions for every currently-rendered person
-		const cardPositions = this.getCardPositions();
+		const cardPositions = this.getRelationshipCardPositions();
 		if (cardPositions.size === 0) return;
 
-		// Collect qualifying relationships (deduped for symmetric pairs)
-		const relationships = this.collectOverlayRelationships(cardPositions, overlayTypes);
+		// Family mode uses the legacy/custom frontmatter relationship stream.
+		// Historical mode swaps only the edge data source: v2 relationship
+		// Assertions projected through the historical semantic boundary.
+		let relationships: Array<{
+			rel: ParsedRelationship;
+			type: RelationshipTypeDefinition;
+		}>;
+		if (this.mode === 'historical') {
+			relationships = this.collectHistoricalOverlayRelationships(cardPositions);
+		} else {
+			const overlayTypes = this.getOverlayRelationshipTypes();
+			if (overlayTypes.size === 0) return;
+			relationships = this.collectOverlayRelationships(
+				cardPositions,
+				overlayTypes
+			);
+		}
 		if (relationships.length === 0) return;
 
 		// Group by canonical endpoint pair for multi-edge stacking
@@ -3915,6 +4246,8 @@ export class FamilyChartView extends ItemView {
 					path.setAttribute('stroke-dasharray', '2,3');
 				}
 				path.setAttribute('class', `cr-relationship-overlay-line cr-relationship-overlay-line--${type.id}`);
+				if (rel.sourceCrId) path.setAttribute('data-source-cr-id', rel.sourceCrId);
+				if (rel.targetCrId) path.setAttribute('data-target-cr-id', rel.targetCrId);
 				overlayGroup.appendChild(path);
 			});
 		}
@@ -3927,8 +4260,13 @@ export class FamilyChartView extends ItemView {
 		const viewGroup = svg.querySelector('.view');
 		if (viewGroup) {
 			const linksView = viewGroup.querySelector('.links_view');
+			const historicalLayer = viewGroup.querySelector(
+				'.cr-fcv-historical-expansion-layer'
+			);
 			if (linksView && paintUnderLinks) {
 				viewGroup.insertBefore(overlayGroup, linksView);
+			} else if (historicalLayer) {
+				viewGroup.insertBefore(overlayGroup, historicalLayer);
 			} else {
 				viewGroup.appendChild(overlayGroup);
 			}
@@ -4144,10 +4482,82 @@ export class FamilyChartView extends ItemView {
 		return `until ${rel.to}`;
 	}
 
+	private shouldRenderRelationshipOverlay(): boolean {
+		return this.mode === 'historical' || this.showCustomRelationships;
+	}
+
+	/**
+	 * Adapt v2 historical relationship Assertions into the existing mature
+	 * overlay renderer. F2 deliberately requires both endpoints to already be
+	 * visible; F4 owns historical-neighbor expansion.
+	 */
+	private collectHistoricalOverlayRelationships(
+		cardPositions: Map<string, { x: number; y: number }>
+	): Array<{ rel: ParsedRelationship; type: RelationshipTypeDefinition }> {
+		const projection = this.historicalProjector.project(this.temporalFocus);
+		const relationshipTypes = getAllRelationshipTypesWithCustomizations(
+			this.plugin.settings.customRelationshipTypes || [],
+			true,
+			this.plugin.settings.relationshipTypeCustomizations,
+			[]
+		);
+		return adaptHistoricalEdgesToRelationshipOverlay(
+			projection.edges,
+			relationshipTypes
+		).filter(({ rel }) =>
+			cardPositions.has(rel.sourceCrId)
+			&& Boolean(rel.targetCrId && cardPositions.has(rel.targetCrId))
+		);
+	}
+
+	private setChartMode(mode: FamilyChartMode): void {
+		if (this.mode === mode) return;
+
+		this.mode = mode;
+		if (mode === 'historical') {
+			this.temporalFocus = this.plugin.getTemporalFocusService().get();
+		}
+		if (mode === 'historical' && this.infoPanelEditMode) {
+			this.infoPanelEditMode = false;
+			this.infoPanelEditData = null;
+		}
+
+		this.buildToolbar();
+		if (this.selectedPersonId) {
+			this.renderInfoPanelContent();
+		}
+
+		// Historical expansion is a separate SVG lane layer. The genealogy
+		// renderer stays untouched; switching modes only adds/removes that layer
+		// and reprojects the historical relationship overlay.
+		this.renderHistoricalExpansionAndOverlay();
+		this.app.workspace.requestSaveLayout();
+		new Notice(
+			mode === 'historical'
+				? 'Historical relationship mode'
+				: 'Family relationship mode'
+		);
+	}
+
+	private setHistoricalExpansionDepth(depth: number): void {
+		const next = Math.max(
+			1,
+			Math.min(MAX_HISTORICAL_EXPANSION_DEPTH, Math.floor(depth))
+		);
+		if (this.historicalExpansionDepth === next) return;
+		this.historicalExpansionDepth = next;
+		this.buildToolbar();
+		if (this.mode === 'historical') {
+			this.renderHistoricalExpansionAndOverlay();
+		}
+		this.app.workspace.requestSaveLayout();
+	}
+
 	/**
 	 * Toggle the master "Show custom relationships" overlay.
 	 */
 	private toggleCustomRelationships(): void {
+		if (this.mode !== 'family') return;
 		this.showCustomRelationships = !this.showCustomRelationships;
 		this.app.workspace.requestSaveLayout();
 		if (this.showCustomRelationships) {
@@ -5437,6 +5847,55 @@ export class FamilyChartView extends ItemView {
 		this.chartData = [];
 	}
 
+	private bindTemporalFocus(): void {
+		this.temporalFocusUnsubscribe?.();
+		const service = this.plugin.getTemporalFocusService();
+		this.temporalFocus = service.get();
+		this.temporalFocusUnsubscribe = service.subscribe(focus => {
+			this.temporalFocus = focus;
+			if (this.mode !== 'historical') return;
+
+			this.updateHistoricalFocusIndicator();
+
+			// Historical Family Chart does not publish focus in F3 yet, but keep
+			// the source guard now so later dated-edge interactions cannot create
+			// self-triggered redraw loops.
+			if (focus?.source === HISTORICAL_FAMILY_CHART_FOCUS_SOURCE) {
+				return;
+			}
+
+			// Shared focus changes can add/remove historical-only people as well
+			// as relationship edges. The genealogy layout itself stays put.
+			this.renderHistoricalExpansionAndOverlay();
+		});
+	}
+
+	private updateHistoricalFocusIndicator(
+		target?: HTMLElement
+	): void {
+		const element = target
+			?? this.toolbarEl?.querySelector<HTMLElement>(
+				'.cr-fcv-historical-focus'
+			);
+		if (!element) return;
+
+		const calendar = this.plugin
+			.getHistoricalDateService()
+			.getCalendarProvider('tyme') ?? undefined;
+		const display = describeHistoricalFamilyChartFocus(
+			this.temporalFocus,
+			calendar
+		);
+		element.textContent = display.label;
+		element.dataset.focusKind = display.kind;
+		element.dataset.focusAxis = display.axis;
+		element.dataset.focusSupported = String(display.supported);
+		element.dataset.focusSource = this.temporalFocus?.source ?? '';
+		element.title = display.supported
+			? 'Historical Family Chart follows the shared temporal focus'
+			: 'Historical Family Chart cannot interpret this temporal axis';
+	}
+
 	/**
 	 * Register event handlers for vault changes
 	 */
@@ -5543,6 +6002,8 @@ export class FamilyChartView extends ItemView {
 		logger.debug('get-state', 'Saving view state', { cardStyle: this.cardStyle, nodeSpacing: this.nodeSpacing, levelSpacing: this.levelSpacing });
 		return {
 			rootPersonId: this.rootPersonId,
+			mode: this.mode,
+			historicalExpansionDepth: this.historicalExpansionDepth,
 			colorScheme: this.colorScheme,
 			editMode: this.editMode,
 			nodeSpacing: this.nodeSpacing,
@@ -5581,6 +6042,21 @@ export class FamilyChartView extends ItemView {
 
 		if (state.rootPersonId !== undefined) {
 			this.rootPersonId = state.rootPersonId;
+		}
+		if (state.mode === 'family' || state.mode === 'historical') {
+			this.mode = state.mode;
+		}
+		if (
+			typeof state.historicalExpansionDepth === 'number'
+			&& Number.isFinite(state.historicalExpansionDepth)
+		) {
+			this.historicalExpansionDepth = Math.max(
+				1,
+				Math.min(
+					MAX_HISTORICAL_EXPANSION_DEPTH,
+					Math.floor(state.historicalExpansionDepth)
+				)
+			);
 		}
 		if (state.colorScheme !== undefined) {
 			this.colorScheme = state.colorScheme;
@@ -5677,6 +6153,7 @@ export class FamilyChartView extends ItemView {
 		// Re-initialize chart if the view is already open (chartContainerEl exists)
 		// If called before onOpen(), the state is just stored and onOpen() will use it
 		if (this.chartContainerEl) {
+			this.buildToolbar();
 			if (this.rootPersonId) {
 				void this.initializeChart();
 			} else {

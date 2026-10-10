@@ -111,8 +111,10 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p tests/e2e/artifacts
-          xvfb-run -a node --test tests/e2e/v2-foundation-smoke.e2e.mjs \
+          xvfb-run -a node --test tests/e2e/v2-historical-family-chart.e2e.mjs \
             2>&1 | tee tests/e2e/artifacts/e2e.log
+          xvfb-run -a node --test tests/e2e/v2-foundation-smoke.e2e.mjs \
+            2>&1 | tee -a tests/e2e/artifacts/e2e.log
           xvfb-run -a node --test tests/e2e/v2-workspace-ui.e2e.mjs \
             2>&1 | tee -a tests/e2e/artifacts/e2e.log
           xvfb-run -a node --test tests/e2e/v2-demo-vault.e2e.mjs \

@@ -4,6 +4,7 @@ import {
 	CARTO_VOYAGER_BASEMAP,
 	DEFAULT_GEOGRAPHIC_BASEMAP,
 	OPENSTREETMAP_STANDARD_BASEMAP,
+	OPENTOPOMAP_TERRAIN_BASEMAP,
 	getBuiltInGeographicBasemap
 } from '../src/v2';
 
@@ -25,11 +26,13 @@ describe('M6 geographic basemap definitions', () => {
 		expect(getBuiltInGeographicBasemap('carto-voyager')).toBeUndefined();
 	});
 
-	it('registers only the keyless built-in provider', () => {
+	it('registers keyless OSM and optional terrain providers', () => {
 		expect(BUILT_IN_GEOGRAPHIC_BASEMAPS.map(item => item.id))
-			.toEqual(['openstreetmap-standard']);
+			.toEqual(['openstreetmap-standard', 'opentopomap-terrain']);
 		expect(getBuiltInGeographicBasemap('openstreetmap-standard'))
 			.toBe(OPENSTREETMAP_STANDARD_BASEMAP);
+		expect(getBuiltInGeographicBasemap('opentopomap-terrain'))
+			.toBe(OPENTOPOMAP_TERRAIN_BASEMAP);
 		expect(getBuiltInGeographicBasemap('missing')).toBeUndefined();
 		expect(
 			BUILT_IN_GEOGRAPHIC_BASEMAPS.every(item => item.coordinateCRS === 'wgs84')

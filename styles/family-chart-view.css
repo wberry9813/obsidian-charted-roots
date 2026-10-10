@@ -1548,3 +1548,84 @@
   display: flex;
   gap: 0.5em;
 }
+
+
+/* Historical Family Chart expansion lanes (v2 F4) */
+.cr-fcv-historical-depth-group {
+  padding-inline: var(--size-4-1);
+  border-inline-start: 1px solid var(--background-modifier-border);
+}
+
+.cr-fcv-historical-depth-btn {
+  min-width: 28px;
+  height: 26px;
+  padding: 0 7px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cr-fcv-historical-depth-btn.is-active,
+.cr-fcv-historical-depth-btn[aria-pressed="true"] {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+}
+
+.cr-fcv-historical-expansion-layer {
+  pointer-events: none;
+}
+
+.cr-fcv-historical-lane-guide {
+  stroke: var(--background-modifier-border);
+  stroke-width: 1;
+  stroke-dasharray: 5 7;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.cr-fcv-historical-lane-label {
+  fill: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+
+.cr-fcv-historical-person-card {
+  cursor: pointer;
+  pointer-events: auto;
+  outline: none;
+}
+
+.cr-fcv-historical-person-card__body {
+  fill: var(--background-primary);
+  stroke: var(--interactive-accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.18));
+  transition: stroke-width 120ms ease, filter 120ms ease;
+}
+
+.cr-fcv-historical-person-card:hover .cr-fcv-historical-person-card__body,
+.cr-fcv-historical-person-card:focus .cr-fcv-historical-person-card__body {
+  stroke-width: 3;
+  filter: drop-shadow(0 3px 9px rgba(0, 0, 0, 0.28));
+}
+
+.cr-fcv-historical-person-card__name {
+  fill: var(--text-normal);
+  font-size: 15px;
+  font-weight: 650;
+  pointer-events: none;
+}
+
+.cr-fcv-historical-person-card__depth {
+  fill: var(--interactive-accent);
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.cr-fcv-historical-person-card__hint {
+  fill: var(--text-muted);
+  font-size: 10px;
+  pointer-events: none;
+}
