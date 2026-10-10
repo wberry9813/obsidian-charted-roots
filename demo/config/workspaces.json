@@ -12,8 +12,8 @@
     },
     {
       "id": "history-cn-demo",
-      "name": "春秋战国 · 历史研究",
-      "rootFolder": "示例/春秋战国",
+      "name": "三国·赤壁专题 · 历史研究",
+      "rootFolder": "示例/三国赤壁",
       "mode": "historical",
       "enabledPacks": [
         "core",

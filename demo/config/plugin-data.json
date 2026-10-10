@@ -1,8 +1,8 @@
 {
   "uiLanguage": "zh-CN",
-  "activeWorkspaceId": "genealogy-demo",
+  "activeWorkspaceId": "history-cn-demo",
   "legacyNegativeYearSemantics": "bce_display",
-  "geographicBasemapId": "carto-voyager",
+  "geographicBasemapId": "openstreetmap-standard",
   "enableFictionalDates": true,
   "showBuiltInDateSystems": false,
   "fictionalDateSystems": [

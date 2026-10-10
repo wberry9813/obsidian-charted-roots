@@ -16,6 +16,7 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 		return {
 			language: plugin.settings.uiLanguage,
 			active: plugin.getWorkspaceService()?.getActiveId(),
+			basemap: plugin.settings.geographicBasemapId,
 			workspaces: plugin.getWorkspaceService()?.getCatalog().workspaces
 				.map(item => ({ id: item.id, name: item.name })),
 			people: plugin.getWorkspaceService()?.getScope().getMarkdownFiles()
@@ -24,16 +25,18 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 	`);
 
 	assert.equal(initial.language, 'zh-CN');
-	assert.equal(initial.active, 'genealogy-demo');
+	assert.equal(initial.active, 'history-cn-demo');
+	assert.equal(initial.basemap, 'openstreetmap-standard');
 	assert.deepEqual(initial.workspaces, [
 		{ id: 'genealogy-demo', name: '林氏家族 · 家谱研究' },
-		{ id: 'history-cn-demo', name: '春秋战国 · 历史研究' },
+		{ id: 'history-cn-demo', name: '三国·赤壁专题 · 历史研究' },
 		{ id: 'shushan-demo', name: '蜀山 · 世界观' }
 	]);
-	assert.ok(initial.people.includes('林晨'));
-	assert.ok(initial.people.includes('林国梁'));
-	assert.ok(initial.people.includes('林雨'));
-	assert.ok(!initial.people.includes('齐桓公'));
+	assert.ok(initial.people.includes('曹操'));
+	assert.ok(initial.people.includes('刘备'));
+	assert.ok(initial.people.includes('孙权'));
+	assert.ok(initial.people.includes('周瑜'));
+	assert.ok(!initial.people.includes('林晨'));
 	assert.ok(!initial.people.includes('李英琼'));
 
 	await session.evalInApp(`
@@ -58,20 +61,20 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 
 	await session.evalInApp(`
 		document.querySelector('.cr-workspace-manager .modal-button-container button:last-child')?.click();
-		await app.plugins.plugins['charted-roots'].setActiveWorkspace('history-cn-demo');
+		await app.plugins.plugins['charted-roots'].setActiveWorkspace('genealogy-demo');
 		return true;
 	`);
 	await session.waitFor(
-		`app.plugins.plugins['charted-roots'].getWorkspaceService()?.getActiveId() === 'history-cn-demo'`
+		`app.plugins.plugins['charted-roots'].getWorkspaceService()?.getActiveId() === 'genealogy-demo'`
 	);
-	const history = await session.evalInApp(`
+	const genealogy = await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
 		return plugin.getWorkspaceService().getScope().getMarkdownFiles()
 			.filter(file => file.path.includes('/People/')).map(file => file.basename);
 	`);
-	assert.ok(history.includes('齐桓公'));
-	assert.ok(history.includes('管仲'));
-	assert.ok(!history.includes('林晨'));
+	assert.ok(genealogy.includes('林晨'));
+	assert.ok(genealogy.includes('林国梁'));
+	assert.ok(!genealogy.includes('曹操'));
 
 	await session.evalInApp(`
 		await app.plugins.plugins['charted-roots'].setActiveWorkspace('shushan-demo');
@@ -91,7 +94,7 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 		};
 	`);
 	assert.ok(fiction.people.includes('李英琼'));
-	assert.ok(!fiction.people.includes('齐桓公'));
+	assert.ok(!fiction.people.includes('曹操'));
 	assert.ok(!fiction.people.includes('林晨'));
 	assert.equal(fiction.calendar, '蜀山纪年');
 	assert.equal(fiction.dna, true);
@@ -127,11 +130,7 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 			const cache = file && file.extension === 'md'
 				? app.metadataCache.getFileCache(file)
 				: null;
-			return {
-				path,
-				exists: !!file,
-				frontmatter: cache?.frontmatter ?? null
-			};
+			return { path, exists: !!file, frontmatter: cache?.frontmatter ?? null };
 		});
 		const leaves = app.workspace.getLeavesOfType('canvas-roots-map');
 		const view = leaves[0]?.view;
@@ -147,7 +146,6 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 		);
 		return {
 			files,
-			leafCount: leaves.length,
 			controllerMaps,
 			options: [...(mapSelect?.options ?? [])].map(option => ({
 				value: option.value,
@@ -157,23 +155,15 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 			start: app.vault.getAbstractFileByPath('00-开始这里.md') !== null
 		};
 	`);
-	assert.equal(showcase.files[0]?.exists, true);
-	assert.equal(showcase.files[1]?.exists, true);
 	assert.equal(showcase.files[0]?.frontmatter?.cr_type, 'map');
 	assert.equal(showcase.files[1]?.frontmatter?.cr_type, 'map');
-	assert.ok(showcase.controllerMaps?.some(item =>
-		item.id === 'shushan-world-map'
-	));
-	assert.ok(showcase.controllerMaps?.some(item =>
-		item.id === 'emei-region-map'
+	assert.ok(showcase.controllerMaps?.some(item => item.id === 'shushan-world-map'));
+	assert.ok(showcase.controllerMaps?.some(item => item.id === 'emei-region-map'));
+	assert.ok(showcase.options.some(item =>
+		item.value === 'shushan-world-map' && item.text?.includes('蜀山全图')
 	));
 	assert.ok(showcase.options.some(item =>
-		item.value === 'shushan-world-map'
-		&& item.text?.includes('蜀山全图')
-	));
-	assert.ok(showcase.options.some(item =>
-		item.value === 'emei-region-map'
-		&& item.text?.includes('峨眉山区域')
+		item.value === 'emei-region-map' && item.text?.includes('峨眉山区域')
 	));
 	assert.equal(showcase.li, true);
 	assert.equal(showcase.start, true);
