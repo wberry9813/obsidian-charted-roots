@@ -10,6 +10,7 @@ import { ItemView, WorkspaceLeaf, Menu, TFile, Notice, setIcon } from 'obsidian'
 import f3 from 'family-chart';
 import * as d3 from 'd3';
 import { historicalArrowGeometry } from '../../v2/historical-family-chart/arrow-geometry';
+import { filterHistoricalProjection, type HistoricalRelationPreset } from '../../v2/historical-family-chart/relation-presets';
 import { compareHistoricalRoutes, historicalParallelSag } from '../../v2/historical-family-chart/parallel-routes';
 
 import type CanvasRootsPlugin from '../../../main';
@@ -126,6 +127,7 @@ interface FamilyChartViewState {
 	rootPersonId: string | null;
 	mode?: FamilyChartMode;
 	historicalExpansionDepth?: number;
+	historicalRelationPreset?: HistoricalRelationPreset;
 	colorScheme: ColorScheme;
 	editMode: boolean;
 	nodeSpacing?: number;
@@ -173,6 +175,7 @@ export class FamilyChartView extends ItemView {
 	private rootPersonId: string | null = null;
 	private mode: FamilyChartMode = 'family';
 	private historicalExpansionDepth: number = DEFAULT_HISTORICAL_EXPANSION_DEPTH;
+	private historicalRelationPreset: HistoricalRelationPreset = 'all';
 	private colorScheme: ColorScheme = 'sex';
 	private editMode: boolean = false;
 	private nodeSpacing: number = 250; // X spacing between nodes
@@ -391,6 +394,26 @@ export class FamilyChartView extends ItemView {
 		});
 
 		if (this.mode === 'historical') {
+			const filterGroup = leftControls.createDiv({ cls: 'cr-fcv-control-group' });
+			filterGroup.createSpan({ cls: 'cr-fcv-label', text: '关系' });
+			const filter = filterGroup.createEl('select', {
+				cls: 'cr-fcv-select cr-fcv-historical-preset-select',
+				attr: { 'aria-label': 'Historical relation category' }
+			});
+			for (const [id, label] of [
+				['all', '全部关系'],
+				['political', '政治关系'],
+				['mentorship', '师承与举荐']
+			] as const) {
+				filter.createEl('option', { text: label, attr: { value: id } });
+			}
+			filter.value = this.historicalRelationPreset;
+			filter.addEventListener('change', () => {
+				this.historicalRelationPreset = filter.value as HistoricalRelationPreset;
+				this.renderHistoricalExpansionAndOverlay();
+				this.app.workspace.requestSaveLayout();
+			});
+
 			const depthGroup = leftControls.createDiv({
 				cls: 'cr-fcv-control-group cr-fcv-historical-depth-group'
 			});
@@ -4095,7 +4118,7 @@ export class FamilyChartView extends ItemView {
 		const root = this.resolveHistoricalPersonRef(this.rootPersonId);
 		if (!root) return;
 
-		const projection = this.historicalProjector.project(this.temporalFocus);
+		const projection = filterHistoricalProjection(this.historicalProjector.project(this.temporalFocus), this.historicalRelationPreset);
 		const expansion = expandHistoricalFamilyChartPeople(root, projection, {
 			depth: this.historicalExpansionDepth
 		});
@@ -4881,7 +4904,7 @@ export class FamilyChartView extends ItemView {
 	private collectHistoricalOverlayRelationships(
 		cardPositions: Map<string, { x: number; y: number }>
 	): Array<{ rel: ParsedRelationship; type: RelationshipTypeDefinition }> {
-		const projection = this.historicalProjector.project(this.temporalFocus);
+		const projection = filterHistoricalProjection(this.historicalProjector.project(this.temporalFocus), this.historicalRelationPreset);
 		const relationshipTypes = getAllRelationshipTypesWithCustomizations(
 			this.plugin.settings.customRelationshipTypes || [],
 			true,
@@ -6391,6 +6414,7 @@ export class FamilyChartView extends ItemView {
 			rootPersonId: this.rootPersonId,
 			mode: this.mode,
 			historicalExpansionDepth: this.historicalExpansionDepth,
+			historicalRelationPreset: this.historicalRelationPreset,
 			colorScheme: this.colorScheme,
 			editMode: this.editMode,
 			nodeSpacing: this.nodeSpacing,
@@ -6444,6 +6468,9 @@ export class FamilyChartView extends ItemView {
 					Math.floor(state.historicalExpansionDepth)
 				)
 			);
+		}
+		if (state.historicalRelationPreset === 'all' || state.historicalRelationPreset === 'political' || state.historicalRelationPreset === 'mentorship') {
+			this.historicalRelationPreset = state.historicalRelationPreset;
 		}
 		if (state.colorScheme !== undefined) {
 			this.colorScheme = state.colorScheme;
