@@ -349,7 +349,7 @@ Expected behavior:
 
 - [x] directional arrowheads (Historical mode only; semantic object endpoint independent of bezier path ordering; symmetric relationships remain arrow-free);
 - [ ] persistent edge labels (hover labels now show direction for asymmetric predicates, date range and research-state notes);
-- [ ] multi-edge routing;
+- [ ] multi-edge routing (initial deterministic ordering and separated curvature implemented; dense-case visual acceptance pending);
 - [ ] relation category presets;
 - [ ] dense-network decluttering;
 - [ ] export historical overlays;
