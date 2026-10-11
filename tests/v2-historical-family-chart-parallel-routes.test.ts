@@ -14,6 +14,13 @@ describe('Historical parallel relation routing', () => {
     ]);
     expect([...routes].reverse().sort(compareHistoricalRoutes)).toEqual(ordered);
   });
+  it('compresses dense multi-edge stacks while keeping all routes distinct', () => {
+    const dense = Array.from({ length: 12 }, (_, i) => historicalParallelSag(120, i, 12));
+    expect(new Set(dense).size).toBe(12);
+    expect(dense[0]).toBe(120);
+    expect(dense[11]).toBeCloseTo(276);
+    expect(dense[11]).toBeLessThan(historicalParallelSag(120, 11, 3));
+  });
   it('spaces three relations by distinct curve depths', () => {
     expect([0, 1, 2].map(i => historicalParallelSag(120, i))).toEqual([120, 146, 172]);
   });
