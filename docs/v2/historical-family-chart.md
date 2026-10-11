@@ -347,7 +347,7 @@ Expected behavior:
 
 ### F6 — polish and research-scale use
 
-- [ ] directional arrowheads;
+- [x] directional arrowheads (Historical mode only; semantic object endpoint independent of bezier path ordering; symmetric relationships remain arrow-free);
 - [ ] persistent edge labels (hover labels now show direction for asymmetric predicates, date range and research-state notes);
 - [ ] multi-edge routing;
 - [ ] relation category presets;
