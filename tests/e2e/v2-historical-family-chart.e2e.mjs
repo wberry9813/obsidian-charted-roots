@@ -204,6 +204,27 @@ test('Historical Family Chart follows shared Timeline focus in real Obsidian', a
 		})()`
 	);
 
+	// Both Assertions are visible at All time. Their routing must remain
+	// distinct even though they connect the same two Person cards.
+	const parallel = await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const ally = root?.querySelector('.cr-relationship-overlay-line--ally_of');
+		const rival = root?.querySelector('.cr-relationship-overlay-line--political_rival');
+		return {
+			allyPath: ally?.getAttribute('d') ?? null,
+			rivalPath: rival?.getAttribute('d') ?? null,
+			allySource: ally?.dataset.sourceCrId ?? null,
+			rivalSource: rival?.dataset.sourceCrId ?? null,
+			arrowCount: root?.querySelectorAll('.cr-fcv-historical-direction-arrow').length ?? -1
+		};
+	`);
+	assert.ok(parallel.allyPath);
+	assert.ok(parallel.rivalPath);
+	assert.notEqual(parallel.allyPath, parallel.rivalPath,
+		'parallel historical Assertions should occupy distinct curves');
+	assert.equal(parallel.allySource, 'person-cao-cao');
+	assert.equal(parallel.rivalSource, 'person-cao-cao');
+
 	await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
 		plugin.getTemporalFocusService().setAxisRange(
