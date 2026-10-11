@@ -1,6 +1,6 @@
 # Historical Family Chart
 
-> Status: **F0–F4 implemented on `feat/v2-historical-family-chart`; F5 card-state enrichment next**
+> Status: **F0–F5 implemented on `feat/v2-historical-family-chart`; F6 polish / research-scale use next**
 >
 > This document defines a historical-research mode for the existing Interactive
 > Family Chart. The mode reuses the person-card surface and layout machinery,
@@ -212,7 +212,7 @@ the same time.
 
 ## 9. Person-card historical context
 
-Later F5 enriches cards at the current temporal focus with:
+F5 enriches cards at the current temporal focus with:
 
 - active organization memberships;
 - active offices/titles;
@@ -332,11 +332,18 @@ Expected behavior:
 
 ### F5 — historical person-card state
 
-- [ ] active affiliations;
-- [ ] active office holdings/titles;
-- [ ] organization labels;
-- [ ] confidence / possible state;
-- [ ] card detail/popup links back to source Assertions.
+- [x] active affiliations;
+- [x] active office holdings/titles;
+- [x] organization labels;
+- [x] confidence / possible state;
+- [x] card detail/popup links back to source Assertions.
+- [x] structural genealogy cards and historical-lane Person cards share the
+  same temporal institutional-state projection.
+- [x] cards stay Person-only: Organization and Office entities enrich card
+  state but never become graph nodes.
+- [x] compact card annotations show at most the leading Office and
+  Organization plus an explicit possible-state count; the detail panel retains
+  the complete state list.
 
 ### F6 — polish and research-scale use
 
@@ -385,6 +392,27 @@ The real Obsidian test proves that:
    their inactive relationship edges;
 7. the following Workspace/UI smoke still passes, proving temporary lane
    fixtures are fully cleaned up and do not leak test state.
+
+F5 extends the same real-Obsidian suite with a **208 CE institutional-state**
+acceptance scenario for 曹操. The test creates temporary materialized
+Assertions and confirms, at one shared JDN focus, that:
+
+1. an active `office_holding` renders **丞相** on the 曹操 Person card;
+2. an active `affiliation` renders **汉朝廷** on the same card;
+3. a constraint-only affiliation renders as **possible** without being
+   promoted to an active fact;
+4. the compact card exposes the possible-state count while the historical
+   detail panel preserves active/possible state and confidence;
+5. the detail panel links back to the source Assertion note, and the Assertion
+   button opens that materialized source in real Obsidian;
+6. `TemporalInstitutionStateService`, the Historical Person-card projector
+   and the SVG/detail surfaces therefore agree on the same time slice.
+
+The E2E uses an explicit `208 CE → 220 CE` temporary office Assertion rather
+than treating the existing `建安十三年` fixture as canonical time. The
+HistoricalDateService deliberately leaves unsupported regnal expressions
+unresolved until a chronology provider is installed, so F5 must not manufacture
+a 208 CE office state from that unresolved expression.
 
 ## 14. Non-goals
 
