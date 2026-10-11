@@ -1035,6 +1035,27 @@ export function prepareSvgForExport(ctx: FamilyChartExportContext, svg: SVGSVGEl
 		}
 	}
 
+	// Historical mode adds standalone SVG lanes and relationship arcs outside
+	// the legacy cards_view / links_view groups. Include their bounds so
+	// exported SVG, PNG and PDF do not crop historical-only people or curves.
+	for (const selector of [
+		'.cr-fcv-historical-expansion-layer',
+		'.cr-relationship-overlay'
+	]) {
+		const layer = svg.querySelector<SVGGElement>(selector);
+		if (!layer) continue;
+		try {
+			const bounds = layer.getBBox();
+			if (bounds.width <= 0 && bounds.height <= 0) continue;
+			minX = Math.min(minX, bounds.x);
+			minY = Math.min(minY, bounds.y);
+			maxX = Math.max(maxX, bounds.x + bounds.width);
+			maxY = Math.max(maxY, bounds.y + bounds.height);
+		} catch {
+			// An unattached/hidden layer may not expose SVG geometry.
+		}
+	}
+
 	// For circle style, calculate bounds from HTML cards since SVG cards_view is empty
 	if (ctx.cardStyle === 'circle') {
 		const htmlCardsView = ctx.chartContainerEl?.querySelector('#htmlSvg .cards_view');
