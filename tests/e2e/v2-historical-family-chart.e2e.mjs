@@ -454,7 +454,7 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		created.push(await assertionService.createAssertion({
 			assertionType: 'relationship',
 			subject: '[[Charted Roots/People/Xun-Yu-Historical-Lane-E2E|荀彧]]',
-			predicate: 'ally_of',
+			predicate: 'recommends',
 			object: '[[Charted Roots/People/Guo-Jia-Historical-Lane-E2E|郭嘉]]',
 			timeStart: '196 CE',
 			timeEnd: '199 CE',
@@ -571,6 +571,17 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 				)
 				&& root?.querySelector('.cr-fcv-chart-container')
 					?.dataset.historicalExpandedCount === '2';
+		})()`
+	);
+
+	await session.waitFor(
+		`(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			return !!root?.querySelector(
+				'.cr-relationship-overlay-line--recommends[data-source-cr-id="e2e-historical-xun-yu"][data-target-cr-id="e2e-historical-guo-jia"]'
+			) && root?.querySelectorAll(
+				'.cr-fcv-historical-direction-arrow[data-source-cr-id="e2e-historical-xun-yu"][data-target-cr-id="e2e-historical-guo-jia"]'
+			).length === 1;
 		})()`
 	);
 
