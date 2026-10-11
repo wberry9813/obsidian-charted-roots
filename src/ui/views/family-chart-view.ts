@@ -49,13 +49,19 @@ import {
 	HistoricalFamilyChartProjector,
 	adaptHistoricalEdgesToRelationshipOverlay,
 	describeHistoricalFamilyChartFocus,
+	buildHistoricalPersonCardStates,
 	expandHistoricalFamilyChartPeople,
 	layoutHistoricalFamilyChartLanes,
 	DEFAULT_HISTORICAL_EXPANSION_DEPTH,
 	MAX_HISTORICAL_EXPANSION_DEPTH,
-	type HistoricalFamilyChartPersonRef
+	type HistoricalFamilyChartPersonRef,
+	type HistoricalPersonCardState,
+	type HistoricalPersonCardStateEntry
 } from '../../v2/historical-family-chart';
-import type { TemporalFocus } from '../../v2/temporal/temporal-focus-service';
+import {
+	isJulianDayFocus,
+	type TemporalFocus
+} from '../../v2/temporal/temporal-focus-service';
 
 const logger = getLogger('FamilyChartView');
 const HISTORICAL_FAMILY_CHART_FOCUS_SOURCE = 'historical-family-chart';
@@ -612,9 +618,18 @@ export class FamilyChartView extends ItemView {
 	private renderInfoPanelContent(): void {
 		if (!this.infoPanelContentEl || !this.infoPanelActionsEl || !this.selectedPersonId) return;
 
-		// Find the person data
+		// Find the person data. Historical expansion lanes may contain valid
+		// Person notes that are intentionally absent from the structural
+		// genealogy chartData; give those people a read-only detail surface.
 		const personData = this.chartData.find(p => p.id === this.selectedPersonId);
 		if (!personData) {
+			if (this.mode === 'historical') {
+				const historicalPerson = this.resolveHistoricalPersonRef(this.selectedPersonId);
+				if (historicalPerson) {
+					this.renderHistoricalOnlyInfoPanel(historicalPerson);
+					return;
+				}
+			}
 			this.infoPanelContentEl.empty();
 			this.infoPanelContentEl.createEl('p', { text: 'Person not found', cls: 'cr-fcv-info-panel-error' });
 			return;
@@ -701,6 +716,13 @@ export class FamilyChartView extends ItemView {
 			this.createInfoField(fieldsSection, 'Collection', personData.data['collection'] as string);
 		}
 
+		if (this.mode === 'historical') {
+			this.renderHistoricalInstitutionStateInfo(
+				this.infoPanelContentEl,
+				personData.id
+			);
+		}
+
 		// Relationships section
 		this.renderRelationshipsSection(personData);
 
@@ -740,6 +762,128 @@ export class FamilyChartView extends ItemView {
 			});
 			editBtn.addEventListener('click', () => this.enterInfoPanelEditMode(personData));
 		}
+	}
+
+	private renderHistoricalOnlyInfoPanel(
+		person: HistoricalFamilyChartPersonRef
+	): void {
+		if (!this.infoPanelContentEl || !this.infoPanelActionsEl) return;
+
+		const headerTitle = this.infoPanelEl?.querySelector(
+			'.cr-fcv-info-panel-header h3'
+		);
+		if (headerTitle) headerTitle.textContent = 'Historical person details';
+
+		this.infoPanelContentEl.empty();
+		this.infoPanelActionsEl.empty();
+
+		const fields = this.infoPanelContentEl.createDiv({
+			cls: 'cr-fcv-info-panel-fields'
+		});
+		this.createInfoField(fields, 'Name', person.name);
+		this.createInfoField(fields, 'Person note', person.filePath);
+		this.renderHistoricalInstitutionStateInfo(
+			this.infoPanelContentEl,
+			person.crId
+		);
+
+		this.infoPanelActionsEl.addClass('view-mode');
+		this.infoPanelActionsEl.removeClass('edit-mode');
+		this.infoPanelActionsEl.createDiv({
+			cls: 'cr-fcv-info-panel-actions-description',
+			text: 'Historical lane person; relationships and state are read-only'
+		});
+		const buttons = this.infoPanelActionsEl.createDiv({
+			cls: 'cr-fcv-info-panel-actions-buttons'
+		});
+		const open = buttons.createEl('button', { text: 'Open person note' });
+		open.addEventListener('click', () => void this.openPersonNote(person.crId));
+	}
+
+	private renderHistoricalInstitutionStateInfo(
+		parent: HTMLElement,
+		crId: string
+	): void {
+		const state = this.getHistoricalPersonCardStates().get(crId);
+		if (!state) return;
+
+		const entries = [...state.offices, ...state.affiliations];
+		if (entries.length === 0) return;
+
+		const section = parent.createDiv({
+			cls: 'cr-fcv-historical-state-section',
+			attr: { 'data-cr-id': crId }
+		});
+		section.createEl('h4', {
+			text: 'Historical state at temporal focus'
+		});
+
+		for (const entry of entries) {
+			const item = section.createDiv({
+				cls: 'cr-fcv-historical-state-item',
+				attr: {
+					'data-state': entry.state,
+					'data-kind': entry.relationKind,
+					'data-assertion-id': entry.assertionId,
+					'data-confidence': entry.confidence ?? ''
+				}
+			});
+			item.createSpan({
+				cls: 'cr-fcv-historical-state-kind',
+				text: entry.relationKind === 'office_holding'
+					? 'Office'
+					: 'Organization'
+			});
+
+			if (entry.targetFilePath) {
+				const target = item.createEl('button', {
+					cls: 'cr-fcv-historical-state-target',
+					text: entry.label
+				});
+				target.addEventListener('click', () => {
+					void this.openHistoricalFilePath(entry.targetFilePath!);
+				});
+			} else {
+				item.createSpan({
+					cls: 'cr-fcv-historical-state-target-label',
+					text: entry.label
+				});
+			}
+
+			item.createSpan({
+				cls: entry.state === 'active'
+					? 'cr-fcv-historical-state-badge cr-fcv-historical-state-badge--active'
+					: 'cr-fcv-historical-state-badge cr-fcv-historical-state-badge--possible',
+				text: entry.state === 'active' ? 'Active' : 'Possible'
+			});
+			if (entry.confidence) {
+				item.createSpan({
+					cls: 'cr-fcv-historical-state-confidence',
+					text: entry.confidence
+				});
+			}
+
+			const assertion = item.createEl('button', {
+				cls: 'cr-fcv-historical-state-assertion',
+				text: 'Assertion'
+			});
+			assertion.setAttribute(
+				'aria-label',
+				`Open source Assertion for ${entry.label}`
+			);
+			assertion.addEventListener('click', () => {
+				void this.openHistoricalFilePath(entry.assertionFilePath);
+			});
+		}
+	}
+
+	private async openHistoricalFilePath(filePath: string): Promise<void> {
+		const file = this.app.vault.getAbstractFileByPath(filePath);
+		if (!(file instanceof TFile)) {
+			new Notice(`File not found: ${filePath}`);
+			return;
+		}
+		await this.app.workspace.getLeaf(true).openFile(file);
 	}
 
 	/**
@@ -3729,6 +3873,163 @@ export class FamilyChartView extends ItemView {
 		return null;
 	}
 
+	private getHistoricalPersonCardStates(): Map<string, HistoricalPersonCardState> {
+		if (this.mode !== 'historical' || !isJulianDayFocus(this.temporalFocus)) {
+			return new Map();
+		}
+		const service = this.plugin.getTemporalInstitutionStateService();
+		if (!service) return new Map();
+
+		const focus = this.temporalFocus;
+		const snapshot = focus.kind === 'point'
+			? service.getAt(focus.position)
+			: service.getRange({
+				start: focus.start,
+				endExclusive: focus.endExclusive
+			});
+
+		return buildHistoricalPersonCardStates(snapshot, filePath => {
+			const file = this.app.vault.getAbstractFileByPath(filePath);
+			if (!(file instanceof TFile)) return undefined;
+			const frontmatter =
+				this.app.metadataCache.getFileCache(file)?.frontmatter;
+			const confidence = typeof frontmatter?.confidence === 'string'
+				? frontmatter.confidence
+				: undefined;
+			const researchStatus =
+				typeof frontmatter?.research_status === 'string'
+					? frontmatter.research_status
+					: undefined;
+			return { confidence, researchStatus };
+		});
+	}
+
+	private clearHistoricalCardStates(): void {
+		if (!this.chartContainerEl) return;
+		this.chartContainerEl
+			.querySelectorAll('.cr-fcv-historical-card-state')
+			.forEach(element => element.remove());
+		this.chartContainerEl.dataset.historicalStateCardCount = '0';
+	}
+
+	private historicalStateLabel(entry: HistoricalPersonCardStateEntry): string {
+		const prefix = entry.relationKind === 'office_holding' ? '▣' : '◆';
+		const possible = entry.state === 'possible' ? '? ' : '';
+		const confidence = entry.confidence && entry.confidence !== 'high'
+			? ` · ${entry.confidence}`
+			: '';
+		const raw = `${prefix} ${possible}${entry.label}${confidence}`;
+		return raw.length > 28 ? `${raw.slice(0, 27)}…` : raw;
+	}
+
+	private appendHistoricalCardStateRows(
+		target: SVGGElement,
+		state: HistoricalPersonCardState,
+		x: number,
+		startY: number
+	): void {
+		const entries = [
+			state.offices[0],
+			state.affiliations[0]
+		].filter(
+			(entry): entry is HistoricalPersonCardStateEntry => !!entry
+		);
+		if (entries.length === 0) return;
+
+		const group = createSvg('g');
+		group.setAttribute('class', 'cr-fcv-historical-card-state');
+		group.setAttribute('data-cr-id', state.personCrId);
+		group.setAttribute(
+			'data-possible-count',
+			String(state.possibleCount)
+		);
+
+		for (const [index, entry] of entries.entries()) {
+			const row = createSvg('g');
+			row.setAttribute(
+				'class',
+				'cr-fcv-historical-card-state__row'
+			);
+			row.setAttribute('data-kind', entry.relationKind);
+			row.setAttribute('data-state', entry.state);
+			row.setAttribute('data-assertion-id', entry.assertionId);
+			row.setAttribute('data-confidence', entry.confidence ?? '');
+
+			const text = createSvg('text');
+			text.setAttribute('x', String(x));
+			text.setAttribute('y', String(startY + index * 14));
+			text.setAttribute('text-anchor', 'middle');
+			text.textContent = this.historicalStateLabel(entry);
+			row.appendChild(text);
+
+			const title = createSvg('title');
+			title.textContent = [
+				entry.relationKind === 'office_holding'
+					? `Office: ${entry.label}`
+					: `Organization: ${entry.label}`,
+				entry.state === 'possible' ? 'Possible' : 'Active',
+				entry.confidence ? `Confidence: ${entry.confidence}` : '',
+				entry.researchStatus
+					? `Research: ${entry.researchStatus}`
+					: ''
+			].filter(Boolean).join(' · ');
+			row.appendChild(title);
+			group.appendChild(row);
+		}
+		target.appendChild(group);
+	}
+
+	private renderHistoricalCardStates(): void {
+		this.clearHistoricalCardStates();
+		if (this.mode !== 'historical' || !this.chartContainerEl) return;
+
+		const states = this.getHistoricalPersonCardStates();
+		if (states.size === 0) return;
+		const dimensions = this.getCardDimensions(this.cardStyle);
+		let rendered = 0;
+
+		d3.select(this.chartContainerEl)
+			.selectAll<SVGGElement, { data: { id: string } }>('.card_cont')
+			.each((nodeData, index, nodes) => {
+				const crId = nodeData?.data?.id;
+				const state = crId ? states.get(crId) : undefined;
+				if (!state) return;
+				const cardCont = nodes[index];
+				cardCont.setAttribute('data-cr-id', crId);
+				const card = d3.select(cardCont)
+					.select<SVGGElement>('.card')
+					.node();
+				if (!card) return;
+				this.appendHistoricalCardStateRows(
+					card,
+					state,
+					dimensions.w / 2,
+					dimensions.h + 14
+				);
+				rendered++;
+			});
+
+		for (const card of Array.from(
+			this.chartContainerEl.querySelectorAll<SVGGElement>(
+				'.cr-fcv-historical-person-card'
+			)
+		)) {
+			const crId = card.getAttribute('data-cr-id');
+			const state = crId ? states.get(crId) : undefined;
+			if (!state) continue;
+			this.appendHistoricalCardStateRows(
+				card,
+				state,
+				0,
+				dimensions.h / 2 + 16
+			);
+			rendered++;
+		}
+
+		this.chartContainerEl.dataset.historicalStateCardCount =
+			String(rendered);
+	}
+
 	private getHistoricalLaneCardPositions(): Map<string, { x: number; y: number }> {
 		const positions = new Map<string, { x: number; y: number }>();
 		if (!this.chartContainerEl) return positions;
@@ -3789,7 +4090,7 @@ export class FamilyChartView extends ItemView {
 				cardWidth: dimensions.w,
 				cardHeight: dimensions.h,
 				laneGap: 110,
-				rowGap: 28
+				rowGap: 58
 			}
 		);
 
@@ -3885,6 +4186,39 @@ export class FamilyChartView extends ItemView {
 			hint.textContent = 'Historical relation';
 			card.appendChild(hint);
 
+			const info = createSvg('g');
+			info.setAttribute('class', 'cr-fcv-historical-person-card__info');
+			info.setAttribute(
+				'transform',
+				`translate(${dimensions.w / 2 - 16}, ${-dimensions.h / 2 + 16})`
+			);
+			info.setAttribute('role', 'button');
+			info.setAttribute('tabindex', '0');
+			info.setAttribute(
+				'aria-label',
+				`Open historical state details for ${node.person.name}`
+			);
+			const infoCircle = createSvg('circle');
+			infoCircle.setAttribute('r', '9');
+			info.appendChild(infoCircle);
+			const infoText = createSvg('text');
+			infoText.setAttribute('text-anchor', 'middle');
+			infoText.setAttribute('y', '4');
+			infoText.textContent = 'i';
+			info.appendChild(infoText);
+			const openInfo = (event: Event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				this.openInfoPanel(node.person.crId);
+			};
+			info.addEventListener('click', openInfo);
+			info.addEventListener('keydown', event => {
+				if (event.key === 'Enter' || event.key === ' ') {
+					openInfo(event);
+				}
+			});
+			card.appendChild(info);
+
 			const tooltip = createSvg('title');
 			tooltip.textContent =
 				`${node.person.name} · historical depth ${node.historicalDepth} · click to open note`;
@@ -3912,8 +4246,10 @@ export class FamilyChartView extends ItemView {
 	private renderHistoricalExpansionAndOverlay(): void {
 		if (this.mode === 'historical') {
 			this.renderHistoricalExpansionLanes();
+			this.renderHistoricalCardStates();
 		} else {
 			this.clearHistoricalExpansionLayer();
+			this.clearHistoricalCardStates();
 		}
 		this.renderRelationshipOverlay();
 	}
