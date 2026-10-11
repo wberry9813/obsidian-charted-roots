@@ -1655,6 +1655,18 @@
   font-style: italic;
 }
 
+.cr-fcv-historical-card-state__possible-summary {
+  fill: var(--text-warning);
+  font-size: 9px;
+  font-weight: 650;
+  font-style: italic;
+  paint-order: stroke;
+  stroke: var(--background-primary);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
 .cr-fcv-historical-person-card__info {
   cursor: pointer;
   pointer-events: auto;

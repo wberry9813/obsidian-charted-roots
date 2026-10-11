@@ -604,3 +604,254 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		return true;
 	`);
 });
+
+
+test('Historical Family Chart enriches Person cards with temporal institutional state', async (t) => {
+	await mkdir(ARTIFACTS, { recursive: true });
+	const session = await launchObsidian({ vault: VAULT });
+	t.after(async () => session.close());
+
+	const hanCourtPath = 'Charted Roots/Organizations/Han-Court-Historical-Card-E2E.md';
+	const caoGroupPath = 'Charted Roots/Organizations/Cao-Group-Historical-Card-E2E.md';
+
+	await session.waitFor(
+		`app.metadataCache.getCache('Charted Roots/People/Cao-Cao.md')?.frontmatter?.cr_id === 'person-cao-cao'
+			&& app.metadataCache.getCache('Charted Roots/Assertions/Cao-Cao-Chancellor.md')?.frontmatter?.cr_id === 'assertion-cao-cao-chancellor'
+			&& app.metadataCache.getCache('Charted Roots/Offices/Chancellor.md')?.frontmatter?.cr_id === 'office-han-chancellor'`
+	);
+
+	await session.evalInApp(`
+		const folderPath = 'Charted Roots/Organizations';
+		if (!app.vault.getAbstractFileByPath(folderPath)) {
+			await app.vault.createFolder(folderPath);
+		}
+		for (const path of [
+			"Charted Roots/Organizations/Han-Court-Historical-Card-E2E.md",
+			"Charted Roots/Organizations/Cao-Group-Historical-Card-E2E.md"
+		]) {
+			const existing = app.vault.getAbstractFileByPath(path);
+			if (existing) await app.vault.delete(existing);
+		}
+		await app.vault.create(
+			"Charted Roots/Organizations/Han-Court-Historical-Card-E2E.md",
+			[
+				'---',
+				'cr_schema: 2',
+				'cr_type: organization',
+				'cr_id: e2e-historical-han-court',
+				'name: 汉朝廷',
+				'org_type: court',
+				'---',
+				'# 汉朝廷',
+				'',
+				'Temporary F5 institutional-state fixture.'
+			].join('\\n')
+		);
+		await app.vault.create(
+			"Charted Roots/Organizations/Cao-Group-Historical-Card-E2E.md",
+			[
+				'---',
+				'cr_schema: 2',
+				'cr_type: organization',
+				'cr_id: e2e-historical-cao-group',
+				'name: 曹操集团',
+				'org_type: faction',
+				'---',
+				'# 曹操集团',
+				'',
+				'Temporary F5 possible-state fixture.'
+			].join('\\n')
+		);
+		return true;
+	`);
+
+	await session.waitFor(
+		`app.metadataCache.getCache("Charted Roots/Organizations/Han-Court-Historical-Card-E2E.md")?.frontmatter?.cr_id === 'e2e-historical-han-court'
+			&& app.metadataCache.getCache("Charted Roots/Organizations/Cao-Group-Historical-Card-E2E.md")?.frontmatter?.cr_id === 'e2e-historical-cao-group'`
+	);
+
+	const setup = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const registry = plugin.getV2OntologyRegistry();
+		if (!registry.hasPredicate('member_of')) {
+			throw new Error('member_of predicate is unavailable.');
+		}
+		const assertionService = plugin.getAssertionService();
+		const activeAffiliation = await assertionService.createAssertion({
+			assertionType: 'affiliation',
+			subject: '[[Charted Roots/People/Cao-Cao|曹操]]',
+			predicate: 'member_of',
+			object: '[[Charted Roots/Organizations/Han-Court-Historical-Card-E2E|汉朝廷]]',
+			timeStart: '196 CE',
+			timeEnd: '220 CE',
+			timeStartPrecision: 'year',
+			timeEndPrecision: 'year',
+			confidence: 'high',
+			title: '曹操隶属汉朝廷 F5 E2E'
+		}, { folder: 'Charted Roots/Assertions' });
+		const possibleAffiliation = await assertionService.createAssertion({
+			assertionType: 'affiliation',
+			subject: '[[Charted Roots/People/Cao-Cao|曹操]]',
+			predicate: 'member_of',
+			object: '[[Charted Roots/Organizations/Cao-Group-Historical-Card-E2E|曹操集团]]',
+			timeNotBefore: '207 CE',
+			timeNotAfter: '209 CE',
+			confidence: 'medium',
+			researchStatus: 'provisional',
+			title: '曹操集团可能隶属 F5 E2E'
+		}, { folder: 'Charted Roots/Assertions' });
+
+		const calendar = plugin.getHistoricalDateService().getCalendarProvider('tyme');
+		if (!calendar) throw new Error('Tyme historical calendar is unavailable.');
+		const point208 = calendar.solarToJulianDay({ year: 208, month: 6, day: 1 });
+		plugin.getTemporalFocusService().setPoint(point208, 'e2e-family-chart-f5');
+		await plugin.activateFamilyChartView('person-cao-cao', true, true);
+
+		return {
+			activeAffiliationPath: activeAffiliation.path,
+			possibleAffiliationPath: possibleAffiliation.path,
+			point208
+		};
+	`);
+
+	await session.waitFor(
+		`app.metadataCache.getCache(${JSON.stringify(setup.activeAffiliationPath)})?.frontmatter?.assertion_type === 'affiliation'
+			&& app.metadataCache.getCache(${JSON.stringify(setup.possibleAffiliationPath)})?.frontmatter?.assertion_type === 'affiliation'`
+	);
+
+	await session.waitFor(
+		`(() => {
+			const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+			return !!view
+				&& view.containerEl.querySelectorAll('.card_cont').length >= 2
+				&& !!view.containerEl.querySelector('.cr-fcv-mode-select');
+		})()`
+	);
+
+	await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		const select = view?.containerEl.querySelector('.cr-fcv-mode-select');
+		if (!(select instanceof HTMLSelectElement)) {
+			throw new Error('Family Chart mode selector is unavailable.');
+		}
+		select.value = 'historical';
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		return true;
+	`);
+
+	await session.waitFor(
+		`(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			if (!root) return false;
+			const state = root.querySelector(
+				'.cr-fcv-historical-card-state[data-cr-id="person-cao-cao"]'
+			);
+			const office = state?.querySelector(
+				'.cr-fcv-historical-card-state__row[data-kind="office_holding"][data-state="active"] text'
+			);
+			const affiliation = state?.querySelector(
+				'.cr-fcv-historical-card-state__row[data-kind="affiliation"][data-state="active"] text'
+			);
+			const possible = state?.querySelector(
+				'.cr-fcv-historical-card-state__possible-summary'
+			);
+			return !!state
+				&& office?.textContent?.includes('丞相')
+				&& affiliation?.textContent?.includes('汉朝廷')
+				&& state.getAttribute('data-possible-count') === '1'
+				&& possible?.textContent?.includes('1 possible');
+		})()`
+	);
+
+	const cardState = await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const state = root?.querySelector(
+			'.cr-fcv-historical-card-state[data-cr-id="person-cao-cao"]'
+		);
+		return {
+			office: state?.querySelector(
+				'.cr-fcv-historical-card-state__row[data-kind="office_holding"] text'
+			)?.textContent ?? null,
+			affiliation: state?.querySelector(
+				'.cr-fcv-historical-card-state__row[data-kind="affiliation"] text'
+			)?.textContent ?? null,
+			possibleCount: state?.getAttribute('data-possible-count') ?? null,
+			renderedCount: root?.querySelector('.cr-fcv-chart-container')
+				?.dataset.historicalStateCardCount ?? null
+		};
+	`);
+	assert.match(cardState.office ?? '', /丞相/);
+	assert.match(cardState.affiliation ?? '', /汉朝廷/);
+	assert.equal(cardState.possibleCount, '1');
+	assert.ok(Number(cardState.renderedCount ?? '0') >= 1);
+
+	await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		view?.openInfoPanel?.('person-cao-cao');
+		return true;
+	`);
+
+	await session.waitFor(
+		`(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			const section = root?.querySelector(
+				'.cr-fcv-historical-state-section[data-cr-id="person-cao-cao"]'
+			);
+			if (!section) return false;
+			const office = section.querySelector(
+				'.cr-fcv-historical-state-item[data-kind="office_holding"][data-state="active"]'
+			);
+			const activeOrg = section.querySelector(
+				'.cr-fcv-historical-state-item[data-kind="affiliation"][data-state="active"][data-confidence="high"]'
+			);
+			const possibleOrg = section.querySelector(
+				'.cr-fcv-historical-state-item[data-kind="affiliation"][data-state="possible"][data-confidence="medium"]'
+			);
+			return !!office && !!activeOrg && !!possibleOrg;
+		})()`
+	);
+
+	await session.screenshot(
+		path.join(ARTIFACTS, 'v2-historical-family-chart-card-state.png')
+	);
+
+	await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const button = root?.querySelector(
+			'.cr-fcv-historical-state-item[data-kind="affiliation"][data-state="active"] '
+			+ '.cr-fcv-historical-state-assertion'
+		);
+		if (!(button instanceof HTMLButtonElement)) {
+			throw new Error('Historical state Assertion button is unavailable.');
+		}
+		button.click();
+		return true;
+	`);
+
+	await session.waitFor(
+		`app.workspace.getActiveFile()?.path === ${JSON.stringify(setup.activeAffiliationPath)}`
+	);
+
+	await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		plugin.getTemporalFocusService().clear();
+		for (const path of [
+			${JSON.stringify(setup.activeAffiliationPath)},
+			${JSON.stringify(setup.possibleAffiliationPath)},
+			"Charted Roots/Organizations/Han-Court-Historical-Card-E2E.md",
+			"Charted Roots/Organizations/Cao-Group-Historical-Card-E2E.md"
+		]) {
+			const file = app.vault.getAbstractFileByPath(path);
+			if (file) await app.vault.delete(file);
+		}
+		for (const leaf of app.workspace.getLeavesOfType('canvas-roots-family-chart')) {
+			leaf.detach();
+		}
+		for (const leaf of app.workspace.getLeavesOfType('markdown')) {
+			if (leaf.view?.file?.path === ${JSON.stringify(setup.activeAffiliationPath)}) {
+				leaf.detach();
+			}
+		}
+		return true;
+	`);
+});

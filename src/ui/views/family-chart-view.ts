@@ -3976,6 +3976,22 @@ export class FamilyChartView extends ItemView {
 			row.appendChild(title);
 			group.appendChild(row);
 		}
+
+		if (state.possibleCount > 0) {
+			const possible = createSvg('text');
+			possible.setAttribute(
+				'class',
+				'cr-fcv-historical-card-state__possible-summary'
+			);
+			possible.setAttribute('x', String(x));
+			possible.setAttribute(
+				'y',
+				String(startY + entries.length * 14)
+			);
+			possible.setAttribute('text-anchor', 'middle');
+			possible.textContent = `? ${state.possibleCount} possible`;
+			group.appendChild(possible);
+		}
 		target.appendChild(group);
 	}
 
