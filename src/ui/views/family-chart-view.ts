@@ -4600,7 +4600,7 @@ export class FamilyChartView extends ItemView {
 				// Preserve established Family-mode routing unchanged.
 				const baseSag = Math.min(300, Math.max(40, len / 3, cardClearanceSag));
 				const sag = this.mode === 'historical'
-					? historicalParallelSag(baseSag, index)
+					? historicalParallelSag(baseSag, index, arcEntries.length)
 					: baseSag;
 				const cx = mx + px * sag;
 				const cy = my + py * sag;
