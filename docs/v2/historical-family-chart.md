@@ -300,7 +300,7 @@ Expected behavior:
 - [x] toolbar mode control;
 - [x] historical overlay reuses the mature Family Chart curve renderer;
 - [x] possible-state adapter uses distinct dotted styling;
-- [ ] predicate filter menu;
+- [x] predicate filter menu (All / Political / Mentorship & recommendations);
 - [x] pane state persistence;
 - [x] historical mode keeps genealogy editing read-only;
 - [x] family mode behavior remains the default.
@@ -350,7 +350,7 @@ Expected behavior:
 - [x] directional arrowheads (Historical mode only; semantic object endpoint independent of bezier path ordering; symmetric relationships remain arrow-free);
 - [ ] persistent edge labels (hover labels now show direction for asymmetric predicates, date range and research-state notes);
 - [ ] multi-edge routing (initial deterministic ordering and separated curvature implemented; dense-case visual acceptance pending);
-- [ ] relation category presets;
+- [x] initial relation category presets (ontology predicate-based; view state persisted; E2E switching and state assertions);
 - [ ] dense-network decluttering;
 - [ ] export historical overlays;
 - [ ] manual acceptance on Three Kingdoms showcase.
