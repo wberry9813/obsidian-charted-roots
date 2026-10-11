@@ -4578,9 +4578,13 @@ export class FamilyChartView extends ItemView {
 				// Tooltip hangs on the hit path so hover works across the wider area
 				const tooltip = createSvg('title');
 				const dateRange = this.formatRelationshipDateRange(rel);
-				tooltip.textContent = dateRange
-					? `${rel.sourceName} — ${type.name} — ${rel.targetName} (${dateRange})`
+				const relationshipLabel = this.mode === 'historical' && !type.symmetric
+					? `${rel.sourceName} → ${rel.targetName}: ${type.name}`
 					: `${rel.sourceName} — ${type.name} — ${rel.targetName}`;
+				const historicalNotes = this.mode === 'historical' && rel.notes
+					? ` · ${rel.notes}`
+					: '';
+				tooltip.textContent = `${relationshipLabel}${dateRange ? ` (${dateRange})` : ''}${historicalNotes}`;
 				hitPath.appendChild(tooltip);
 				overlayGroup.appendChild(hitPath);
 
