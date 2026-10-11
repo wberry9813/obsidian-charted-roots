@@ -742,6 +742,80 @@ test('Historical Family Chart enriches Person cards with temporal institutional 
 	await session.waitFor(
 		`(() => {
 			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			const focus = root?.querySelector('.cr-fcv-historical-focus');
+			return focus?.dataset.focusAxis === 'julian_day'
+				&& focus?.dataset.focusSource === 'e2e-family-chart-f5'
+				&& focus?.textContent?.includes('208 CE');
+		})()`
+	);
+
+	const diagnostic = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		const service = plugin.getTemporalInstitutionStateService();
+		const focus = plugin.getTemporalFocusService().get();
+		const snapshot = focus?.kind === 'point' && service
+			? service.getAt(focus.position)
+			: { active: [], possible: [] };
+		const simplify = entry => ({
+			state: entry.state,
+			kind: entry.relationKind,
+			assertionId: entry.assertionId,
+			subject: entry.subject?.crId ?? null,
+			object: entry.object?.crId ?? null,
+			label: entry.object?.label ?? null,
+			filePath: entry.item?.filePath ?? null
+		});
+		const projected = view?.getHistoricalPersonCardStates?.().get('person-cao-cao');
+		const root = view?.containerEl;
+		const domState = root?.querySelector(
+			'.cr-fcv-historical-card-state[data-cr-id="person-cao-cao"]'
+		);
+		return {
+			focus,
+			service: {
+				active: snapshot.active.map(simplify),
+				possible: snapshot.possible.map(simplify)
+			},
+			projected: projected ? {
+				offices: projected.offices,
+				affiliations: projected.affiliations,
+				possibleCount: projected.possibleCount
+			} : null,
+			dom: domState ? {
+				possibleCount: domState.getAttribute('data-possible-count'),
+				text: domState.textContent,
+				rows: [...domState.querySelectorAll('.cr-fcv-historical-card-state__row')]
+					.map(row => ({
+						kind: row.getAttribute('data-kind'),
+						state: row.getAttribute('data-state'),
+						assertionId: row.getAttribute('data-assertion-id'),
+						text: row.textContent
+					}))
+			} : null,
+			structuralIds: [...(root?.querySelectorAll('.card_cont') ?? [])]
+				.map(card => card.__data__?.data?.id)
+				.filter(Boolean)
+		};
+	`);
+	console.log('F5_CARD_STATE_DIAGNOSTIC', JSON.stringify(diagnostic));
+
+	assert.ok(
+		diagnostic.service.active.length + diagnostic.service.possible.length > 0,
+		'TemporalInstitutionStateService returned no institutional state at 208 CE'
+	);
+	assert.ok(
+		diagnostic.projected,
+		'Historical card-state projector returned no 曹操 state at 208 CE'
+	);
+	assert.ok(
+		diagnostic.dom,
+		'Historical card-state projector had state but no 曹操 SVG annotation rendered'
+	);
+
+	await session.waitFor(
+		`(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
 			if (!root) return false;
 			const state = root.querySelector(
 				'.cr-fcv-historical-card-state[data-cr-id="person-cao-cao"]'
