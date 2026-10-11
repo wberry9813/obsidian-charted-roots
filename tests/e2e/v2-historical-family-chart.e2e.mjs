@@ -527,6 +527,20 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		path.join(ARTIFACTS, 'v2-historical-family-chart-expansion-depth2.png')
 	);
 
+	// Metadata/index refreshes can legitimately rebuild the Family Chart after
+	// the depth-2 state has already been observed. Re-assert the actual target
+	// immediately before interaction so the acceptance test never clicks during
+	// the transient teardown/rebuild window. This is state-based, not a sleep:
+	// the historical card still has to be genuinely present at depth 1.
+	await session.waitFor(
+		`(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			return !!root?.querySelector(
+				'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-xun-yu"][data-depth="1"]'
+			);
+		})()`
+	);
+
 	await session.evalInApp(`
 		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
 		const card = root?.querySelector(
