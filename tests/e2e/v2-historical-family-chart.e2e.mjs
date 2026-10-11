@@ -616,7 +616,6 @@ test('Historical Family Chart enriches Person cards with temporal institutional 
 
 	await session.waitFor(
 		`app.metadataCache.getCache('Charted Roots/People/Cao-Cao.md')?.frontmatter?.cr_id === 'person-cao-cao'
-			&& app.metadataCache.getCache('Charted Roots/Assertions/Cao-Cao-Chancellor.md')?.frontmatter?.cr_id === 'assertion-cao-cao-chancellor'
 			&& app.metadataCache.getCache('Charted Roots/Offices/Chancellor.md')?.frontmatter?.cr_id === 'office-han-chancellor'`
 	);
 
@@ -677,6 +676,18 @@ test('Historical Family Chart enriches Person cards with temporal institutional 
 			throw new Error('member_of predicate is unavailable.');
 		}
 		const assertionService = plugin.getAssertionService();
+		const activeOffice = await assertionService.createAssertion({
+			assertionType: 'office_holding',
+			subject: '[[Charted Roots/People/Cao-Cao|曹操]]',
+			predicate: 'holds_office',
+			object: '[[Charted Roots/Offices/Chancellor|丞相]]',
+			timeStart: '208 CE',
+			timeEnd: '220 CE',
+			timeStartPrecision: 'year',
+			timeEndPrecision: 'year',
+			confidence: 'high',
+			title: '曹操任丞相 F5 E2E'
+		}, { folder: 'Charted Roots/Assertions' });
 		const activeAffiliation = await assertionService.createAssertion({
 			assertionType: 'affiliation',
 			subject: '[[Charted Roots/People/Cao-Cao|曹操]]',
@@ -708,6 +719,7 @@ test('Historical Family Chart enriches Person cards with temporal institutional 
 		await plugin.activateFamilyChartView('person-cao-cao', true, true);
 
 		return {
+			activeOfficePath: activeOffice.path,
 			activeAffiliationPath: activeAffiliation.path,
 			possibleAffiliationPath: possibleAffiliation.path,
 			point208
@@ -715,7 +727,8 @@ test('Historical Family Chart enriches Person cards with temporal institutional 
 	`);
 
 	await session.waitFor(
-		`app.metadataCache.getCache(${JSON.stringify(setup.activeAffiliationPath)})?.frontmatter?.assertion_type === 'affiliation'
+		`app.metadataCache.getCache(${JSON.stringify(setup.activeOfficePath)})?.frontmatter?.assertion_type === 'office_holding'
+			&& app.metadataCache.getCache(${JSON.stringify(setup.activeAffiliationPath)})?.frontmatter?.assertion_type === 'affiliation'
 			&& app.metadataCache.getCache(${JSON.stringify(setup.possibleAffiliationPath)})?.frontmatter?.assertion_type === 'affiliation'`
 	);
 
@@ -910,6 +923,7 @@ test('Historical Family Chart enriches Person cards with temporal institutional 
 		const plugin = app.plugins.plugins['charted-roots'];
 		plugin.getTemporalFocusService().clear();
 		for (const path of [
+			${JSON.stringify(setup.activeOfficePath)},
 			${JSON.stringify(setup.activeAffiliationPath)},
 			${JSON.stringify(setup.possibleAffiliationPath)},
 			"Charted Roots/Organizations/Han-Court-Historical-Card-E2E.md",
