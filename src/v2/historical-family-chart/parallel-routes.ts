@@ -13,6 +13,9 @@ export function compareHistoricalRoutes(a: HistoricalRouteKey, b: HistoricalRout
     || (a.from ?? '').localeCompare(b.from ?? '')
     || (a.to ?? '').localeCompare(b.to ?? '');
 }
-export function historicalParallelSag(baseSag: number, index: number): number {
-  return baseSag + Math.max(0, index) * 26;
+export function historicalParallelSag(baseSag: number, index: number, count = 1): number {
+  // Keep small stacks legible, but compress curvature for crowded pairs.
+  // Avoid pushing the outer routes hundreds of pixels beyond the cards.
+  const step = count > 6 ? Math.max(10, 156 / (count - 1)) : 26;
+  return baseSag + Math.max(0, index) * step;
 }
