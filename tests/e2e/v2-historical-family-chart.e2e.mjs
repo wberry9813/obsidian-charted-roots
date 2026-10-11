@@ -555,6 +555,11 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 			&& !!root?.querySelector('.cr-relationship-overlay-line--ally_of')
 			&& !root?.querySelector('.cr-relationship-overlay-line--recommends');
 	})()`);
+	const savedPoliticalState = await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		return view?.getState().historicalRelationPreset;
+	`);
+	assert.equal(savedPoliticalState, 'political', 'preset must persist in the view state');
 	await session.evalInApp(`
 		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
 		const select = root?.querySelector('.cr-fcv-historical-preset-select');
