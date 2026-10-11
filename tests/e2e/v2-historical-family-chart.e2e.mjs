@@ -235,7 +235,8 @@ test('Historical Family Chart follows shared Timeline focus in real Obsidian', a
 		}));
 	`);
 	assert.equal(arrowState.length, parallel.arrowCount);
-	assert.ok(arrowState.every(arrow => arrow.points?.split(' ').length === 3));
+	assert.equal(parallel.arrowCount, 0,
+		'symmetric historical relationships must not display direction arrows');
 
 
 	await session.evalInApp(`
