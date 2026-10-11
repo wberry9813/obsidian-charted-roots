@@ -811,8 +811,6 @@ test('Historical Family Chart enriches Person cards with temporal institutional 
 				.filter(Boolean)
 		};
 	`);
-	console.log('F5_CARD_STATE_DIAGNOSTIC', JSON.stringify(diagnostic));
-
 	assert.ok(
 		diagnostic.service.active.length + diagnostic.service.possible.length > 0,
 		'TemporalInstitutionStateService returned no institutional state at 208 CE'
@@ -821,11 +819,6 @@ test('Historical Family Chart enriches Person cards with temporal institutional 
 		diagnostic.projected,
 		'Historical card-state projector returned no 曹操 state at 208 CE'
 	);
-	assert.ok(
-		diagnostic.dom,
-		'Historical card-state projector had state but no 曹操 SVG annotation rendered'
-	);
-
 	await session.waitFor(
 		`(() => {
 			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
