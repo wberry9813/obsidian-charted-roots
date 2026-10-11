@@ -10,6 +10,7 @@ import { ItemView, WorkspaceLeaf, Menu, TFile, Notice, setIcon } from 'obsidian'
 import f3 from 'family-chart';
 import * as d3 from 'd3';
 import { historicalArrowGeometry } from '../../v2/historical-family-chart/arrow-geometry';
+import { compareHistoricalRoutes, historicalParallelSag } from '../../v2/historical-family-chart/parallel-routes';
 
 import type CanvasRootsPlugin from '../../../main';
 import { FamilyGraphService, PersonNode } from '../../core/family-graph';
@@ -4469,13 +4470,10 @@ export class FamilyChartView extends ItemView {
 			// Historical Assertions can be emitted in different cache/index orders.
 			// Keep parallel routes stable across metadata refreshes and time changes.
 			if (this.mode === 'historical') {
-				arcEntries.sort((a, b) =>
-					a.type.id.localeCompare(b.type.id)
-					|| (a.rel.sourceCrId ?? '').localeCompare(b.rel.sourceCrId ?? '')
-					|| (a.rel.targetCrId ?? '').localeCompare(b.rel.targetCrId ?? '')
-					|| (a.rel.from ?? '').localeCompare(b.rel.from ?? '')
-					|| (a.rel.to ?? '').localeCompare(b.rel.to ?? '')
-				);
+				arcEntries.sort((a, b) => compareHistoricalRoutes(
+					{ predicate: a.type.id, sourceId: a.rel.sourceCrId ?? '', targetId: a.rel.targetCrId ?? '', from: a.rel.from, to: a.rel.to },
+					{ predicate: b.type.id, sourceId: b.rel.sourceCrId ?? '', targetId: b.rel.targetCrId ?? '', from: b.rel.from, to: b.rel.to }
+				));
 			}
 
 			if (arcEntries.length > maxArcStackDepth) {
@@ -4579,7 +4577,7 @@ export class FamilyChartView extends ItemView {
 				// Preserve established Family-mode routing unchanged.
 				const baseSag = Math.min(300, Math.max(40, len / 3, cardClearanceSag));
 				const sag = this.mode === 'historical'
-					? baseSag + index * 26
+					? historicalParallelSag(baseSag, index)
 					: baseSag;
 				const cx = mx + px * sag;
 				const cy = my + py * sag;
