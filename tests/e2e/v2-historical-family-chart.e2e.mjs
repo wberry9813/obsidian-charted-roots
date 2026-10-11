@@ -148,6 +148,15 @@ test('Historical Family Chart follows shared Timeline focus in real Obsidian', a
 	assert.equal(at197.source, 'e2e-family-chart');
 	assert.equal(at197.ally, true);
 	assert.equal(at197.rival, false);
+	// At 197 CE only the active ally edge may be visible, and no stale
+	// arrows should survive from the previous temporal projection.
+	const arrows197 = await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		return [...root.querySelectorAll('.cr-fcv-historical-direction-arrow')].map(el => ({
+			source: el.dataset.sourceCrId, target: el.dataset.targetCrId
+		}));
+	`);
+	assert.deepEqual(arrows197, [], 'symmetric active ally has no arrow');
 
 	await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
@@ -183,6 +192,13 @@ test('Historical Family Chart follows shared Timeline focus in real Obsidian', a
 	assert.equal(at201.source, 'map-time-slider');
 	assert.equal(at201.ally, false);
 	assert.equal(at201.rival, true);
+	const arrows201 = await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		return [...root.querySelectorAll('.cr-fcv-historical-direction-arrow')].map(el => ({
+			source: el.dataset.sourceCrId, target: el.dataset.targetCrId
+		}));
+	`);
+	assert.deepEqual(arrows201, [], 'symmetric active rivalry has no arrow');
 
 	await session.screenshot(
 		path.join(ARTIFACTS, 'v2-historical-family-chart-focus.png')
