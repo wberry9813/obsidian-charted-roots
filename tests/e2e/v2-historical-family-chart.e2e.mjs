@@ -656,6 +656,16 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 					'.cr-relationship-overlay-line--ally_of'
 					+ '[data-source-cr-id="person-cao-cao"]'
 					+ '[data-target-cr-id="e2e-historical-xun-yu"]'
+				)
+				&& !root.querySelector(
+					'.cr-relationship-overlay-line--recommends'
+					+ '[data-source-cr-id="e2e-historical-xun-yu"]'
+					+ '[data-target-cr-id="e2e-historical-guo-jia"]'
+				)
+				&& !root.querySelector(
+					'.cr-fcv-historical-direction-arrow'
+					+ '[data-source-cr-id="e2e-historical-xun-yu"]'
+					+ '[data-target-cr-id="e2e-historical-guo-jia"]'
 				);
 		})()`
 	);
