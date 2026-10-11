@@ -536,6 +536,51 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		})()`
 	);
 
+	// A political-only preset keeps the 曹操–荀彧 alliance but hides
+	// 荀彧–郭嘉 recommendation. Restore All before depth-2 tests.
+	await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const select = root?.querySelector('.cr-fcv-historical-preset-select');
+		if (!(select instanceof HTMLSelectElement)) throw new Error('Historical relation filter missing');
+		select.value = 'political';
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		return true;
+	`);
+	await session.waitFor(`(() => {
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		return root?.querySelector('.cr-fcv-historical-preset-select')?.value === 'political'
+			&& !!root?.querySelector('.cr-relationship-overlay-line--ally_of')
+			&& !root?.querySelector('.cr-relationship-overlay-line--recommends');
+	})()`);
+	await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const select = root?.querySelector('.cr-fcv-historical-preset-select');
+		if (!(select instanceof HTMLSelectElement)) throw new Error('Historical relation filter missing');
+		select.value = 'mentorship';
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		return true;
+	`);
+	await session.waitFor(`(() => {
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		return root?.querySelector('.cr-fcv-historical-preset-select')?.value === 'mentorship'
+			&& !root?.querySelector('.cr-relationship-overlay-line--ally_of')
+			&& !root?.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-xun-yu"]');
+	})()`);
+	await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const select = root?.querySelector('.cr-fcv-historical-preset-select');
+		if (!(select instanceof HTMLSelectElement)) throw new Error('Historical relation filter missing');
+		select.value = 'all';
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		return true;
+	`);
+	await session.waitFor(`(() => {
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		return root?.querySelector('.cr-fcv-historical-preset-select')?.value === 'all'
+			&& !!root?.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-xun-yu"]')
+			&& !!root?.querySelector('.cr-relationship-overlay-line--ally_of');
+	})()`);
+
 	const depth1 = await session.evalInApp(`
 		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
 		return {
