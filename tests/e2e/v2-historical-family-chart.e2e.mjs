@@ -224,6 +224,19 @@ test('Historical Family Chart follows shared Timeline focus in real Obsidian', a
 		'parallel historical Assertions should occupy distinct curves');
 	assert.equal(parallel.allySource, 'person-cao-cao');
 	assert.equal(parallel.rivalSource, 'person-cao-cao');
+	// Arrows are part of the semantic historical overlay, not Family links.
+	// Each directed edge has exactly one arrow aimed at its Assertion object.
+	const arrowState = await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		return [...root.querySelectorAll('.cr-fcv-historical-direction-arrow')].map(arrow => ({
+			source: arrow.dataset.sourceCrId,
+			target: arrow.dataset.targetCrId,
+			points: arrow.getAttribute('points')
+		}));
+	`);
+	assert.equal(arrowState.length, parallel.arrowCount);
+	assert.ok(arrowState.every(arrow => arrow.points?.split(' ').length === 3));
+
 
 	await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
