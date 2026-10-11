@@ -4466,6 +4466,17 @@ export class FamilyChartView extends ItemView {
 			const arcEntries = structuralEntry && this.tryRestyleStructuralLink(svg, structuralEntry)
 				? entries.filter(e => e !== structuralEntry)
 				: entries;
+			// Historical Assertions can be emitted in different cache/index orders.
+			// Keep parallel routes stable across metadata refreshes and time changes.
+			if (this.mode === 'historical') {
+				arcEntries.sort((a, b) =>
+					a.type.id.localeCompare(b.type.id)
+					|| (a.rel.sourceCrId ?? '').localeCompare(b.rel.sourceCrId ?? '')
+					|| (a.rel.targetCrId ?? '').localeCompare(b.rel.targetCrId ?? '')
+					|| (a.rel.from ?? '').localeCompare(b.rel.from ?? '')
+					|| (a.rel.to ?? '').localeCompare(b.rel.to ?? '')
+				);
+			}
 
 			if (arcEntries.length > maxArcStackDepth) {
 				maxArcStackDepth = arcEntries.length;
@@ -4563,7 +4574,13 @@ export class FamilyChartView extends ItemView {
 				const y2 = toEdgeY + oy;
 				const mx = (x1 + x2) / 2;
 				const my = (y1 + y2) / 2;
-				const sag = Math.min(300, Math.max(40, len / 3, cardClearanceSag));
+				// Separate parallel historical arcs by curvature, not just an
+				// 8px translation that makes all their midpoints overlap visually.
+				// Preserve established Family-mode routing unchanged.
+				const baseSag = Math.min(300, Math.max(40, len / 3, cardClearanceSag));
+				const sag = this.mode === 'historical'
+					? baseSag + index * 26
+					: baseSag;
 				const cx = mx + px * sag;
 				const cy = my + py * sag;
 				const pathD = `M ${x1},${y1} Q ${cx},${cy} ${x2},${y2}`;
