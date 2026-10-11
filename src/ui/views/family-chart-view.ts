@@ -4605,6 +4605,31 @@ export class FamilyChartView extends ItemView {
 				if (rel.sourceCrId) path.setAttribute('data-source-cr-id', rel.sourceCrId);
 				if (rel.targetCrId) path.setAttribute('data-target-cr-id', rel.targetCrId);
 				overlayGroup.appendChild(path);
+				// SVG curvature is canonicalized independently of Assertion direction.
+				// Put the arrow at the semantic object endpoint, even for a reversed path.
+				if (this.mode === 'historical' && !type.symmetric) {
+					const tipX = sourceFirst ? x2 : x1;
+					const tipY = sourceFirst ? y2 : y1;
+					const tangentX = tipX - cx;
+					const tangentY = tipY - cy;
+					const tangentLength = Math.hypot(tangentX, tangentY);
+					if (tangentLength > 0) {
+						const ux = tangentX / tangentLength;
+						const uy = tangentY / tangentLength;
+						const baseX = tipX - ux * 11;
+						const baseY = tipY - uy * 11;
+						const wingX = -uy * 4.5;
+						const wingY = ux * 4.5;
+						const arrow = createSvg('polygon');
+						arrow.setAttribute('points', `${tipX},${tipY} ${baseX + wingX},${baseY + wingY} ${baseX - wingX},${baseY - wingY}`);
+						arrow.setAttribute('fill', type.color);
+						arrow.setAttribute('pointer-events', 'none');
+						arrow.setAttribute('class', 'cr-fcv-historical-direction-arrow');
+						if (rel.sourceCrId) arrow.setAttribute('data-source-cr-id', rel.sourceCrId);
+						if (rel.targetCrId) arrow.setAttribute('data-target-cr-id', rel.targetCrId);
+						overlayGroup.appendChild(arrow);
+					}
+				}
 			});
 		}
 
