@@ -19,3 +19,17 @@ export function historicalParallelSag(baseSag: number, index: number, count = 1)
   const step = count > 6 ? Math.max(10, 156 / (count - 1)) : 26;
   return baseSag + Math.max(0, index) * step;
 }
+
+
+export function historicalPersistentLabelVisible(index: number, count: number, maxLabels = 4): boolean {
+  if (count <= 0 || index < 0 || index >= count) return false;
+  if (maxLabels <= 0) return false;
+  if (count <= maxLabels) return true;
+  if (maxLabels === 1) return index === Math.floor((count - 1) / 2);
+
+  const selected = new Set<number>();
+  for (let slot = 0; slot < maxLabels; slot++) {
+    selected.add(Math.round(slot * (count - 1) / (maxLabels - 1)));
+  }
+  return selected.has(index);
+}
