@@ -203,25 +203,21 @@ test('Historical Family Chart follows shared Timeline focus in real Obsidian', a
 	`);
 	assert.deepEqual(arrows201, [], 'symmetric active rivalry has no arrow');
 
-	// Keep the temporal-focus screenshot meaningful: the relationship
-	// assertions above prove semantics, while this also proves the structural
-	// root remains visible after Historical Fit at the new focus.
-	await session.evalInApp(`
-		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
-		if (!view) throw new Error('Family Chart unavailable for focus visual acceptance');
-		view.fitToView();
-		return true;
-	`);
+	// Keep the temporal-focus screenshot meaningful without invoking the
+	// manual Fit command: Historical mode should recover automatically only
+	// when every chart card has drifted outside the viewport.
 	await session.waitFor(`(() => {
 		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
 		const viewport = root?.querySelector('svg.main_svg')?.getBoundingClientRect();
-		const cards = [...(root?.querySelectorAll('.card_cont') ?? [])]
-			.map(el => el.getBoundingClientRect())
-			.filter(r => r.width > 0 && r.height > 0);
-		return !!viewport && cards.some(card =>
-			card.right > viewport.left && card.left < viewport.right
-			&& card.bottom > viewport.top && card.top < viewport.bottom
-		);
+		const cards = [...(root?.querySelectorAll('.card_cont, .cr-fcv-historical-person-card') ?? [])];
+		return !!viewport && cards.some(el => {
+			const card = el.getBoundingClientRect();
+			const style = getComputedStyle(el);
+			return card.width > 0 && card.height > 0
+				&& style.visibility !== 'hidden' && Number(style.opacity || '1') > 0.01
+				&& card.right > viewport.left && card.left < viewport.right
+				&& card.bottom > viewport.top && card.top < viewport.bottom;
+		});
 	})()`);
 	await session.screenshot(
 		path.join(ARTIFACTS, 'v2-historical-family-chart-focus.png')
