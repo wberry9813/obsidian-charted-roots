@@ -227,6 +227,9 @@ export class FamilyChartView extends ItemView {
 
 	// family-chart instances
 	private f3Chart: ReturnType<typeof f3.createChart> | null = null;
+	// Monotonic token for Historical fit watchdogs. A newer request cancels
+	// any older request so concurrent redraw recovery cannot fight over .view.
+	private historicalFitRequestId = 0;
 	// All card styles use the SVG card renderer (#669 moved 'circle' off the
 	// HTML renderer, which never drew the connection-indicator bubbles).
 	private f3Card: ReturnType<ReturnType<typeof f3.createChart>['setCardSvg']>
@@ -2480,27 +2483,92 @@ export class FamilyChartView extends ItemView {
 		const svg = this.f3Chart?.svg as SVGSVGElement | undefined;
 		const view = svg?.querySelector<SVGGElement>('.view');
 		if (!svg || !view) return;
-		const MAX_FRAMES = 180;
+
+		const requestId = ++this.historicalFitRequestId;
+		const MAX_FRAMES = 600;
 		const MIN_FRAMES = 30;
-		const REQUIRED_STABLE_FRAMES = 8;
+		const REQUIRED_SETTLE_FRAMES = 8;
+		// scheduleRelationshipOverlayRerender has a 750ms movement backstop.
+		// Keep watching well beyond that window so a late redraw cannot silently
+		// replace the transform that Historical fit just applied.
+		const REQUIRED_POST_FIT_STABLE_FRAMES = 90;
+
 		let frame = 0;
 		let stableFrames = 0;
-		let last = view.style.transform;
-		let changed = false;
+		let observedChange = false;
+		let phase: 'settle' | 'verify' = 'settle';
+
+		const bboxSignature = (selector: string): string => {
+			const element = view.querySelector<SVGGraphicsElement>(selector);
+			if (!element) return 'none';
+			try {
+				const box = element.getBBox();
+				return [box.x, box.y, box.width, box.height]
+					.map(value => Number.isFinite(value) ? value.toFixed(2) : 'nan')
+					.join(',');
+			} catch {
+				return 'detached';
+			}
+		};
+		const geometrySignature = (): string => {
+			const cardPositions = Array.from(this.getCardPositions().entries())
+				.sort(([a], [b]) => a.localeCompare(b))
+				.map(([id, pos]) => `${id}:${pos.x.toFixed(2)},${pos.y.toFixed(2)}`)
+				.join('|');
+			return [
+				view.style.transform,
+				cardPositions,
+				bboxSignature('.cr-fcv-historical-expansion-layer'),
+				bboxSignature('.cr-relationship-overlay'),
+				String(view.querySelectorAll('.cr-fcv-historical-person-card').length),
+				String(view.querySelectorAll('.cr-relationship-overlay-line').length),
+				String(view.querySelectorAll('.cr-fcv-historical-edge-label').length)
+			].join('::');
+		};
+
+		let last = geometrySignature();
+		const applyHistoricalFit = () => {
+			this.renderHistoricalExpansionAndOverlay();
+			this.fitHistoricalContentToView();
+			phase = 'verify';
+			stableFrames = 0;
+			observedChange = false;
+			last = geometrySignature();
+		};
+
 		const tick = () => {
-			if (this.mode !== 'historical' || !this.f3Chart) return;
+			if (
+				requestId !== this.historicalFitRequestId
+				|| this.mode !== 'historical'
+				|| !this.f3Chart
+			) return;
+
 			frame++;
-			const current = view.style.transform;
+			const current = geometrySignature();
 			if (current !== last) {
-				changed = true;
+				observedChange = true;
 				stableFrames = 0;
 				last = current;
+				// A transform/content mutation after fitting means f3 or the overlay
+				// backstop redrew again. Return to settle mode and fit the final state.
+				if (phase === 'verify') phase = 'settle';
 			} else {
 				stableFrames++;
 			}
-			const settled = stableFrames >= REQUIRED_STABLE_FRAMES
-				&& (changed || frame >= MIN_FRAMES);
-			if (settled || frame >= MAX_FRAMES) {
+
+			if (phase === 'settle') {
+				const settled = stableFrames >= REQUIRED_SETTLE_FRAMES
+					&& (observedChange || frame >= MIN_FRAMES);
+				if (settled) {
+					applyHistoricalFit();
+				}
+			} else if (stableFrames >= REQUIRED_POST_FIT_STABLE_FRAMES) {
+				return;
+			}
+
+			if (frame >= MAX_FRAMES) {
+				// Safety backstop: leave the latest geometry fitted even if a noisy
+				// plugin/theme keeps producing cosmetic mutations indefinitely.
 				this.renderHistoricalExpansionAndOverlay();
 				this.fitHistoricalContentToView();
 				return;
