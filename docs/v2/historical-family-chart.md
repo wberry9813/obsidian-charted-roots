@@ -352,7 +352,7 @@ Expected behavior:
 - [ ] multi-edge routing (initial deterministic ordering and separated curvature implemented; dense-case visual acceptance pending);
 - [x] initial relation category presets (ontology predicate-based; view state persisted; E2E switching and state assertions);
 - [ ] dense-network decluttering;
-- [ ] export historical overlays (export bounds now include historical expansion lanes and relationship overlays; real Obsidian exported-file acceptance pending);
+- [ ] export historical overlays (SVG real-Obsidian export content/bounds accepted in CI #805; PNG/PDF export acceptance still pending);
 - [ ] manual acceptance on Three Kingdoms showcase.
 
 ## 13. Three Kingdoms acceptance scenario
