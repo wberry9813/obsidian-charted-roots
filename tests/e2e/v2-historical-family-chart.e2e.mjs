@@ -791,6 +791,22 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		return root?.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]')
 			&& root?.querySelector('.cr-fcv-chart-container')?.dataset.historicalExpandedCount === '2';
 	})()`);
+	// Historical fitting runs after f3's asynchronous position-stability
+	// callback. Wait for the actual visible result before collecting the
+	// geometry diagnostic; an immediate read samples f3's old fit transform.
+	let visibleAfterFit = true;
+	try {
+		await session.waitFor(`(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			const viewport = root?.querySelector('svg.main_svg')?.getBoundingClientRect();
+			const card = root?.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]')?.getBoundingClientRect();
+			return !!viewport && !!card && card.width > 0 && card.height > 0
+				&& card.right > viewport.left && card.left < viewport.right
+				&& card.bottom > viewport.top && card.top < viewport.bottom;
+		})()`);
+	} catch {
+		visibleAfterFit = false;
+	}
 	const visualBounds = await session.evalInApp(`
 		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
 		const svg = root?.querySelector('svg.main_svg');
@@ -814,7 +830,7 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 	assert.ok(viewport && card && card.width > 0 && card.height > 0
 		&& card.right > viewport.left && card.left < viewport.right
 		&& card.bottom > viewport.top && card.top < viewport.bottom,
-		'Historical depth-2 card is outside visible SVG after fit: ' + JSON.stringify(visualBounds));
+		'Historical depth-2 card is outside visible SVG after fit (wait passed: ' + visibleAfterFit + '): ' + JSON.stringify(visualBounds));
 
 	await session.screenshot(
 		path.join(ARTIFACTS, 'v2-historical-family-chart-expansion-depth2.png')
