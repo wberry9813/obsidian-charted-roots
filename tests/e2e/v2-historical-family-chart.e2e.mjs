@@ -638,6 +638,33 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		})()`
 	);
 
+	// Verify the directed arrow tip lies at the semantic target card's
+	// boundary, not merely that an arrow polygon was created somewhere.
+	const arrowPlacement = await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const arrow = root?.querySelector(
+			'.cr-fcv-historical-direction-arrow[data-source-cr-id="e2e-historical-xun-yu"][data-target-cr-id="e2e-historical-guo-jia"]'
+		);
+		const target = root?.querySelector(
+			'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'
+		);
+		if (!arrow || !target) throw new Error('Directed arrow or target card unavailable');
+		const tip = arrow.points.getItem(0);
+		const ctm = arrow.getScreenCTM();
+		if (!ctm) throw new Error('Arrow SVG matrix unavailable');
+		const screenTip = new DOMPoint(tip.x, tip.y).matrixTransform(ctm);
+		const rect = target.getBoundingClientRect();
+		const nearestX = Math.max(rect.left, Math.min(rect.right, screenTip.x));
+		const nearestY = Math.max(rect.top, Math.min(rect.bottom, screenTip.y));
+		return {
+			distanceToTarget: Math.hypot(screenTip.x - nearestX, screenTip.y - nearestY),
+			visible: rect.width > 0 && rect.height > 0
+		};
+	`);
+	assert.equal(arrowPlacement.visible, true);
+	assert.ok(arrowPlacement.distanceToTarget <= 45,
+		'Historical arrow tip should terminate near its semantic target card');
+
 	// Capture the actual SVG export payload without triggering a download.
 	// Assert that the serialized output retains historical lanes and arrows,
 	// and that its viewBox contains both SVG layer bounding boxes.
