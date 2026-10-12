@@ -2503,8 +2503,16 @@ export class FamilyChartView extends ItemView {
 			// The first SVG group is not necessarily the actual f3 .view.
 			// Apply the transform to the measured group itself; otherwise the
 			// historical fit silently leaves the structural fit unchanged.
+			const transform = `translate(${x}px, ${y}px) scale(${k})`;
+			// family-chart positions .view with an inline CSS transform. A CSS
+			// transform wins over the SVG transform attribute, so writing only the
+			// attribute leaves the live chart unchanged even though the attribute
+			// looks correct in diagnostics. Update the same CSS channel f3 uses.
+			view.style.transformOrigin = '0 0';
+			view.style.transform = transform;
 			view.setAttribute('transform', `translate(${x},${y}) scale(${k})`);
-			if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic += `;applied:${x},${y},${k}`;
+			if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic +=
+				`;applied:${x},${y},${k};style:${view.style.transform}`;
 			(svg as unknown as { __zoom: d3.ZoomTransform }).__zoom =
 				d3.zoomIdentity.translate(x, y).scale(k);
 			this.updateZoomLevelDisplay();
