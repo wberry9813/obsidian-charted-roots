@@ -349,10 +349,10 @@ Expected behavior:
 
 - [x] directional arrowheads (Historical mode only; semantic object endpoint independent of bezier path ordering; symmetric relationships remain arrow-free);
 - [ ] persistent edge labels (hover labels now show direction for asymmetric predicates, date range and research-state notes);
-- [ ] multi-edge routing (initial deterministic ordering and separated curvature implemented; dense-case visual acceptance pending);
+- [ ] multi-edge routing (deterministic ordering, separated curvature, and dense-route unit coverage implemented; research-scale visual decluttering acceptance still pending);
 - [x] initial relation category presets (ontology predicate-based; view state persisted; E2E switching and state assertions);
 - [ ] dense-network decluttering;
-- [ ] export historical overlays (SVG content and bounds accepted in CI #805; PNG format, decode, dimensions and nonblank pixels accepted in CI #811; Chinese labels, arrow visual fidelity, and PDF/ODT still need acceptance);
+- [ ] export historical overlays (SVG content/bounds and Chinese labels accepted in real Obsidian; PNG format/decode/dimensions/nonblank pixels accepted; PNG visual parity plus PDF/ODT still need acceptance);
 - [ ] manual acceptance on Three Kingdoms showcase.
 
 ## 13. Three Kingdoms acceptance scenario
@@ -421,12 +421,13 @@ For the three-kingdoms demo, verify the **208 CE** Cao Cao chart and a
 these screenshots represent primary historical evidence; source Assertions
 remain the research record.
 
-- [ ] At 208 CE, Cao Cao's active offices and affiliations are readable on
-  the Person card and in its sourced details.
-- [ ] At 197 CE, the historical depth lanes show Xun Yu / Guo Jia without
-  manufacturing parent-child or spouse links.
-- [ ] Directed `recommends` arrow points toward Guo Jia, while symmetric
-  `ally_of` has no arrow; both disappear as expected at 201 CE.
+- [x] At 208 CE, Cao Cao's active offices and affiliations are readable on
+  the Person card and in its sourced details (real-Obsidian screenshot visually reviewed after CI #863).
+- [x] At 197 CE, the historical depth lanes show Xun Yu / Guo Jia without
+  manufacturing parent-child or spouse links (real-Obsidian screenshot visually reviewed after CI #863).
+- [x] Directed `recommends` arrow points toward Guo Jia, while symmetric
+  `ally_of` has no arrow; the temporal projection removes stale directed edges
+  at 201 CE, and the 201 CE viewport remains visibly fitted after focus changes.
 - [ ] A dense pair of relations stays legible at normal zoom and does not
   cover intermediate cards or tooltips.
 - [ ] SVG export contains the complete viewBox, Chinese labels, historical
