@@ -2449,6 +2449,29 @@ export class FamilyChartView extends ItemView {
 		}
 	}
 
+	private ensureHistoricalContentVisible(): void {
+		if (this.mode !== 'historical' || !this.chartContainerEl || !this.f3Chart) return;
+		window.requestAnimationFrame(() => {
+			if (this.mode !== 'historical' || !this.chartContainerEl || !this.f3Chart) return;
+			const svg = this.f3Chart.svg as SVGSVGElement | undefined;
+			if (!svg) return;
+			const viewport = svg.getBoundingClientRect();
+			const candidates = Array.from(
+				this.chartContainerEl.querySelectorAll<Element>('.card_cont, .cr-fcv-historical-person-card')
+			);
+			const visible = candidates.some(element => {
+				const rect = element.getBoundingClientRect();
+				const style = activeWindow.getComputedStyle(element);
+				return rect.width > 0 && rect.height > 0
+					&& style.visibility !== 'hidden'
+					&& Number(style.opacity || '1') > 0.01
+					&& rect.right > viewport.left && rect.left < viewport.right
+					&& rect.bottom > viewport.top && rect.top < viewport.bottom;
+			});
+			if (!visible) this.fitHistoricalAfterF3Settles();
+		});
+	}
+
 	private fitHistoricalAfterF3Settles(): void {
 		const svg = this.f3Chart?.svg as SVGSVGElement | undefined;
 		const view = svg?.querySelector<SVGGElement>('.view');
@@ -5045,6 +5068,9 @@ export class FamilyChartView extends ItemView {
 		// renderer stays untouched; switching modes only adds/removes that layer
 		// and reprojects the historical relationship overlay.
 		this.renderHistoricalExpansionAndOverlay();
+		if (mode === 'historical') {
+			this.ensureHistoricalContentVisible();
+		}
 		this.app.workspace.requestSaveLayout();
 		new Notice(
 			mode === 'historical'
@@ -6379,8 +6405,11 @@ export class FamilyChartView extends ItemView {
 			}
 
 			// Shared focus changes can add/remove historical-only people as well
-			// as relationship edges. The genealogy layout itself stays put.
+			// as relationship edges. Preserve the current view when it still shows
+			// content; recover automatically only when the chart has become wholly
+			// offscreen.
 			this.renderHistoricalExpansionAndOverlay();
+			this.ensureHistoricalContentVisible();
 		});
 	}
 
