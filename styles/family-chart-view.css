@@ -37,6 +37,27 @@
   gap: var(--size-4-2);
 }
 
+.cr-fcv-toolbar--historical .cr-fcv-toolbar-left {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  row-gap: var(--size-4-1);
+}
+
+.cr-fcv-toolbar--historical .cr-fcv-toolbar-right {
+  flex: 0 0 auto;
+}
+
+.cr-fcv-historical-focus-group {
+  flex: 0 0 auto;
+}
+
+.cr-fcv-historical-focus {
+  white-space: nowrap;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
 .cr-fcv-control-group {
   display: flex;
   align-items: center;
