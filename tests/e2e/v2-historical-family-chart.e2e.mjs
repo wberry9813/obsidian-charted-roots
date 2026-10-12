@@ -662,11 +662,15 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 	await session.waitFor(
 		`(() => {
 			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			const label = root?.querySelector(
+				'.cr-fcv-historical-edge-label[data-predicate="recommends"][data-source-cr-id="e2e-historical-xun-yu"][data-target-cr-id="e2e-historical-guo-jia"]'
+			);
 			return !!root?.querySelector(
 				'.cr-relationship-overlay-line--recommends[data-source-cr-id="e2e-historical-xun-yu"][data-target-cr-id="e2e-historical-guo-jia"]'
 			) && root?.querySelectorAll(
 				'.cr-fcv-historical-direction-arrow[data-source-cr-id="e2e-historical-xun-yu"][data-target-cr-id="e2e-historical-guo-jia"]'
-			).length === 1;
+			).length === 1
+				&& !!label?.textContent?.trim();
 		})()`
 	);
 
@@ -733,6 +737,7 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		return {
 			laneCard: !!doc.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'),
 			recommendation: !!doc.querySelector('.cr-relationship-overlay-line--recommends'),
+			persistentLabel: doc.querySelector('.cr-fcv-historical-edge-label[data-predicate="recommends"]')?.textContent?.trim() ?? '',
 			arrow: !!doc.querySelector('.cr-fcv-historical-direction-arrow'),
 			chineseXun: xml.includes('荀彧'),
 			chineseGuo: xml.includes('郭嘉'),
@@ -742,6 +747,7 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 	`);
 	assert.equal(exported.laneCard, true);
 	assert.equal(exported.recommendation, true);
+	assert.ok(exported.persistentLabel, 'SVG export should retain persistent historical edge label');
 	assert.equal(exported.arrow, true);
 	assert.equal(exported.invalidXml, false);
 	assert.equal(exported.chineseXun, true);
