@@ -783,14 +783,31 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		view.fitToView();
 		return true;
 	`);
-	await session.waitFor(`(() => {
+	const visualBounds = await session.evalInApp(`
 		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
-		const viewport = root?.querySelector('svg.main_svg')?.getBoundingClientRect();
-		const card = root?.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]')?.getBoundingClientRect();
-		return !!viewport && !!card && card.width > 0 && card.height > 0
-			&& card.right > viewport.left && card.left < viewport.right
-			&& card.bottom > viewport.top && card.top < viewport.bottom;
-	})()`);
+		const svg = root?.querySelector('svg.main_svg');
+		const card = root?.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]');
+		const rect = el => {
+			if (!el) return null;
+			const r = el.getBoundingClientRect();
+			return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
+		};
+		return {
+			viewport: rect(svg),
+			card: rect(card),
+			chartContainer: rect(root?.querySelector('.cr-fcv-chart-container')),
+			viewTransform: svg?.querySelector('.view')?.getAttribute('transform') ?? null,
+			historicalCardCount: root?.querySelectorAll('.cr-fcv-historical-person-card').length ?? -1
+		};
+	`);
+	await session.screenshot(path.join(ARTIFACTS, 'v2-historical-family-chart-visual-diagnostic.png'));
+	const viewport = visualBounds.viewport;
+	const card = visualBounds.card;
+	assert.ok(viewport && card && card.width > 0 && card.height > 0
+		&& card.right > viewport.left && card.left < viewport.right
+		&& card.bottom > viewport.top && card.top < viewport.bottom,
+		'Historical depth-2 card is outside visible SVG after fit: ' + JSON.stringify(visualBounds));
+
 	await session.screenshot(
 		path.join(ARTIFACTS, 'v2-historical-family-chart-expansion-depth2.png')
 	);
