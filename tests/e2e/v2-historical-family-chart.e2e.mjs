@@ -822,7 +822,20 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 			chartContainer: rect(root?.querySelector('.cr-fcv-chart-container')),
 			viewTransform: svg?.querySelector('.view')?.getAttribute('transform') ?? null,
 			historicalCardCount: root?.querySelectorAll('.cr-fcv-historical-person-card').length ?? -1,
-			historicalFitDiagnostic: root?.querySelector('.cr-fcv-chart-container')?.dataset.historicalFitDiagnostic ?? null
+			historicalFitDiagnostic: root?.querySelector('.cr-fcv-chart-container')?.dataset.historicalFitDiagnostic ?? null,
+			cardGeometry: (() => {
+				const group = root?.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]');
+				if (!group) return null;
+				const matrix = group.getScreenCTM();
+				return {
+					x: group.getAttribute('data-x'), y: group.getAttribute('data-y'),
+					transform: group.getAttribute('transform'),
+					parent: group.parentElement?.getAttribute('class'),
+					parentTransform: group.parentElement?.getAttribute('transform'),
+					ownerView: group.closest('.view')?.getAttribute('transform'),
+					matrix: matrix ? { a: matrix.a, d: matrix.d, e: matrix.e, f: matrix.f } : null
+				};
+			})()
 		};
 	`);
 	await session.screenshot(path.join(ARTIFACTS, 'v2-historical-family-chart-visual-diagnostic.png'));
