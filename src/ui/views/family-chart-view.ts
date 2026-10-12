@@ -364,6 +364,7 @@ export class FamilyChartView extends ItemView {
 
 		const toolbar = this.toolbarEl;
 		toolbar.empty();
+		toolbar.classList.toggle('cr-fcv-toolbar--historical', this.mode === 'historical');
 
 		// Left side controls
 		const leftControls = toolbar.createDiv({ cls: 'cr-fcv-toolbar-left' });
@@ -436,7 +437,10 @@ export class FamilyChartView extends ItemView {
 				});
 			}
 
-			const focus = modeGroup.createSpan({
+			const focusGroup = leftControls.createDiv({
+				cls: 'cr-fcv-control-group cr-fcv-historical-focus-group'
+			});
+			const focus = focusGroup.createSpan({
 				cls: 'cr-fcv-historical-focus',
 				attr: {
 					'aria-label': 'Historical temporal focus'
