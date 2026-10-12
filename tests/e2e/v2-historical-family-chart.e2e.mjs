@@ -833,6 +833,7 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 					parent: group.parentElement?.getAttribute('class'),
 					parentTransform: group.parentElement?.getAttribute('transform'),
 					ownerView: group.closest('.view')?.getAttribute('transform'),
+					ownerViewStyle: group.closest('.view')?.getAttribute('style'),
 					matrix: matrix ? { a: matrix.a, d: matrix.d, e: matrix.e, f: matrix.f } : null
 				};
 			})()
