@@ -2439,23 +2439,48 @@ export class FamilyChartView extends ItemView {
 		if (this.f3Chart) {
 			this.f3Chart.updateTree({ tree_position: 'fit' });
 			if (this.mode === 'historical') {
-				// f3 fits only structural genealogy. Historical depth lanes live
-				// outside cards_view and can be fully offscreen after its fit.
-				// An explicit Fit action must not depend on the overlay's
-				// animation-change detector: an already-stable tree has no
-				// position change to observe. Fit once after f3's update,
-				// then again after its transition has settled.
-				const fitHistorical = () => {
-					if (this.mode !== 'historical' || !this.f3Chart) return;
-					this.renderHistoricalExpansionAndOverlay();
-					this.fitHistoricalContentToView();
-				};
-				window.setTimeout(fitHistorical, 350);
-				window.setTimeout(fitHistorical, 900);
+				// f3 owns the live CSS transform during its fit animation. Wait
+				// until that transform settles before applying the historical
+				// full-content fit, otherwise f3 overwrites our transform later.
+				this.fitHistoricalAfterF3Settles();
 			}
 			// Delay display update to allow fit animation to complete
 			window.setTimeout(() => this.updateZoomLevelDisplay(), 300);
 		}
+	}
+
+	private fitHistoricalAfterF3Settles(): void {
+		const svg = this.f3Chart?.svg as SVGSVGElement | undefined;
+		const view = svg?.querySelector<SVGGElement>('.view');
+		if (!svg || !view) return;
+		const MAX_FRAMES = 180;
+		const MIN_FRAMES = 30;
+		const REQUIRED_STABLE_FRAMES = 8;
+		let frame = 0;
+		let stableFrames = 0;
+		let last = view.style.transform;
+		let changed = false;
+		const tick = () => {
+			if (this.mode !== 'historical' || !this.f3Chart) return;
+			frame++;
+			const current = view.style.transform;
+			if (current !== last) {
+				changed = true;
+				stableFrames = 0;
+				last = current;
+			} else {
+				stableFrames++;
+			}
+			const settled = stableFrames >= REQUIRED_STABLE_FRAMES
+				&& (changed || frame >= MIN_FRAMES);
+			if (settled || frame >= MAX_FRAMES) {
+				this.renderHistoricalExpansionAndOverlay();
+				this.fitHistoricalContentToView();
+				return;
+			}
+			window.requestAnimationFrame(tick);
+		};
+		window.requestAnimationFrame(tick);
 	}
 
 	private fitHistoricalContentToView(): void {
