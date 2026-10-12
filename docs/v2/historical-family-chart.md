@@ -348,10 +348,10 @@ Expected behavior:
 ### F6 — polish and research-scale use
 
 - [x] directional arrowheads (Historical mode only; semantic object endpoint independent of bezier path ordering; symmetric relationships remain arrow-free);
-- [ ] persistent edge labels (hover labels now show direction for asymmetric predicates, date range and research-state notes);
+- [x] persistent edge labels (compact predicate labels are always visible in Historical mode; richer dates, research state and notes remain in hover tooltips; SVG export retains the labels);
 - [ ] multi-edge routing (deterministic ordering, separated curvature, and dense-route unit coverage implemented; research-scale visual decluttering acceptance still pending);
 - [x] initial relation category presets (ontology predicate-based; view state persisted; E2E switching and state assertions);
-- [ ] dense-network decluttering;
+- [ ] dense-network decluttering (dense parallel stacks now keep all routes/hover semantics but cap persistent labels at four deterministic samples; real-Obsidian dense visual acceptance still pending);
 - [ ] export historical overlays (SVG content/bounds and Chinese labels accepted in real Obsidian; PNG format/decode/dimensions/nonblank pixels accepted; PNG visual parity plus PDF/ODT still need acceptance);
 - [ ] manual acceptance on Three Kingdoms showcase.
 
