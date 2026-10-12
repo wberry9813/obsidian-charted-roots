@@ -2520,13 +2520,29 @@ export class FamilyChartView extends ItemView {
 		}
 		try {
 			const bounds = view.getBBox();
-			// SVG getBBox() on the containing .view can omit the separately
-			// appended historical layer in Electron. Its cards carry explicit
-			// untransformed chart coordinates, so union them independently.
+			// SVG getBBox() on the containing .view can omit separately appended
+			// Historical layers in Electron. Union both custom layers explicitly:
+			// lane cards and the relationship overlay (including dense curves,
+			// arrowheads and persistent labels).
 			let minX = bounds.x;
 			let minY = bounds.y;
 			let maxX = bounds.x + bounds.width;
 			let maxY = bounds.y + bounds.height;
+			const unionBox = (element: SVGGraphicsElement | null): void => {
+				if (!element) return;
+				const box = element.getBBox();
+				if (!Number.isFinite(box.x) || !Number.isFinite(box.y)
+					|| !Number.isFinite(box.width) || !Number.isFinite(box.height)) return;
+				minX = Math.min(minX, box.x);
+				minY = Math.min(minY, box.y);
+				maxX = Math.max(maxX, box.x + box.width);
+				maxY = Math.max(maxY, box.y + box.height);
+			};
+			unionBox(view.querySelector<SVGGraphicsElement>('.cr-fcv-historical-expansion-layer'));
+			unionBox(view.querySelector<SVGGraphicsElement>('.cr-relationship-overlay'));
+
+			// Keep explicit card coordinates as a second guard: some Electron
+			// builds have also reported incomplete group bounds for the lane layer.
 			const { w, h } = this.getCardDimensions(this.cardStyle);
 			for (const card of Array.from(view.querySelectorAll<SVGGElement>('.cr-fcv-historical-person-card'))) {
 				const x = Number(card.dataset.x);
@@ -2538,7 +2554,7 @@ export class FamilyChartView extends ItemView {
 				maxY = Math.max(maxY, y + h / 2);
 			}
 			const viewport = svg.getBoundingClientRect();
-			if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic = `bounds:${minX},${minY},${maxX - minX},${maxY - minY};cards:${view.querySelectorAll('.cr-fcv-historical-person-card').length};viewport:${viewport.width},${viewport.height}`;
+			if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic = `bounds:${minX},${minY},${maxX - minX},${maxY - minY};cards:${view.querySelectorAll('.cr-fcv-historical-person-card').length};overlay:${view.querySelectorAll('.cr-relationship-overlay').length};viewport:${viewport.width},${viewport.height}`;
 			if (!bounds.width || !bounds.height || !viewport.width || !viewport.height) return;
 			const padding = 32;
 			const contentWidth = maxX - minX;
