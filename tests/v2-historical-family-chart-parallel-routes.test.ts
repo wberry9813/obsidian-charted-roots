@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareHistoricalRoutes, historicalParallelSag } from '../src/v2/historical-family-chart/parallel-routes';
+import { compareHistoricalRoutes, historicalParallelSag, historicalPersistentLabelVisible } from '../src/v2/historical-family-chart/parallel-routes';
 
 describe('Historical parallel relation routing', () => {
   it('orders parallel relations independent of indexing order', () => {
@@ -20,6 +20,19 @@ describe('Historical parallel relation routing', () => {
     expect(dense[0]).toBe(120);
     expect(dense[11]).toBeCloseTo(276);
     expect(dense[11]).toBeLessThan(historicalParallelSag(120, 11, 3));
+  });
+  it('caps dense persistent labels while sampling the full stack', () => {
+    const visible12 = Array.from({ length: 12 }, (_, i) =>
+      historicalPersistentLabelVisible(i, 12)
+    );
+    expect(visible12.filter(Boolean)).toHaveLength(4);
+    expect(visible12[0]).toBe(true);
+    expect(visible12[11]).toBe(true);
+    expect(visible12.map((v, i) => v ? i : -1).filter(i => i >= 0)).toEqual([0, 4, 7, 11]);
+
+    expect(Array.from({ length: 4 }, (_, i) =>
+      historicalPersistentLabelVisible(i, 4)
+    )).toEqual([true, true, true, true]);
   });
   it('spaces three relations by distinct curve depths', () => {
     expect([0, 1, 2].map(i => historicalParallelSag(120, i))).toEqual([120, 146, 172]);
