@@ -224,10 +224,16 @@ test('Historical Family Chart follows shared Timeline focus in real Obsidian', a
 			?.querySelector('.cr-fcv-historical-focus');
 		if (!focus) throw new Error('Historical focus label unavailable');
 		const r = focus.getBoundingClientRect();
-		return { width: r.width, height: r.height, text: focus.textContent ?? '' };
+		const style = getComputedStyle(focus);
+		return {
+			width: r.width, height: r.height, text: focus.textContent ?? '',
+			whiteSpace: style.whiteSpace
+		};
 	`);
-	assert.ok(focusLayout.width > 48, 'historical focus label should retain readable inline width');
+	assert.equal(focusLayout.whiteSpace, 'nowrap');
 	assert.ok(focusLayout.height < 32, 'historical focus label should not collapse into vertical wrapping');
+	assert.ok(focusLayout.width > focusLayout.height,
+		'historical focus label should remain horizontally readable');
 
 	await session.screenshot(
 		path.join(ARTIFACTS, 'v2-historical-family-chart-focus.png')
