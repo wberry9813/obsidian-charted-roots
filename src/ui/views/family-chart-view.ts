@@ -2468,19 +2468,38 @@ export class FamilyChartView extends ItemView {
 		}
 		try {
 			const bounds = view.getBBox();
+			// SVG getBBox() on the containing .view can omit the separately
+			// appended historical layer in Electron. Its cards carry explicit
+			// untransformed chart coordinates, so union them independently.
+			let minX = bounds.x;
+			let minY = bounds.y;
+			let maxX = bounds.x + bounds.width;
+			let maxY = bounds.y + bounds.height;
+			const { w, h } = this.getCardDimensions(this.cardStyle);
+			for (const card of view.querySelectorAll<SVGGElement>('.cr-fcv-historical-person-card')) {
+				const x = Number(card.dataset.x);
+				const y = Number(card.dataset.y);
+				if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+				minX = Math.min(minX, x - w / 2);
+				maxX = Math.max(maxX, x + w / 2);
+				minY = Math.min(minY, y - h / 2);
+				maxY = Math.max(maxY, y + h / 2);
+			}
 			const viewport = svg.getBoundingClientRect();
-			if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic = `bounds:${bounds.x},${bounds.y},${bounds.width},${bounds.height};viewport:${viewport.width},${viewport.height}`;
+			if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic = `bounds:${minX},${minY},${maxX - minX},${maxY - minY};cards:${view.querySelectorAll('.cr-fcv-historical-person-card').length};viewport:${viewport.width},${viewport.height}`;
 			if (!bounds.width || !bounds.height || !viewport.width || !viewport.height) return;
 			const padding = 32;
+			const contentWidth = maxX - minX;
+			const contentHeight = maxY - minY;
 			const k = Math.min(
 				1,
 				Math.max(0.05, Math.min(
-					(viewport.width - padding * 2) / bounds.width,
-					(viewport.height - padding * 2) / bounds.height
+					(viewport.width - padding * 2) / contentWidth,
+					(viewport.height - padding * 2) / contentHeight
 				))
 			);
-			const x = viewport.width / 2 - k * (bounds.x + bounds.width / 2);
-			const y = viewport.height / 2 - k * (bounds.y + bounds.height / 2);
+			const x = viewport.width / 2 - k * (minX + maxX) / 2;
+			const y = viewport.height / 2 - k * (minY + maxY) / 2;
 			// The first SVG group is not necessarily the actual f3 .view.
 			// Apply the transform to the measured group itself; otherwise the
 			// historical fit silently leaves the structural fit unchanged.
