@@ -906,6 +906,70 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		path.join(ARTIFACTS, 'v2-historical-family-chart-expansion-depth2.png')
 	);
 
+	// Dense real-Obsidian acceptance: add eleven more active directed
+	// recommendations between the same pair. The original edge plus these
+	// fixtures must all remain rendered, while persistent labels are sampled.
+	const denseAssertionPaths = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const assertionService = plugin.getAssertionService();
+		const created = [];
+		for (let i = 0; i < 11; i++) {
+			const file = await assertionService.createAssertion({
+				assertionType: 'relationship',
+				subject: '[[Charted Roots/People/Xun-Yu-Historical-Lane-E2E|荀彧]]',
+				predicate: 'recommends',
+				object: '[[Charted Roots/People/Guo-Jia-Historical-Lane-E2E|郭嘉]]',
+				timeStart: '196 CE',
+				timeEnd: '199 CE',
+				timeStartPrecision: 'year',
+				timeEndPrecision: 'year',
+				timeStartCertainty: 'certain',
+				timeEndCertainty: 'certain',
+				notes: 'E2E dense historical route ' + (i + 1),
+				title: '荀彧举荐郭嘉 Dense E2E ' + (i + 1)
+			}, { folder: 'Charted Roots/Assertions' });
+			created.push(file.path);
+		}
+		return created;
+	`);
+	for (const assertionPath of denseAssertionPaths) {
+		await session.waitFor(
+			`app.metadataCache.getCache(${JSON.stringify(assertionPath)})?.frontmatter?.predicate === "recommends"`
+		);
+	}
+	await session.waitFor(`(() => {
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const edgeSelector = '.cr-relationship-overlay-line--recommends'
+			+ '[data-source-cr-id="e2e-historical-xun-yu"]'
+			+ '[data-target-cr-id="e2e-historical-guo-jia"]';
+		const labelSelector = '.cr-fcv-historical-edge-label[data-predicate="recommends"]'
+			+ '[data-source-cr-id="e2e-historical-xun-yu"]'
+			+ '[data-target-cr-id="e2e-historical-guo-jia"]';
+		return root?.querySelectorAll(edgeSelector).length === 12
+			&& root?.querySelectorAll(labelSelector).length === 4;
+	})()`);
+	const denseLayout = await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const labels = [...root.querySelectorAll(
+			'.cr-fcv-historical-edge-label[data-predicate="recommends"]'
+			+ '[data-source-cr-id="e2e-historical-xun-yu"]'
+			+ '[data-target-cr-id="e2e-historical-guo-jia"]'
+		)].map(el => el.getBoundingClientRect());
+		const cards = [...root.querySelectorAll('.card_cont, .cr-fcv-historical-person-card')]
+			.map(el => el.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
+		const overlapsCard = labels.some(label => cards.some(card =>
+			label.right > card.left && label.left < card.right
+			&& label.bottom > card.top && label.top < card.bottom
+		));
+		return { labels: labels.length, overlapsCard };
+	`);
+	assert.equal(denseLayout.labels, 4);
+	assert.equal(denseLayout.overlapsCard, false,
+		'dense persistent labels should not cover person cards');
+	await session.screenshot(
+		path.join(ARTIFACTS, 'v2-historical-family-chart-dense-parallel.png')
+	);
+
 	// Metadata/index refreshes can legitimately rebuild the Family Chart after
 	// the depth-2 state has already been observed. Re-assert the actual target
 	// immediately before interaction so the acceptance test never clicks during
@@ -990,7 +1054,7 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 	await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
 		plugin.getTemporalFocusService().clear();
-		for (const path of ${JSON.stringify(assertionSetup.assertionPaths)}) {
+		for (const path of ${JSON.stringify([...assertionSetup.assertionPaths, ...denseAssertionPaths])}) {
 			const file = app.vault.getAbstractFileByPath(path);
 			if (file) await app.vault.delete(file);
 		}
