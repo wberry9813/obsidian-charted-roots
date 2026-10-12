@@ -977,12 +977,17 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 				const r = el.getBoundingClientRect();
 				return { left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height,text:el.textContent };
 			});
+			const margin = 8;
 			const visible = !!viewport && !!guo && labels.length === 4
-				&& guo.right > viewport.left && guo.left < viewport.right
-				&& guo.bottom > viewport.top && guo.top < viewport.bottom
+				&& guo.left >= viewport.left + margin
+				&& guo.right <= viewport.right - margin
+				&& guo.top >= viewport.top + margin
+				&& guo.bottom <= viewport.bottom - margin
 				&& labels.every(label =>
-					label.right > viewport.left && label.left < viewport.right
-					&& label.bottom > viewport.top && label.top < viewport.bottom
+					label.left >= viewport.left + margin
+					&& label.right <= viewport.right - margin
+					&& label.top >= viewport.top + margin
+					&& label.bottom <= viewport.bottom - margin
 				);
 			let overlayBox = null;
 			try {
@@ -1001,7 +1006,7 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 			};
 		};
 		let current = snapshot();
-		for (let frame = 0; frame < 180 && !current.visible; frame++) {
+		for (let frame = 0; frame < 300 && !current.visible; frame++) {
 			await new Promise(resolve => requestAnimationFrame(resolve));
 			current = snapshot();
 		}
