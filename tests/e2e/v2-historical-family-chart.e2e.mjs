@@ -821,7 +821,8 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 			card: rect(card),
 			chartContainer: rect(root?.querySelector('.cr-fcv-chart-container')),
 			viewTransform: svg?.querySelector('.view')?.getAttribute('transform') ?? null,
-			historicalCardCount: root?.querySelectorAll('.cr-fcv-historical-person-card').length ?? -1
+			historicalCardCount: root?.querySelectorAll('.cr-fcv-historical-person-card').length ?? -1,
+			historicalFitDiagnostic: root?.querySelector('.cr-fcv-chart-container')?.dataset.historicalFitDiagnostic ?? null
 		};
 	`);
 	await session.screenshot(path.join(ARTIFACTS, 'v2-historical-family-chart-visual-diagnostic.png'));
