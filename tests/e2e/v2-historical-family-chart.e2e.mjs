@@ -958,25 +958,57 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		view.fitToView();
 		return true;
 	`);
-	await session.waitFor(`(() => {
-		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
-		const viewport = root?.querySelector('svg.main_svg')?.getBoundingClientRect();
-		const guo = root?.querySelector(
-			'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'
-		)?.getBoundingClientRect();
-		const labels = [...(root?.querySelectorAll(
-			'.cr-fcv-historical-edge-label[data-predicate="recommends"]'
-			+ '[data-source-cr-id="e2e-historical-xun-yu"]'
-			+ '[data-target-cr-id="e2e-historical-guo-jia"]'
-		) ?? [])].map(el => el.getBoundingClientRect());
-		return !!viewport && !!guo && labels.length === 4
-			&& guo.right > viewport.left && guo.left < viewport.right
-			&& guo.bottom > viewport.top && guo.top < viewport.bottom
-			&& labels.every(label =>
-				label.right > viewport.left && label.left < viewport.right
-				&& label.bottom > viewport.top && label.top < viewport.bottom
+	const denseVisibility = await session.evalInApp(`
+		const snapshot = () => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			const svg = root?.querySelector('svg.main_svg');
+			const view = svg?.querySelector('.view');
+			const viewport = svg?.getBoundingClientRect();
+			const guoEl = root?.querySelector(
+				'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'
 			);
-	})()`);
+			const guo = guoEl?.getBoundingClientRect();
+			const labelEls = [...(root?.querySelectorAll(
+				'.cr-fcv-historical-edge-label[data-predicate="recommends"]'
+				+ '[data-source-cr-id="e2e-historical-xun-yu"]'
+				+ '[data-target-cr-id="e2e-historical-guo-jia"]'
+			) ?? [])];
+			const labels = labelEls.map(el => {
+				const r = el.getBoundingClientRect();
+				return { left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height,text:el.textContent };
+			});
+			const visible = !!viewport && !!guo && labels.length === 4
+				&& guo.right > viewport.left && guo.left < viewport.right
+				&& guo.bottom > viewport.top && guo.top < viewport.bottom
+				&& labels.every(label =>
+					label.right > viewport.left && label.left < viewport.right
+					&& label.bottom > viewport.top && label.top < viewport.bottom
+				);
+			let overlayBox = null;
+			try {
+				const b = view?.querySelector('.cr-relationship-overlay')?.getBBox();
+				if (b) overlayBox = { x:b.x,y:b.y,width:b.width,height:b.height };
+			} catch {}
+			return {
+				visible,
+				viewport: viewport ? {left:viewport.left,right:viewport.right,top:viewport.top,bottom:viewport.bottom,width:viewport.width,height:viewport.height} : null,
+				guo: guo ? {left:guo.left,right:guo.right,top:guo.top,bottom:guo.bottom,width:guo.width,height:guo.height} : null,
+				labels,
+				overlayBox,
+				viewTransform: view?.getAttribute('transform') ?? null,
+				viewStyle: view?.getAttribute('style') ?? null,
+				fitDiagnostic: root?.querySelector('.cr-fcv-chart-container')?.dataset.historicalFitDiagnostic ?? null
+			};
+		};
+		let current = snapshot();
+		for (let frame = 0; frame < 180 && !current.visible; frame++) {
+			await new Promise(resolve => requestAnimationFrame(resolve));
+			current = snapshot();
+		}
+		return current;
+	`);
+	assert.equal(denseVisibility.visible, true,
+		'dense Historical content failed to fit visibly: ' + JSON.stringify(denseVisibility));
 
 	const denseLayout = await session.evalInApp(`
 		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
