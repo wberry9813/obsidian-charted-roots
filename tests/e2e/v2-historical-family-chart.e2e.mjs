@@ -712,8 +712,25 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 				producedPng,
 				new Promise((_, reject) => setTimeout(() => reject(new Error('PNG export timed out')), 10000))
 			]);
+			const header = new DataView(await blob.slice(0, 24).arrayBuffer());
 			const bytes = Array.from(new Uint8Array(await blob.slice(0, 8).arrayBuffer()));
-			return { type: blob.type, size: blob.size, signature: bytes };
+			const width = header.getUint32(16, false);
+			const height = header.getUint32(20, false);
+			const image = await createImageBitmap(blob);
+			const canvas = document.createElement('canvas');
+			canvas.width = image.width;
+			canvas.height = image.height;
+			const context = canvas.getContext('2d');
+			if (!context) throw new Error('PNG verification canvas missing');
+			context.drawImage(image, 0, 0);
+			const pixels = context.getImageData(0, 0, width, height).data;
+			let nonBackground = 0;
+			const base = pixels.slice(0, 3);
+			for (let i = 0; i < pixels.length; i += 4) {
+				if (Math.abs(pixels[i] - base[0]) + Math.abs(pixels[i + 1] - base[1]) + Math.abs(pixels[i + 2] - base[2]) > 45) nonBackground++;
+			}
+			image.close();
+			return { type: blob.type, size: blob.size, signature: bytes, width, height, nonBackground };
 		} finally {
 			URL.createObjectURL = originalUrl;
 			HTMLAnchorElement.prototype.click = originalClick;
@@ -722,6 +739,8 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 	assert.equal(pngExport.type, 'image/png');
 	assert.ok(pngExport.size > 8);
 	assert.deepEqual(pngExport.signature, [137, 80, 78, 71, 13, 10, 26, 10]);
+	assert.ok(pngExport.width > 100 && pngExport.height > 100);
+	assert.ok(pngExport.nonBackground > 200, 'PNG export should contain rendered chart pixels');
 
 	await session.screenshot(
 		path.join(ARTIFACTS, 'v2-historical-family-chart-expansion-depth2.png')
