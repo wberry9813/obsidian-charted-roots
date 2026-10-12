@@ -775,6 +775,22 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 	assert.ok(pngExport.width > 100 && pngExport.height > 100);
 	assert.ok(pngExport.nonBackground > 200, 'PNG export should contain rendered chart pixels');
 
+	// Fit the chart before capturing the visual artifact: successful DOM
+	// assertions alone do not guarantee cards are actually in the viewport.
+	await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		if (!view) throw new Error('Family Chart unavailable for visual acceptance');
+		view.fitToView();
+		return true;
+	`);
+	await session.waitFor(`(() => {
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const viewport = root?.querySelector('svg.main_svg')?.getBoundingClientRect();
+		const card = root?.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]')?.getBoundingClientRect();
+		return !!viewport && !!card && card.width > 0 && card.height > 0
+			&& card.right > viewport.left && card.left < viewport.right
+			&& card.bottom > viewport.top && card.top < viewport.bottom;
+	})()`);
 	await session.screenshot(
 		path.join(ARTIFACTS, 'v2-historical-family-chart-expansion-depth2.png')
 	);
