@@ -2441,11 +2441,17 @@ export class FamilyChartView extends ItemView {
 			if (this.mode === 'historical') {
 				// f3 fits only structural genealogy. Historical depth lanes live
 				// outside cards_view and can be fully offscreen after its fit.
-				this.waitForCardPositionStability(() => {
-					if (this.mode !== 'historical') return;
+				// An explicit Fit action must not depend on the overlay's
+				// animation-change detector: an already-stable tree has no
+				// position change to observe. Fit once after f3's update,
+				// then again after its transition has settled.
+				const fitHistorical = () => {
+					if (this.mode !== 'historical' || !this.f3Chart) return;
 					this.renderHistoricalExpansionAndOverlay();
 					this.fitHistoricalContentToView();
-				});
+				};
+				window.setTimeout(fitHistorical, 350);
+				window.setTimeout(fitHistorical, 900);
 			}
 			// Delay display update to allow fit animation to complete
 			window.setTimeout(() => this.updateZoomLevelDisplay(), 300);
