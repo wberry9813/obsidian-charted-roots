@@ -2476,7 +2476,7 @@ export class FamilyChartView extends ItemView {
 			let maxX = bounds.x + bounds.width;
 			let maxY = bounds.y + bounds.height;
 			const { w, h } = this.getCardDimensions(this.cardStyle);
-			for (const card of view.querySelectorAll<SVGGElement>('.cr-fcv-historical-person-card')) {
+			for (const card of Array.from(view.querySelectorAll<SVGGElement>('.cr-fcv-historical-person-card'))) {
 				const x = Number(card.dataset.x);
 				const y = Number(card.dataset.y);
 				if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
