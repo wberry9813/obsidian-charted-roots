@@ -203,6 +203,26 @@ test('Historical Family Chart follows shared Timeline focus in real Obsidian', a
 	`);
 	assert.deepEqual(arrows201, [], 'symmetric active rivalry has no arrow');
 
+	// Keep the temporal-focus screenshot meaningful: the relationship
+	// assertions above prove semantics, while this also proves the structural
+	// root remains visible after Historical Fit at the new focus.
+	await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		if (!view) throw new Error('Family Chart unavailable for focus visual acceptance');
+		view.fitToView();
+		return true;
+	`);
+	await session.waitFor(`(() => {
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const viewport = root?.querySelector('svg.main_svg')?.getBoundingClientRect();
+		const cards = [...(root?.querySelectorAll('.card_cont') ?? [])]
+			.map(el => el.getBoundingClientRect())
+			.filter(r => r.width > 0 && r.height > 0);
+		return !!viewport && cards.some(card =>
+			card.right > viewport.left && card.left < viewport.right
+			&& card.bottom > viewport.top && card.top < viewport.bottom
+		);
+	})()`);
 	await session.screenshot(
 		path.join(ARTIFACTS, 'v2-historical-family-chart-focus.png')
 	);
