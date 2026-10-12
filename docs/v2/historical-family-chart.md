@@ -352,7 +352,7 @@ Expected behavior:
 - [ ] multi-edge routing (initial deterministic ordering and separated curvature implemented; dense-case visual acceptance pending);
 - [x] initial relation category presets (ontology predicate-based; view state persisted; E2E switching and state assertions);
 - [ ] dense-network decluttering;
-- [ ] export historical overlays (SVG real-Obsidian export content/bounds accepted in CI #805; PNG/PDF export acceptance still pending);
+- [ ] export historical overlays (SVG content and bounds accepted in CI #805; PNG format, decode, dimensions and nonblank pixels accepted in CI #811; Chinese labels, arrow visual fidelity, and PDF/ODT still need acceptance);
 - [ ] manual acceptance on Three Kingdoms showcase.
 
 ## 13. Three Kingdoms acceptance scenario
@@ -413,6 +413,33 @@ than treating the existing `建安十三年` fixture as canonical time. The
 HistoricalDateService deliberately leaves unsupported regnal expressions
 unresolved until a chronology provider is installed, so F5 must not manufacture
 a 208 CE office state from that unresolved expression.
+
+### Remaining F6 visual acceptance checklist
+
+For the three-kingdoms demo, verify the **208 CE** Cao Cao chart and a
+196–199 CE Xun Yu → Guo Jia directed relation separately. Do not claim
+these screenshots represent primary historical evidence; source Assertions
+remain the research record.
+
+- [ ] At 208 CE, Cao Cao's active offices and affiliations are readable on
+  the Person card and in its sourced details.
+- [ ] At 197 CE, the historical depth lanes show Xun Yu / Guo Jia without
+  manufacturing parent-child or spouse links.
+- [ ] Directed `recommends` arrow points toward Guo Jia, while symmetric
+  `ally_of` has no arrow; both disappear as expected at 201 CE.
+- [ ] A dense pair of relations stays legible at normal zoom and does not
+  cover intermediate cards or tooltips.
+- [ ] SVG export contains the complete viewBox, Chinese labels, historical
+  lane cards and arrows when opened independently.
+- [ ] PNG export opens independently and visually matches its SVG version;
+  validate Chinese glyphs, arrowhead alignment and card edges. The current
+  PNG pixel test only proves the image is nonblank.
+- [ ] Review PDF/ODT output separately; sharing a preparation pipeline
+  does not prove those document formats retain every historical layer.
+
+Automated coverage: E2E time focus, person expansion, symmetric/directed
+edges, category presets, SVG content/bounds and PNG binary/decoded pixels.
+The checklist above is **not** satisfied by CI alone.
 
 ## 14. Non-goals
 
