@@ -2459,12 +2459,17 @@ export class FamilyChartView extends ItemView {
 	}
 
 	private fitHistoricalContentToView(): void {
+		if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic = 'invoked';
 		const svg = this.f3Chart?.svg as SVGSVGElement | undefined;
 		const view = svg?.querySelector<SVGGElement>('.view');
-		if (!svg || !view) return;
+		if (!svg || !view) {
+			if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic = 'missing-svg-view';
+			return;
+		}
 		try {
 			const bounds = view.getBBox();
 			const viewport = svg.getBoundingClientRect();
+			if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic = `bounds:${bounds.x},${bounds.y},${bounds.width},${bounds.height};viewport:${viewport.width},${viewport.height}`;
 			if (!bounds.width || !bounds.height || !viewport.width || !viewport.height) return;
 			const padding = 32;
 			const k = Math.min(
@@ -2480,11 +2485,13 @@ export class FamilyChartView extends ItemView {
 			// Apply the transform to the measured group itself; otherwise the
 			// historical fit silently leaves the structural fit unchanged.
 			view.setAttribute('transform', `translate(${x},${y}) scale(${k})`);
+			if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic += `;applied:${x},${y},${k}`;
 			(svg as unknown as { __zoom: d3.ZoomTransform }).__zoom =
 				d3.zoomIdentity.translate(x, y).scale(k);
 			this.updateZoomLevelDisplay();
 		} catch {
 			// Detached SVG nodes may not have measurable bounds during redraw.
+			if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic = 'bounds-threw';
 		}
 	}
 
