@@ -948,6 +948,36 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		return root?.querySelectorAll(edgeSelector).length === 12
 			&& root?.querySelectorAll(labelSelector).length === 4;
 	})()`);
+
+	// Dense fixture creation can trigger metadata redraws that leave the depth-2
+	// lane outside the viewport. Fit the complete Historical surface and require
+	// the actual dense routes and labels to be visible before taking the artifact.
+	await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		if (!view) throw new Error('Family Chart unavailable for dense acceptance');
+		view.fitToView();
+		return true;
+	`);
+	await session.waitFor(`(() => {
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const viewport = root?.querySelector('svg.main_svg')?.getBoundingClientRect();
+		const guo = root?.querySelector(
+			'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'
+		)?.getBoundingClientRect();
+		const labels = [...(root?.querySelectorAll(
+			'.cr-fcv-historical-edge-label[data-predicate="recommends"]'
+			+ '[data-source-cr-id="e2e-historical-xun-yu"]'
+			+ '[data-target-cr-id="e2e-historical-guo-jia"]'
+		) ?? [])].map(el => el.getBoundingClientRect());
+		return !!viewport && !!guo && labels.length === 4
+			&& guo.right > viewport.left && guo.left < viewport.right
+			&& guo.bottom > viewport.top && guo.top < viewport.bottom
+			&& labels.every(label =>
+				label.right > viewport.left && label.left < viewport.right
+				&& label.bottom > viewport.top && label.top < viewport.bottom
+			);
+	})()`);
+
 	const denseLayout = await session.evalInApp(`
 		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
 		const labels = [...root.querySelectorAll(
@@ -961,11 +991,21 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 			label.right > card.left && label.left < card.right
 			&& label.bottom > card.top && label.top < card.bottom
 		));
-		return { labels: labels.length, overlapsCard };
+		let labelOverlapPairs = 0;
+		for (let i = 0; i < labels.length; i++) {
+			for (let j = i + 1; j < labels.length; j++) {
+				const a = labels[i], b = labels[j];
+				if (a.right > b.left && a.left < b.right
+					&& a.bottom > b.top && a.top < b.bottom) labelOverlapPairs++;
+			}
+		}
+		return { labels: labels.length, overlapsCard, labelOverlapPairs };
 	`);
 	assert.equal(denseLayout.labels, 4);
 	assert.equal(denseLayout.overlapsCard, false,
 		'dense persistent labels should not cover person cards');
+	assert.equal(denseLayout.labelOverlapPairs, 0,
+		'dense persistent labels should remain spatially distinct');
 	await session.screenshot(
 		path.join(ARTIFACTS, 'v2-historical-family-chart-dense-parallel.png')
 	);
