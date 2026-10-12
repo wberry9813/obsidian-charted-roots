@@ -4775,6 +4775,39 @@ export class FamilyChartView extends ItemView {
 				if (rel.sourceCrId) path.setAttribute('data-source-cr-id', rel.sourceCrId);
 				if (rel.targetCrId) path.setAttribute('data-target-cr-id', rel.targetCrId);
 				overlayGroup.appendChild(path);
+
+				// Historical mode keeps the semantic predicate visible without
+				// forcing researchers to hover every edge. Keep the persistent
+				// label intentionally compact; dates, research state and notes stay
+				// in the richer hover tooltip to avoid turning dense charts into text.
+				if (this.mode === 'historical') {
+					const label = createSvg('text');
+					const t = 0.5;
+					const oneMinusT = 1 - t;
+					const labelX = oneMinusT * oneMinusT * x1
+						+ 2 * oneMinusT * t * cx + t * t * x2 + px * 10;
+					const labelY = oneMinusT * oneMinusT * y1
+						+ 2 * oneMinusT * t * cy + t * t * y2 + py * 10;
+					label.setAttribute('x', String(labelX));
+					label.setAttribute('y', String(labelY));
+					label.setAttribute('text-anchor', 'middle');
+					label.setAttribute('dominant-baseline', 'central');
+					label.setAttribute('font-size', '11');
+					label.setAttribute('font-weight', '500');
+					label.setAttribute('fill', 'var(--text-normal)');
+					label.setAttribute('stroke', 'var(--background-primary)');
+					label.setAttribute('stroke-width', '4');
+					label.setAttribute('stroke-linejoin', 'round');
+					label.setAttribute('paint-order', 'stroke');
+					label.setAttribute('pointer-events', 'none');
+					label.setAttribute('class', 'cr-fcv-historical-edge-label');
+					label.setAttribute('data-predicate', type.id);
+					if (rel.sourceCrId) label.setAttribute('data-source-cr-id', rel.sourceCrId);
+					if (rel.targetCrId) label.setAttribute('data-target-cr-id', rel.targetCrId);
+					label.textContent = type.name;
+					overlayGroup.appendChild(label);
+				}
+
 				// SVG curvature is canonicalized independently of Assertion direction.
 				// Put the arrow at the semantic object endpoint, even for a reversed path.
 				if (this.mode === 'historical' && !type.symmetric) {
