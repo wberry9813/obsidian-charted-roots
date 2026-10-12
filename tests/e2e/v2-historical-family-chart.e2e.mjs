@@ -702,12 +702,18 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 			laneCard: !!doc.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'),
 			recommendation: !!doc.querySelector('.cr-relationship-overlay-line--recommends'),
 			arrow: !!doc.querySelector('.cr-fcv-historical-direction-arrow'),
+			chineseXun: xml.includes('荀彧'),
+			chineseGuo: xml.includes('郭嘉'),
+			invalidXml: doc.querySelector('parsererror') !== null,
 			viewBox, lane, overlay
 		};
 	`);
 	assert.equal(exported.laneCard, true);
 	assert.equal(exported.recommendation, true);
 	assert.equal(exported.arrow, true);
+	assert.equal(exported.invalidXml, false);
+	assert.equal(exported.chineseXun, true);
+	assert.equal(exported.chineseGuo, true);
 	assert.equal(exported.viewBox?.length, 4);
 	for (const box of [exported.lane, exported.overlay]) {
 		assert.ok(box.x >= exported.viewBox[0] - 0.01);
