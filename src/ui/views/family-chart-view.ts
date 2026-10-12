@@ -2474,11 +2474,15 @@ export class FamilyChartView extends ItemView {
 					(viewport.height - padding * 2) / bounds.height
 				))
 			);
-			this.restoreZoomTransform({
-				k,
-				x: viewport.width / 2 - k * (bounds.x + bounds.width / 2),
-				y: viewport.height / 2 - k * (bounds.y + bounds.height / 2)
-			});
+			const x = viewport.width / 2 - k * (bounds.x + bounds.width / 2);
+			const y = viewport.height / 2 - k * (bounds.y + bounds.height / 2);
+			// The first SVG group is not necessarily the actual f3 .view.
+			// Apply the transform to the measured group itself; otherwise the
+			// historical fit silently leaves the structural fit unchanged.
+			view.setAttribute('transform', `translate(${x},${y}) scale(${k})`);
+			(svg as unknown as { __zoom: d3.ZoomTransform }).__zoom =
+				d3.zoomIdentity.translate(x, y).scale(k);
+			this.updateZoomLevelDisplay();
 		} catch {
 			// Detached SVG nodes may not have measurable bounds during redraw.
 		}
