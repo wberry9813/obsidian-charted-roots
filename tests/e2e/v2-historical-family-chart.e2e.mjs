@@ -133,21 +133,38 @@ test('Historical Family Chart follows shared Timeline focus in real Obsidian', a
 	);
 
 	const at197 = await session.evalInApp(`
-		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
-		const focus = root?.querySelector('.cr-fcv-historical-focus');
-		return {
-			label: focus?.textContent ?? null,
-			axis: focus?.dataset.focusAxis ?? null,
-			source: focus?.dataset.focusSource ?? null,
-			ally: !!root?.querySelector('.cr-relationship-overlay-line--ally_of'),
-			rival: !!root?.querySelector('.cr-relationship-overlay-line--political_rival')
+		const sample = () => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			const focus = root?.querySelector('.cr-fcv-historical-focus');
+			return {
+				label: focus?.textContent ?? null,
+				axis: focus?.dataset.focusAxis ?? null,
+				source: focus?.dataset.focusSource ?? null,
+				ally: !!root?.querySelector('.cr-relationship-overlay-line--ally_of'),
+				rival: !!root?.querySelector('.cr-relationship-overlay-line--political_rival'),
+				allyLabel: root?.querySelector('.cr-fcv-historical-edge-label[data-predicate="ally_of"]')
+					?.textContent?.trim() ?? ''
+			};
 		};
+		let stable = 0;
+		let previous = '';
+		let current = sample();
+		for (let frame = 0; frame < 60; frame++) {
+			await new Promise(resolve => requestAnimationFrame(resolve));
+			current = sample();
+			const key = JSON.stringify(current);
+			stable = key === previous ? stable + 1 : 0;
+			previous = key;
+			if (stable >= 4 && current.ally && !current.rival && current.allyLabel) break;
+		}
+		return current;
 	`);
 	assert.match(at197.label ?? '', /197 CE/);
 	assert.equal(at197.axis, 'julian_day');
 	assert.equal(at197.source, 'e2e-family-chart');
 	assert.equal(at197.ally, true);
 	assert.equal(at197.rival, false);
+	assert.ok(at197.allyLabel, 'active historical relation should keep a persistent label');
 	// At 197 CE only the active ally edge may be visible, and no stale
 	// arrows should survive from the previous temporal projection.
 	const arrows197 = await session.evalInApp(`
