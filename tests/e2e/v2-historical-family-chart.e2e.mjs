@@ -638,6 +638,57 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		})()`
 	);
 
+	// Capture the actual SVG export payload without triggering a download.
+	// Assert that the serialized output retains historical lanes and arrows,
+	// and that its viewBox contains both SVG layer bounding boxes.
+	const exported = await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		const svg = view?.containerEl.querySelector('svg.main_svg');
+		if (!view || !svg) throw new Error('Historical chart SVG missing for export');
+		const boxFor = selector => {
+			const el = svg.querySelector(selector);
+			if (!el) throw new Error('Missing historical SVG layer: ' + selector);
+			const b = el.getBBox();
+			return { x: b.x, y: b.y, width: b.width, height: b.height };
+		};
+		const lane = boxFor('.cr-fcv-historical-expansion-layer');
+		const overlay = boxFor('.cr-relationship-overlay');
+		const originalUrl = URL.createObjectURL;
+		const originalClick = HTMLAnchorElement.prototype.click;
+		let blob;
+		try {
+			URL.createObjectURL = object => { blob = object; return 'blob:e2e-export'; };
+			HTMLAnchorElement.prototype.click = function () {};
+			await view.exportWithOptions({
+				format: 'svg', filename: 'historical-e2e.svg', includeAvatars: false
+			});
+		} finally {
+			URL.createObjectURL = originalUrl;
+			HTMLAnchorElement.prototype.click = originalClick;
+		}
+		if (!(blob instanceof Blob)) throw new Error('SVG export blob was not generated');
+		const xml = await blob.text();
+		const doc = new DOMParser().parseFromString(xml, 'image/svg+xml');
+		const outputSvg = doc.documentElement;
+		const viewBox = outputSvg.getAttribute('viewBox')?.split(/\\s+/).map(Number);
+		return {
+			laneCard: !!doc.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'),
+			recommendation: !!doc.querySelector('.cr-relationship-overlay-line--recommends'),
+			arrow: !!doc.querySelector('.cr-fcv-historical-direction-arrow'),
+			viewBox, lane, overlay
+		};
+	`);
+	assert.equal(exported.laneCard, true);
+	assert.equal(exported.recommendation, true);
+	assert.equal(exported.arrow, true);
+	assert.equal(exported.viewBox?.length, 4);
+	for (const box of [exported.lane, exported.overlay]) {
+		assert.ok(box.x >= exported.viewBox[0] - 0.01);
+		assert.ok(box.y >= exported.viewBox[1] - 0.01);
+		assert.ok(box.x + box.width <= exported.viewBox[0] + exported.viewBox[2] + 0.01);
+		assert.ok(box.y + box.height <= exported.viewBox[1] + exported.viewBox[3] + 0.01);
+	}
+
 	await session.screenshot(
 		path.join(ARTIFACTS, 'v2-historical-family-chart-expansion-depth2.png')
 	);
