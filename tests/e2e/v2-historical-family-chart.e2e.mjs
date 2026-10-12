@@ -783,6 +783,14 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		view.fitToView();
 		return true;
 	`);
+	// F3's fit animation can rebuild the chart and temporarily discard
+	// historical lane DOM. Wait for the projected lane to reappear before
+	// diagnosing its actual viewport coordinates.
+	await session.waitFor(`(() => {
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		return root?.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]')
+			&& root?.querySelector('.cr-fcv-chart-container')?.dataset.historicalExpandedCount === '2';
+	})()`);
 	const visualBounds = await session.evalInApp(`
 		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
 		const svg = root?.querySelector('svg.main_svg');
