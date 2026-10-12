@@ -689,6 +689,40 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		assert.ok(box.y + box.height <= exported.viewBox[1] + exported.viewBox[3] + 0.01);
 	}
 
+	// Exercise the real PNG export path. Preserve actual blob: URLs for
+	// SVG-to-canvas rendering; intercept only the final download.
+	const pngExport = await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		if (!view) throw new Error('Historical chart view missing for PNG export');
+		const originalUrl = URL.createObjectURL;
+		const originalClick = HTMLAnchorElement.prototype.click;
+		let accept;
+		const producedPng = new Promise(resolve => { accept = resolve; });
+		try {
+			URL.createObjectURL = function (blob) {
+				if (blob?.type === 'image/png') accept(blob);
+				return originalUrl.call(URL, blob);
+			};
+			HTMLAnchorElement.prototype.click = function () {};
+			await view.exportWithOptions({
+				format: 'png', filename: 'historical-e2e.png',
+				includeAvatars: false, scale: 1
+			});
+			const blob = await Promise.race([
+				producedPng,
+				new Promise((_, reject) => setTimeout(() => reject(new Error('PNG export timed out')), 10000))
+			]);
+			const bytes = Array.from(new Uint8Array(await blob.slice(0, 8).arrayBuffer()));
+			return { type: blob.type, size: blob.size, signature: bytes };
+		} finally {
+			URL.createObjectURL = originalUrl;
+			HTMLAnchorElement.prototype.click = originalClick;
+		}
+	`);
+	assert.equal(pngExport.type, 'image/png');
+	assert.ok(pngExport.size > 8);
+	assert.deepEqual(pngExport.signature, [137, 80, 78, 71, 13, 10, 26, 10]);
+
 	await session.screenshot(
 		path.join(ARTIFACTS, 'v2-historical-family-chart-expansion-depth2.png')
 	);
