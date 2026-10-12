@@ -11,7 +11,7 @@ import f3 from 'family-chart';
 import * as d3 from 'd3';
 import { historicalArrowGeometry } from '../../v2/historical-family-chart/arrow-geometry';
 import { filterHistoricalProjection, type HistoricalRelationPreset } from '../../v2/historical-family-chart/relation-presets';
-import { compareHistoricalRoutes, historicalParallelSag } from '../../v2/historical-family-chart/parallel-routes';
+import { compareHistoricalRoutes, historicalParallelSag, historicalPersistentLabelVisible } from '../../v2/historical-family-chart/parallel-routes';
 
 import type CanvasRootsPlugin from '../../../main';
 import { FamilyGraphService, PersonNode } from '../../core/family-graph';
@@ -4780,7 +4780,7 @@ export class FamilyChartView extends ItemView {
 				// forcing researchers to hover every edge. Keep the persistent
 				// label intentionally compact; dates, research state and notes stay
 				// in the richer hover tooltip to avoid turning dense charts into text.
-				if (this.mode === 'historical') {
+				if (this.mode === 'historical' && historicalPersistentLabelVisible(index, arcEntries.length)) {
 					const label = createSvg('text');
 					const t = 0.5;
 					const oneMinusT = 1 - t;
