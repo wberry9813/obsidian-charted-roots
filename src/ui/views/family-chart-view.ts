@@ -2438,8 +2438,43 @@ export class FamilyChartView extends ItemView {
 	private fitToView(): void {
 		if (this.f3Chart) {
 			this.f3Chart.updateTree({ tree_position: 'fit' });
+			if (this.mode === 'historical') {
+				// f3 fits only structural genealogy. Historical depth lanes live
+				// outside cards_view and can be fully offscreen after its fit.
+				this.waitForCardPositionStability(() => {
+					if (this.mode !== 'historical') return;
+					this.renderHistoricalExpansionAndOverlay();
+					this.fitHistoricalContentToView();
+				});
+			}
 			// Delay display update to allow fit animation to complete
 			window.setTimeout(() => this.updateZoomLevelDisplay(), 300);
+		}
+	}
+
+	private fitHistoricalContentToView(): void {
+		const svg = this.f3Chart?.svg as SVGSVGElement | undefined;
+		const view = svg?.querySelector<SVGGElement>('.view');
+		if (!svg || !view) return;
+		try {
+			const bounds = view.getBBox();
+			const viewport = svg.getBoundingClientRect();
+			if (!bounds.width || !bounds.height || !viewport.width || !viewport.height) return;
+			const padding = 32;
+			const k = Math.min(
+				1,
+				Math.max(0.05, Math.min(
+					(viewport.width - padding * 2) / bounds.width,
+					(viewport.height - padding * 2) / bounds.height
+				))
+			);
+			this.restoreZoomTransform({
+				k,
+				x: viewport.width / 2 - k * (bounds.x + bounds.width / 2),
+				y: viewport.height / 2 - k * (bounds.y + bounds.height / 2)
+			});
+		} catch {
+			// Detached SVG nodes may not have measurable bounds during redraw.
 		}
 	}
 
