@@ -997,6 +997,67 @@ export async function exportAsPng(ctx: FamilyChartExportContext): Promise<void> 
 }
 
 /**
+ * Freeze resolved SVG presentation styles from the live Obsidian document onto
+ * a detached clone. Standalone SVG images and canvas rasterization do not have
+ * access to Obsidian theme variables or plugin stylesheets, so relying on
+ * class names / var(--...) values makes cards render with SVG defaults (for
+ * example black historical card bodies with dark text).
+ *
+ * The source and clone have identical element order immediately after
+ * cloneNode(true), which lets us copy only presentation properties without
+ * carrying over live pan/zoom CSS transforms.
+ */
+function materializeSvgPresentationStyles(
+	sourceSvg: SVGSVGElement,
+	svgClone: SVGSVGElement
+): void {
+	const sourceElements: Element[] = [
+		sourceSvg,
+		...Array.from(sourceSvg.querySelectorAll('*'))
+	];
+	const cloneElements: Element[] = [
+		svgClone,
+		...Array.from(svgClone.querySelectorAll('*'))
+	];
+	const count = Math.min(sourceElements.length, cloneElements.length);
+
+	const properties: Array<[string, keyof CSSStyleDeclaration]> = [
+		['fill', 'fill'],
+		['fill-opacity', 'fillOpacity'],
+		['stroke', 'stroke'],
+		['stroke-opacity', 'strokeOpacity'],
+		['stroke-width', 'strokeWidth'],
+		['stroke-dasharray', 'strokeDasharray'],
+		['stroke-linecap', 'strokeLinecap'],
+		['stroke-linejoin', 'strokeLinejoin'],
+		['opacity', 'opacity'],
+		['font-family', 'fontFamily'],
+		['font-size', 'fontSize'],
+		['font-weight', 'fontWeight'],
+		['font-style', 'fontStyle'],
+		['letter-spacing', 'letterSpacing'],
+		['paint-order', 'paintOrder'],
+		['visibility', 'visibility']
+	];
+
+	for (let i = 0; i < count; i++) {
+		const source = sourceElements[i];
+		const clone = cloneElements[i];
+		if (!(source instanceof SVGElement) || !(clone instanceof SVGElement)) {
+			continue;
+		}
+		const computed = activeWindow.getComputedStyle(source);
+		for (const [attribute, property] of properties) {
+			const value = String(computed[property] ?? '').trim();
+			if (!value || value === 'normal' && attribute === 'paint-order') {
+				continue;
+			}
+			clone.setAttribute(attribute, value);
+		}
+	}
+}
+
+/**
  * Prepare SVG for export by handling transforms and styling
  * Family-chart uses CSS transforms on .view group for pan/zoom, which must be
  * converted to a proper viewBox for standalone SVG export
@@ -1102,6 +1163,7 @@ export function prepareSvgForExport(ctx: FamilyChartExportContext, svg: SVGSVGEl
 
 	// Clone SVG
 	const svgClone = svg.cloneNode(true) as SVGSVGElement;
+	materializeSvgPresentationStyles(svg, svgClone);
 	svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
 	svgClone.setAttribute('width', String(width));
 	svgClone.setAttribute('height', String(height));
@@ -1130,9 +1192,7 @@ export function prepareSvgForExport(ctx: FamilyChartExportContext, svg: SVGSVGEl
 	const styleEl = createSvg('style');
 	styleEl.textContent = `
 		text, tspan {
-			fill: ${textColor};
 			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-			font-size: 14px;
 		}
 		.card-body-rect { fill: ${bgColor}; }
 		.card-female .card-body-rect { fill: ${femaleColor}; }
@@ -1144,27 +1204,23 @@ export function prepareSvgForExport(ctx: FamilyChartExportContext, svg: SVGSVGEl
 	`;
 	svgClone.insertBefore(styleEl, svgClone.firstChild);
 
-	// Set fill on all text elements for maximum compatibility
-	// Also remove any inline styles that might override our fill, and ensure visibility
+	// Computed fill/font presentation has already been materialized above.
+	// Strip any leftover variable-based inline declarations without flattening
+	// semantic muted/accent text into one global text color.
 	svgClone.querySelectorAll('text, tspan').forEach((el) => {
-		el.setAttribute('fill', textColor);
-		// Remove any inline style that might contain CSS variables or override fill
+		const fill = el.getAttribute('fill');
+		if (!fill || fill.includes('var(')) {
+			el.setAttribute('fill', textColor);
+		}
 		const style = el.getAttribute('style');
 		if (style) {
-			// Remove fill, color, and any CSS variable references from inline style
 			const cleanedStyle = style
-				.replace(/fill:[^;]+;?/gi, '')
-				.replace(/color:[^;]+;?/gi, '')
-				.replace(/var\([^)]+\)/gi, textColor)
+				.replace(/fill:[^;]*var\([^)]+\)[^;]*;?/gi, '')
+				.replace(/color:[^;]*var\([^)]+\)[^;]*;?/gi, '')
 				.trim();
-			if (cleanedStyle) {
-				el.setAttribute('style', cleanedStyle);
-			} else {
-				el.removeAttribute('style');
-			}
+			if (cleanedStyle) el.setAttribute('style', cleanedStyle);
+			else el.removeAttribute('style');
 		}
-		// Ensure text is visible
-		el.setAttribute('opacity', '1');
 		el.setAttribute('visibility', 'visible');
 	});
 
