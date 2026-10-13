@@ -1,6 +1,6 @@
 # Historical Family Chart
 
-> Status: **F0–F5 implemented on `feat/v2-historical-family-chart`; F6 polish / research-scale use next**
+> Status: **F0–F6 complete on `feat/v2-historical-family-chart`; automated and real-file visual acceptance complete**
 >
 > This document defines a historical-research mode for the existing Interactive
 > Family Chart. The mode reuses the person-card surface and layout machinery,
