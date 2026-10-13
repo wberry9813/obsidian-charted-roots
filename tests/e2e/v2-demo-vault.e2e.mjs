@@ -2,12 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { mkdir } from 'node:fs/promises';
 import { launchObsidian } from './obsidian-harness.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const VAULT = path.resolve(HERE, '../../dist/Charted-Roots-Demo-Vault');
+const ARTIFACTS = path.resolve(HERE, 'artifacts');
 
 test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (t) => {
+	await mkdir(ARTIFACTS, { recursive: true });
 	const session = await launchObsidian({ vault: VAULT });
 	t.after(async () => session.close());
 
@@ -36,8 +39,128 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 	assert.ok(initial.people.includes('刘备'));
 	assert.ok(initial.people.includes('孙权'));
 	assert.ok(initial.people.includes('周瑜'));
+	assert.ok(initial.people.includes('曹嵩'));
+	assert.ok(initial.people.includes('荀彧'));
+	assert.ok(initial.people.includes('郭嘉'));
 	assert.ok(!initial.people.includes('林晨'));
 	assert.ok(!initial.people.includes('李英琼'));
+
+	// Permanent Historical Family Chart showcase: the demo vault itself must
+	// visibly demonstrate structural genealogy + time-varying Historical lanes.
+	const historicalPoints = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		const calendar = plugin.getHistoricalDateService().getCalendarProvider('tyme');
+		if (!calendar) throw new Error('Tyme calendar unavailable in demo vault');
+		const point197 = calendar.solarToJulianDay({ year: 197, month: 6, day: 1 });
+		const point201 = calendar.solarToJulianDay({ year: 201, month: 6, day: 1 });
+		const point208 = calendar.solarToJulianDay({ year: 208, month: 6, day: 1 });
+		plugin.getTemporalFocusService().setPoint(point197, 'demo-family-chart-197');
+		await plugin.activateFamilyChartView('demo-3k-caocao', true, true);
+		return { point197, point201, point208 };
+	`);
+
+	await session.waitFor(`
+		(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			return !!root
+				&& root.querySelectorAll('.card_cont').length >= 2
+				&& !!root.querySelector('.cr-fcv-mode-select');
+		})()
+	`);
+
+	await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const mode = root?.querySelector('.cr-fcv-mode-select');
+		if (!(mode instanceof HTMLSelectElement)) throw new Error('Historical mode selector missing');
+		mode.value = 'historical';
+		mode.dispatchEvent(new Event('change', { bubbles: true }));
+		return true;
+	`);
+
+	await session.waitFor(`
+		(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			return root?.querySelector('.cr-fcv-mode-select')?.value === 'historical'
+				&& root.querySelectorAll('.cr-fcv-historical-depth-btn').length === 4;
+		})()
+	`);
+
+	await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const depth = root?.querySelector('.cr-fcv-historical-depth-btn[data-depth="2"]');
+		if (!(depth instanceof HTMLButtonElement)) throw new Error('Historical depth 2 control missing');
+		depth.click();
+		return true;
+	`);
+
+	await session.waitFor(`
+		(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			if (!root) return false;
+			const structural = [...root.querySelectorAll('.card_cont')]
+				.map(card => card.__data__?.data?.id).filter(Boolean);
+			const focus = root.querySelector('.cr-fcv-historical-focus');
+			return structural.includes('demo-3k-caocao')
+				&& structural.includes('demo-3k-caosong')
+				&& !!root.querySelector('.cr-fcv-historical-person-card[data-cr-id="demo-3k-xunyu"][data-depth="1"]')
+				&& !!root.querySelector('.cr-fcv-historical-person-card[data-cr-id="demo-3k-guojia"][data-depth="2"]')
+				&& !!root.querySelector('.cr-relationship-overlay-line--ally_of[data-source-cr-id="demo-3k-caocao"][data-target-cr-id="demo-3k-xunyu"]')
+				&& !!root.querySelector('.cr-relationship-overlay-line--recommends[data-source-cr-id="demo-3k-xunyu"][data-target-cr-id="demo-3k-guojia"]')
+				&& root.querySelectorAll('.cr-fcv-historical-direction-arrow[data-source-cr-id="demo-3k-xunyu"][data-target-cr-id="demo-3k-guojia"]').length === 1
+				&& !!root.querySelector('.cr-fcv-historical-edge-label[data-predicate="recommends"]')?.textContent?.trim()
+				&& focus?.textContent?.includes('197 CE');
+		})()
+	`);
+	await session.screenshot(path.join(ARTIFACTS, 'demo-historical-family-chart-197.png'));
+
+	await session.evalInApp(`
+		app.plugins.plugins['charted-roots'].getTemporalFocusService().setPoint(
+			${JSON.stringify(historicalPoints.point201)},
+			'demo-family-chart-201'
+		);
+		return true;
+	`);
+	await session.waitFor(`
+		(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			if (!root) return false;
+			const structural = [...root.querySelectorAll('.card_cont')]
+				.map(card => card.__data__?.data?.id).filter(Boolean);
+			return structural.includes('demo-3k-caocao')
+				&& structural.includes('demo-3k-caosong')
+				&& !root.querySelector('.cr-fcv-historical-person-card[data-cr-id="demo-3k-xunyu"]')
+				&& !root.querySelector('.cr-fcv-historical-person-card[data-cr-id="demo-3k-guojia"]')
+				&& root.querySelector('.cr-fcv-historical-focus')?.textContent?.includes('201 CE');
+		})()
+	`);
+	await session.screenshot(path.join(ARTIFACTS, 'demo-historical-family-chart-201.png'));
+
+	await session.evalInApp(`
+		app.plugins.plugins['charted-roots'].getTemporalFocusService().setPoint(
+			${JSON.stringify(historicalPoints.point208)},
+			'demo-family-chart-208'
+		);
+		return true;
+	`);
+	await session.waitFor(`
+		(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			const state = root?.querySelector('.cr-fcv-historical-card-state[data-cr-id="demo-3k-caocao"]');
+			const office = state?.querySelector('.cr-fcv-historical-card-state__row[data-kind="office_holding"][data-state="active"] text');
+			const affiliation = state?.querySelector('.cr-fcv-historical-card-state__row[data-kind="affiliation"][data-state="active"] text');
+			return office?.textContent?.includes('丞相')
+				&& affiliation?.textContent?.includes('汉朝廷')
+				&& state?.getAttribute('data-possible-count') === '1'
+				&& root?.querySelector('.cr-fcv-historical-focus')?.textContent?.includes('208 CE');
+		})()
+	`);
+	await session.screenshot(path.join(ARTIFACTS, 'demo-historical-family-chart-208.png'));
+
+	await session.evalInApp(`
+		app.plugins.plugins['charted-roots'].getTemporalFocusService().clear();
+		for (const leaf of app.workspace.getLeavesOfType('canvas-roots-family-chart')) leaf.detach();
+		return true;
+	`);
 
 	await session.evalInApp(`
 		const opened = app.commands.executeCommandById('charted-roots:manage-workspaces');
