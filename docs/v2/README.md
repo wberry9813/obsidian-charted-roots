@@ -83,6 +83,7 @@ Ordinary plugin settings use normal i18n. Only extensible domain definitions nee
 - [Evidence, Providers and Reuse](evidence-providers.md)
 - [Migration and Implementation Boundaries](migration-and-implementation.md)
 - [Multi-Workspace Foundation](multi-workspace.md)
+- [Historical Map Scenes and Ancient Gazetteer Layers](historical-map-scenes.md)
 
 ## Confirmed non-goals
 
@@ -101,7 +102,7 @@ The following remain implementation/research decisions rather than schema commit
 
 - final project/product name;
 - exact timeline renderer;
-- exact historical map data provider;
+- exact historical map data provider (scene/provider architecture is now defined; individual provider adapters remain phased);
 - exact storage path for user ontology overrides;
 - whether very high-volume Assertions later gain an optimized storage mode;
 - redistribution/licensing choices for optional chronology datasets.
