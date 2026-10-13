@@ -111,6 +111,31 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 				&& focus?.textContent?.includes('197 CE');
 		})()
 	`);
+	await session.waitFor(`
+		(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			const svg = root?.querySelector('svg.main_svg');
+			if (!root || !svg) return false;
+			const viewport = svg.getBoundingClientRect();
+			const structuralById = id => [...root.querySelectorAll('.card_cont')]
+				.find(card => card.__data__?.data?.id === id);
+			const cards = [
+				structuralById('demo-3k-caosong'),
+				structuralById('demo-3k-caocao'),
+				root.querySelector('.cr-fcv-historical-person-card[data-cr-id="demo-3k-xunyu"]'),
+				root.querySelector('.cr-fcv-historical-person-card[data-cr-id="demo-3k-guojia"]')
+			];
+			return cards.every(card => {
+				if (!card) return false;
+				const r = card.getBoundingClientRect();
+				return r.width > 0 && r.height > 0
+					&& r.left >= viewport.left - 8
+					&& r.right <= viewport.right + 8
+					&& r.top >= viewport.top - 8
+					&& r.bottom <= viewport.bottom + 8;
+			});
+		})()
+	`, { timeout: 15000, interval: 100 });
 	await session.screenshot(path.join(ARTIFACTS, 'demo-historical-family-chart-197.png'));
 
 	await session.evalInApp(`
@@ -133,6 +158,25 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 				&& root.querySelector('.cr-fcv-historical-focus')?.textContent?.includes('201 CE');
 		})()
 	`);
+	await session.waitFor(`
+		(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			const svg = root?.querySelector('svg.main_svg');
+			if (!root || !svg) return false;
+			const viewport = svg.getBoundingClientRect();
+			const cards = [...root.querySelectorAll('.card_cont')].filter(card =>
+				['demo-3k-caosong', 'demo-3k-caocao'].includes(card.__data__?.data?.id)
+			);
+			return cards.length === 2 && cards.every(card => {
+				const r = card.getBoundingClientRect();
+				return r.width > 0 && r.height > 0
+					&& r.left >= viewport.left - 8
+					&& r.right <= viewport.right + 8
+					&& r.top >= viewport.top - 8
+					&& r.bottom <= viewport.bottom + 8;
+			});
+		})()
+	`, { timeout: 15000, interval: 100 });
 	await session.screenshot(path.join(ARTIFACTS, 'demo-historical-family-chart-201.png'));
 
 	await session.evalInApp(`
@@ -154,6 +198,23 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 				&& root?.querySelector('.cr-fcv-historical-focus')?.textContent?.includes('208 CE');
 		})()
 	`);
+	await session.waitFor(`
+		(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			const svg = root?.querySelector('svg.main_svg');
+			if (!root || !svg) return false;
+			const viewport = svg.getBoundingClientRect();
+			const cao = [...root.querySelectorAll('.card_cont')]
+				.find(card => card.__data__?.data?.id === 'demo-3k-caocao');
+			if (!cao) return false;
+			const r = cao.getBoundingClientRect();
+			return r.width > 0 && r.height > 0
+				&& r.left >= viewport.left - 8
+				&& r.right <= viewport.right + 8
+				&& r.top >= viewport.top - 8
+				&& r.bottom <= viewport.bottom + 8;
+		})()
+	`, { timeout: 15000, interval: 100 });
 	await session.screenshot(path.join(ARTIFACTS, 'demo-historical-family-chart-208.png'));
 
 	await session.evalInApp(`
