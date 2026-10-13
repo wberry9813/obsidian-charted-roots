@@ -1000,8 +1000,12 @@ export async function exportAsPng(ctx: FamilyChartExportContext): Promise<void> 
  * Freeze resolved SVG presentation styles from the live Obsidian document onto
  * a detached clone. Standalone SVG images and canvas rasterization do not have
  * access to Obsidian theme variables or plugin stylesheets, so relying on
- * class names / var(--...) values makes cards render with SVG defaults (for
- * example black historical card bodies with dark text).
+ * class names / var(--...) values makes cards render with SVG defaults.
+ *
+ * Do not copy computed opacity / fill-opacity / stroke-opacity / visibility:
+ * those values can reflect transient f3 animation or inherited transparent
+ * SVG-root state. Existing authored attributes/styles remain on the clone, while
+ * stable color/font/stroke presentation is materialized here.
  *
  * The source and clone have identical element order immediately after
  * cloneNode(true), which lets us copy only presentation properties without
@@ -1023,21 +1027,17 @@ function materializeSvgPresentationStyles(
 
 	const properties: Array<[string, keyof CSSStyleDeclaration]> = [
 		['fill', 'fill'],
-		['fill-opacity', 'fillOpacity'],
 		['stroke', 'stroke'],
-		['stroke-opacity', 'strokeOpacity'],
 		['stroke-width', 'strokeWidth'],
 		['stroke-dasharray', 'strokeDasharray'],
 		['stroke-linecap', 'strokeLinecap'],
 		['stroke-linejoin', 'strokeLinejoin'],
-		['opacity', 'opacity'],
 		['font-family', 'fontFamily'],
 		['font-size', 'fontSize'],
 		['font-weight', 'fontWeight'],
 		['font-style', 'fontStyle'],
 		['letter-spacing', 'letterSpacing'],
-		['paint-order', 'paintOrder'],
-		['visibility', 'visibility']
+		['paint-order', 'paintOrder']
 	];
 
 	for (let i = 0; i < count; i++) {
@@ -1279,7 +1279,10 @@ export function prepareSvgForExport(ctx: FamilyChartExportContext, svg: SVGSVGEl
 	bgRect.setAttribute('y', String(minY));
 	bgRect.setAttribute('width', String(width));
 	bgRect.setAttribute('height', String(height));
+	bgRect.setAttribute('class', 'cr-export-background');
 	bgRect.setAttribute('fill', bgColor);
+	bgRect.setAttribute('fill-opacity', '1');
+	bgRect.setAttribute('opacity', '1');
 	svgClone.insertBefore(bgRect, svgClone.firstChild);
 
 	return { svgClone, width, height };
