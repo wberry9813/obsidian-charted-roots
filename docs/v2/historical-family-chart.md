@@ -349,9 +349,9 @@ Expected behavior:
 
 - [x] directional arrowheads (Historical mode only; semantic object endpoint independent of bezier path ordering; symmetric relationships remain arrow-free);
 - [x] persistent edge labels (compact predicate labels are always visible in Historical mode; richer dates, research state and notes remain in hover tooltips; SVG export retains the labels);
-- [ ] multi-edge routing (deterministic ordering, separated curvature, and dense-route unit coverage implemented; research-scale visual decluttering acceptance still pending);
+- [x] multi-edge routing (deterministic ordering, separated curvature, dense-route unit coverage, and a 12-edge real-Obsidian visual acceptance passed after CI #891);
 - [x] initial relation category presets (ontology predicate-based; view state persisted; E2E switching and state assertions);
-- [ ] dense-network decluttering (dense parallel stacks now keep all routes/hover semantics but cap persistent labels at four deterministic samples; real-Obsidian dense visual acceptance still pending);
+- [x] dense-network decluttering (dense parallel stacks keep all routes/hover semantics, cap persistent labels at four deterministic samples, and the 12-edge real-Obsidian screenshot was visually accepted after CI #891);
 - [ ] export historical overlays (SVG content/bounds and Chinese labels accepted in real Obsidian; PNG format/decode/dimensions/nonblank pixels accepted; PNG visual parity plus PDF/ODT still need acceptance);
 - [ ] manual acceptance on Three Kingdoms showcase.
 
@@ -428,8 +428,9 @@ remain the research record.
 - [x] Directed `recommends` arrow points toward Guo Jia, while symmetric
   `ally_of` has no arrow; the temporal projection removes stale directed edges
   at 201 CE, and the 201 CE viewport remains visibly fitted after focus changes.
-- [ ] A dense pair of relations stays legible at normal zoom and does not
-  cover intermediate cards or tooltips.
+- [x] A dense pair of 12 simultaneous relations stays legible at normal zoom,
+  keeps both endpoint cards fully visible, and samples four non-overlapping
+  persistent labels without covering Person cards (real Obsidian, CI #891).
 - [ ] SVG export contains the complete viewBox, Chinese labels, historical
   lane cards and arrows when opened independently.
 - [ ] PNG export opens independently and visually matches its SVG version;
