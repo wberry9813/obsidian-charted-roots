@@ -762,7 +762,10 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 				(el.getAttribute('fill') ?? '').includes('var(')
 				|| (el.getAttribute('stroke') ?? '').includes('var(')
 			).length;
+		const exportBackground = doc.querySelector('.cr-export-background');
+		const recommendationLine = doc.querySelector('.cr-relationship-overlay-line--recommends');
 		return {
+			xml,
 			laneCard: !!doc.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'),
 			recommendation: !!doc.querySelector('.cr-relationship-overlay-line--recommends'),
 			persistentLabel: doc.querySelector('.cr-fcv-historical-edge-label[data-predicate="recommends"]')?.textContent?.trim() ?? '',
@@ -773,6 +776,12 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 			historicalBodyFill: historicalBody?.getAttribute('fill') ?? '',
 			historicalNameFill: historicalName?.getAttribute('fill') ?? '',
 			presentationVarCount,
+			backgroundFill: exportBackground?.getAttribute('fill') ?? '',
+			backgroundOpacity: exportBackground?.getAttribute('opacity') ?? '',
+			historicalBodyOpacity: historicalBody?.getAttribute('opacity') ?? '',
+			historicalBodyFillOpacity: historicalBody?.getAttribute('fill-opacity') ?? '',
+			recommendationStroke: recommendationLine?.getAttribute('stroke') ?? '',
+			recommendationOpacity: recommendationLine?.getAttribute('opacity') ?? '',
 			viewBox, lane, overlay
 		};
 	`);
@@ -791,7 +800,22 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		'Historical card name should have a resolved standalone fill');
 	assert.notEqual(exported.historicalBodyFill, exported.historicalNameFill,
 		'Historical card body and text should retain contrasting resolved colors');
+	assert.ok(exported.backgroundFill && exported.backgroundOpacity !== '0',
+		'standalone export should include an opaque chart background');
+	assert.notEqual(exported.historicalBodyOpacity, '0',
+		'Historical card body must not inherit transient zero opacity');
+	assert.notEqual(exported.historicalBodyFillOpacity, '0',
+		'Historical card body fill must remain visible');
+	assert.ok(exported.recommendationStroke && exported.recommendationStroke !== 'none',
+		'Historical relationship route should retain a visible stroke');
+	assert.notEqual(exported.recommendationOpacity, '0',
+		'Historical relationship route must not inherit transient zero opacity');
 	assert.equal(exported.viewBox?.length, 4);
+	await writeFile(
+		path.join(ARTIFACTS, 'v2-historical-family-chart-export.svg'),
+		exported.xml,
+		'utf8'
+	);
 	for (const box of [exported.lane, exported.overlay]) {
 		assert.ok(box.x >= exported.viewBox[0] - 0.01);
 		assert.ok(box.y >= exported.viewBox[1] - 0.01);
