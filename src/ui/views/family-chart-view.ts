@@ -2869,11 +2869,87 @@ export class FamilyChartView extends ItemView {
 	}
 
 	/**
+	 * Wait until f3 structural cards have reached their final transforms and
+	 * opacity before cloning the chart for export. Historical lanes depend on
+	 * those final structural positions, so redraw them once more after the
+	 * structural animation settles.
+	 */
+	private waitForExportReady(): Promise<void> {
+		const svg = this.f3Chart?.svg as SVGSVGElement | undefined;
+		if (!svg) return Promise.resolve();
+
+		const MAX_FRAMES = 360;
+		const MIN_FRAMES = 24;
+		const REQUIRED_STABLE_FRAMES = 10;
+
+		return new Promise(resolve => {
+			let frame = 0;
+			let stableFrames = 0;
+			let last = '';
+
+			const signature = (): { value: string; opaque: boolean } => {
+				const cards = Array.from(
+					svg.querySelectorAll<SVGGElement>('.card_cont')
+				);
+				const parts: string[] = [];
+				let opaque = cards.length > 0;
+				for (const card of cards) {
+					const style = activeWindow.getComputedStyle(card);
+					const opacity = Number(style.opacity || '1');
+					if (!Number.isFinite(opacity) || opacity < 0.98) opaque = false;
+					parts.push([
+						card.getAttribute('transform') ?? '',
+						card.getAttribute('style') ?? '',
+						opacity.toFixed(3)
+					].join('@'));
+				}
+				return {
+					value: parts.join('|'),
+					opaque
+				};
+			};
+
+			const finish = () => {
+				if (this.mode === 'historical') {
+					this.renderHistoricalExpansionAndOverlay();
+				}
+				window.requestAnimationFrame(() => resolve());
+			};
+
+			const tick = () => {
+				frame++;
+				const current = signature();
+				if (current.value === last && current.opaque) {
+					stableFrames++;
+				} else {
+					stableFrames = 0;
+					last = current.value;
+				}
+
+				if (
+					frame >= MIN_FRAMES
+					&& stableFrames >= REQUIRED_STABLE_FRAMES
+				) {
+					finish();
+					return;
+				}
+				if (frame >= MAX_FRAMES) {
+					finish();
+					return;
+				}
+				window.requestAnimationFrame(tick);
+			};
+			window.requestAnimationFrame(tick);
+		});
+	}
+
+	/**
 	 * Build export context for delegating to standalone export functions
 	 */
 	private getExportContext(): FamilyChartExportContext {
 		return {
 			getChartSvg: () => this.f3Chart?.svg as SVGSVGElement | null ?? null,
+			waitUntilReady: () => this.waitForExportReady(),
 			chartContainerEl: this.chartContainerEl,
 			cardStyle: this.cardStyle,
 			chartData: this.chartData,
