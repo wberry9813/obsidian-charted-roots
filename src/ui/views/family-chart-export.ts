@@ -1025,6 +1025,42 @@ export async function exportAsPng(ctx: FamilyChartExportContext): Promise<void> 
  * cloneNode(true), which lets us copy only presentation properties without
  * carrying over live pan/zoom CSS transforms.
  */
+function normalizePortableSvgPresentationAttributes(svg: SVGSVGElement): void {
+	const normalize = (element: Element, attribute: 'fill' | 'stroke'): void => {
+		const raw = element.getAttribute(attribute);
+		if (!raw) return;
+		const value = raw.trim();
+		const rgba = value.match(
+			/^rgba\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)$/i
+		);
+		if (rgba) {
+			const alpha = Number(rgba[4]);
+			if (Number.isFinite(alpha) && alpha <= 0) {
+				element.setAttribute(attribute, 'none');
+				element.removeAttribute(attribute === 'fill' ? 'fill-opacity' : 'stroke-opacity');
+				return;
+			}
+			element.setAttribute(attribute, `rgb(${rgba[1]}, ${rgba[2]}, ${rgba[3]})`);
+			if (Number.isFinite(alpha) && alpha < 1) {
+				element.setAttribute(
+					attribute === 'fill' ? 'fill-opacity' : 'stroke-opacity',
+					String(alpha)
+				);
+			}
+			return;
+		}
+		if (value.toLowerCase() === 'transparent') {
+			element.setAttribute(attribute, 'none');
+			element.removeAttribute(attribute === 'fill' ? 'fill-opacity' : 'stroke-opacity');
+		}
+	};
+
+	for (const element of Array.from(svg.querySelectorAll('[fill], [stroke]'))) {
+		normalize(element, 'fill');
+		normalize(element, 'stroke');
+	}
+}
+
 function materializeSvgPresentationStyles(
 	sourceSvg: SVGSVGElement,
 	svgClone: SVGSVGElement
@@ -1211,6 +1247,10 @@ export function prepareSvgForExport(ctx: FamilyChartExportContext, svg: SVGSVGEl
 	// Clone SVG
 	const svgClone = svg.cloneNode(true) as SVGSVGElement;
 	materializeSvgPresentationStyles(svg, svgClone);
+	// family-chart itself can author rgba()/transparent presentation attributes.
+	// Normalize the complete clone after style materialization so standalone SVG
+	// renderers receive portable presentation values regardless of the source.
+	normalizePortableSvgPresentationAttributes(svgClone);
 	svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
 	svgClone.setAttribute('width', String(width));
 	svgClone.setAttribute('height', String(height));
