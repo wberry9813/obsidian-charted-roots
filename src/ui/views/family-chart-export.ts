@@ -39,6 +39,8 @@ const logger = getLogger('FamilyChartExport');
 export interface FamilyChartExportContext {
 	/** The family-chart instance's SVG element */
 	getChartSvg(): SVGSVGElement | null;
+	/** Wait for the live chart to finish any layout/entrance animation before cloning. */
+	waitUntilReady?: () => Promise<void>;
 	/** The chart container element (for HTML card export) */
 	chartContainerEl: HTMLElement | null;
 	/** Current card style */
@@ -99,6 +101,12 @@ export async function exportWithOptions(
 	}
 ): Promise<void> {
 	const { format, filename, includeAvatars, scale, onProgress, isCancelled } = options;
+
+	// family-chart animates structural cards independently from Historical
+	// overlays. Cloning during that transition captures temporary transforms and
+	// near-zero opacity values, producing incomplete SVG/PNG/PDF/ODT output.
+	await ctx.waitUntilReady?.();
+	if (isCancelled?.()) return;
 
 	switch (format) {
 		case 'png':
