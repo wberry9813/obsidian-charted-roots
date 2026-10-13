@@ -352,7 +352,7 @@ Expected behavior:
 - [x] multi-edge routing (deterministic ordering, separated curvature, dense-route unit coverage, and a 12-edge real-Obsidian visual acceptance passed after CI #891);
 - [x] initial relation category presets (ontology predicate-based; view state persisted; E2E switching and state assertions);
 - [x] dense-network decluttering (dense parallel stacks keep all routes/hover semantics, cap persistent labels at four deterministic samples, and the 12-edge real-Obsidian screenshot was visually accepted after CI #891);
-- [ ] export historical overlays (SVG content/bounds and Chinese labels accepted in real Obsidian; PNG format/decode/dimensions/nonblank pixels accepted; PNG visual parity plus PDF/ODT still need acceptance);
+- [ ] export historical overlays (SVG content/bounds and Chinese labels accepted in real Obsidian; PNG now has real-file visual parity acceptance after CI #911; PDF/ODT still need separate acceptance);
 - [ ] manual acceptance on Three Kingdoms showcase.
 
 ## 13. Three Kingdoms acceptance scenario
@@ -433,14 +433,14 @@ remain the research record.
   persistent labels without covering Person cards (real Obsidian, CI #891).
 - [ ] SVG export contains the complete viewBox, Chinese labels, historical
   lane cards and arrows when opened independently.
-- [ ] PNG export opens independently and visually matches its SVG version;
-  validate Chinese glyphs, arrowhead alignment and card edges. The current
-  PNG pixel test only proves the image is nonblank.
+- [x] PNG export opens independently and visually matches the accepted chart;
+  Chinese glyphs, structural/Historical cards, relationship curves and arrowhead alignment were visually reviewed from the real exported PNG after CI #911.
 - [ ] Review PDF/ODT output separately; sharing a preparation pipeline
   does not prove those document formats retain every historical layer.
 
 Automated coverage: E2E time focus, person expansion, symmetric/directed
-edges, category presets, SVG content/bounds and PNG binary/decoded pixels.
+edges, category presets, SVG content/bounds, settled structural export state,
+and PNG binary/decoded pixels with the real PNG persisted for visual review.
 The checklist above is **not** satisfied by CI alone.
 
 ## 14. Non-goals
