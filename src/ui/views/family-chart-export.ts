@@ -483,7 +483,13 @@ async function exportAsPdfWithOptions(
 			addPdfFooter(pdf, currentPage, totalPages, useRoboto);
 
 			onProgress?.({ phase: 'saving', current: 0, total: 100, message: 'Saving file...' });
-			pdf.save(filename);
+			const pdfBlob = pdf.output('blob');
+			const pdfUrl = URL.createObjectURL(pdfBlob);
+			const pdfLink = activeDocument.createElement('a');
+			pdfLink.href = pdfUrl;
+			pdfLink.download = filename;
+			pdfLink.click();
+			URL.revokeObjectURL(pdfUrl);
 			onProgress?.({ phase: 'complete', current: 100, total: 100, message: 'Done!' });
 			new Notice('PDF exported successfully');
 		};
