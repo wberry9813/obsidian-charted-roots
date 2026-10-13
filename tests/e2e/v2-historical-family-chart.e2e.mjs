@@ -751,6 +751,17 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		const doc = new DOMParser().parseFromString(xml, 'image/svg+xml');
 		const outputSvg = doc.documentElement;
 		const viewBox = outputSvg.getAttribute('viewBox')?.split(/\\s+/).map(Number);
+		const historicalBody = doc.querySelector(
+			'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"] .cr-fcv-historical-person-card__body'
+		);
+		const historicalName = doc.querySelector(
+			'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"] .cr-fcv-historical-person-card__name'
+		);
+		const presentationVarCount = [...doc.querySelectorAll('[fill], [stroke]')]
+			.filter(el =>
+				(el.getAttribute('fill') ?? '').includes('var(')
+				|| (el.getAttribute('stroke') ?? '').includes('var(')
+			).length;
 		return {
 			laneCard: !!doc.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'),
 			recommendation: !!doc.querySelector('.cr-relationship-overlay-line--recommends'),
@@ -759,6 +770,9 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 			chineseXun: xml.includes('荀彧'),
 			chineseGuo: xml.includes('郭嘉'),
 			invalidXml: doc.querySelector('parsererror') !== null,
+			historicalBodyFill: historicalBody?.getAttribute('fill') ?? '',
+			historicalNameFill: historicalName?.getAttribute('fill') ?? '',
+			presentationVarCount,
 			viewBox, lane, overlay
 		};
 	`);
@@ -769,6 +783,14 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 	assert.equal(exported.invalidXml, false);
 	assert.equal(exported.chineseXun, true);
 	assert.equal(exported.chineseGuo, true);
+	assert.equal(exported.presentationVarCount, 0,
+		'standalone SVG presentation attributes must not depend on Obsidian CSS variables');
+	assert.ok(exported.historicalBodyFill,
+		'Historical card body should have a resolved standalone fill');
+	assert.ok(exported.historicalNameFill,
+		'Historical card name should have a resolved standalone fill');
+	assert.notEqual(exported.historicalBodyFill, exported.historicalNameFill,
+		'Historical card body and text should retain contrasting resolved colors');
 	assert.equal(exported.viewBox?.length, 4);
 	for (const box of [exported.lane, exported.overlay]) {
 		assert.ok(box.x >= exported.viewBox[0] - 0.01);
