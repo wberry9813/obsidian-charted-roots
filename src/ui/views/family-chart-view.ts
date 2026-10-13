@@ -4571,6 +4571,14 @@ export class FamilyChartView extends ItemView {
 
 	private renderHistoricalExpansionAndOverlay(): void {
 		if (this.mode === 'historical') {
+			// Historical projection depends on materialized Assertion notes. On a
+			// freshly-opened vault Obsidian's MetadataCache can finish indexing
+			// after AssertionService built its first cache; restoring a persisted
+			// Historical view could then keep rendering that stale, empty snapshot.
+			// Rebuild from the current Workspace immediately before each explicit
+			// Historical redraw so on-disk Assertions and the visible graph cannot
+			// diverge because of startup/index timing.
+			this.plugin.getAssertionService().invalidateCache();
 			this.renderHistoricalExpansionLanes();
 			this.renderHistoricalCardStates();
 		} else {
