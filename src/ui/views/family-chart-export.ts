@@ -1054,6 +1054,39 @@ function materializeSvgPresentationStyles(
 		['paint-order', 'paintOrder']
 	];
 
+	const setPortablePresentationValue = (
+		clone: SVGElement,
+		attribute: string,
+		value: string
+	): void => {
+		if (attribute === 'fill' || attribute === 'stroke') {
+			const rgba = value.match(
+				/^rgba\\(\\s*([0-9.]+)\\s*,\\s*([0-9.]+)\\s*,\\s*([0-9.]+)\\s*,\\s*([0-9.]+)\\s*\\)$/i
+			);
+			if (rgba) {
+				const alpha = Number(rgba[4]);
+				if (Number.isFinite(alpha) && alpha <= 0) {
+					clone.setAttribute(attribute, 'none');
+					clone.removeAttribute(attribute === 'fill' ? 'fill-opacity' : 'stroke-opacity');
+					return;
+				}
+				if (Number.isFinite(alpha) && alpha < 1) {
+					clone.setAttribute(attribute, `rgb(${rgba[1]}, ${rgba[2]}, ${rgba[3]})`);
+					clone.setAttribute(
+						attribute === 'fill' ? 'fill-opacity' : 'stroke-opacity',
+						String(alpha)
+					);
+					return;
+				}
+			}
+			if (value.toLowerCase() === 'transparent') {
+				clone.setAttribute(attribute, 'none');
+				return;
+			}
+		}
+		clone.setAttribute(attribute, value);
+	};
+
 	for (let i = 0; i < count; i++) {
 		const source = sourceElements[i];
 		const clone = cloneElements[i];
@@ -1066,7 +1099,7 @@ function materializeSvgPresentationStyles(
 			if (!value || value === 'normal' && attribute === 'paint-order') {
 				continue;
 			}
-			clone.setAttribute(attribute, value);
+			setPortablePresentationValue(clone, attribute, value);
 		}
 	}
 }
