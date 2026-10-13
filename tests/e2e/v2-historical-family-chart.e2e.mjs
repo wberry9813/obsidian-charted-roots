@@ -764,6 +764,15 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 			).length;
 		const exportBackground = doc.querySelector('.cr-export-background');
 		const recommendationLine = doc.querySelector('.cr-relationship-overlay-line--recommends');
+		const structuralCards = [...doc.querySelectorAll('.card_cont')].map(el => {
+			const style = el.getAttribute('style') ?? '';
+			const opacityMatch = style.match(/opacity:\\s*([0-9.]+)/i);
+			return {
+				text: el.textContent?.trim() ?? '',
+				transform: el.getAttribute('transform') ?? '',
+				opacity: opacityMatch ? Number(opacityMatch[1]) : 1
+			};
+		});
 		return {
 			xml,
 			laneCard: !!doc.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'),
@@ -782,6 +791,7 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 			historicalBodyFillOpacity: historicalBody?.getAttribute('fill-opacity') ?? '',
 			recommendationStroke: recommendationLine?.getAttribute('stroke') ?? '',
 			recommendationOpacity: recommendationLine?.getAttribute('opacity') ?? '',
+			structuralCards,
 			viewBox, lane, overlay
 		};
 	`);
@@ -810,6 +820,14 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		'Historical relationship route should retain a visible stroke');
 	assert.notEqual(exported.recommendationOpacity, '0',
 		'Historical relationship route must not inherit transient zero opacity');
+	const structuralCaoCao = exported.structuralCards.find(card => card.text.includes('曹操'));
+	const structuralCaoSong = exported.structuralCards.find(card => card.text.includes('曹嵩'));
+	assert.ok(structuralCaoCao, 'SVG export should retain structural 曹操 card');
+	assert.ok(structuralCaoSong, 'SVG export should retain structural 曹嵩 card');
+	assert.notEqual(structuralCaoCao.transform, structuralCaoSong.transform,
+		'structural cards must export from distinct settled positions');
+	assert.ok(structuralCaoCao.opacity >= 0.95 && structuralCaoSong.opacity >= 0.95,
+		'structural cards must not export transient entrance-animation opacity');
 	assert.equal(exported.viewBox?.length, 4);
 	await writeFile(
 		path.join(ARTIFACTS, 'v2-historical-family-chart-export.svg'),
