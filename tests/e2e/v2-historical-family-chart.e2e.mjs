@@ -757,10 +757,16 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		const historicalName = doc.querySelector(
 			'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"] .cr-fcv-historical-person-card__name'
 		);
-		const presentationVarCount = [...doc.querySelectorAll('[fill], [stroke]')]
+		const presentationElements = [...doc.querySelectorAll('[fill], [stroke]')];
+		const presentationVarCount = presentationElements
 			.filter(el =>
 				(el.getAttribute('fill') ?? '').includes('var(')
 				|| (el.getAttribute('stroke') ?? '').includes('var(')
+			).length;
+		const rgbaPresentationCount = presentationElements
+			.filter(el =>
+				(el.getAttribute('fill') ?? '').toLowerCase().includes('rgba(')
+				|| (el.getAttribute('stroke') ?? '').toLowerCase().includes('rgba(')
 			).length;
 		const exportBackground = doc.querySelector('.cr-export-background');
 		const recommendationLine = doc.querySelector('.cr-relationship-overlay-line--recommends');
@@ -785,6 +791,7 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 			historicalBodyFill: historicalBody?.getAttribute('fill') ?? '',
 			historicalNameFill: historicalName?.getAttribute('fill') ?? '',
 			presentationVarCount,
+			rgbaPresentationCount,
 			backgroundFill: exportBackground?.getAttribute('fill') ?? '',
 			backgroundOpacity: exportBackground?.getAttribute('opacity') ?? '',
 			historicalBodyOpacity: historicalBody?.getAttribute('opacity') ?? '',
@@ -804,6 +811,8 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 	assert.equal(exported.chineseGuo, true);
 	assert.equal(exported.presentationVarCount, 0,
 		'standalone SVG presentation attributes must not depend on Obsidian CSS variables');
+	assert.equal(exported.rgbaPresentationCount, 0,
+		'standalone SVG presentation attributes should use portable rgb + opacity instead of rgba()');
 	assert.ok(exported.historicalBodyFill,
 		'Historical card body should have a resolved standalone fill');
 	assert.ok(exported.historicalNameFill,
