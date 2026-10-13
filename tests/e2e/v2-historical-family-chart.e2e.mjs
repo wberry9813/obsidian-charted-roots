@@ -1063,7 +1063,6 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 			chartContainer: rect(root?.querySelector('.cr-fcv-chart-container')),
 			viewTransform: svg?.querySelector('.view')?.getAttribute('transform') ?? null,
 			historicalCardCount: root?.querySelectorAll('.cr-fcv-historical-person-card').length ?? -1,
-			historicalFitDiagnostic: root?.querySelector('.cr-fcv-chart-container')?.dataset.historicalFitDiagnostic ?? null,
 			cardGeometry: (() => {
 				const group = root?.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]');
 				if (!group) return null;
@@ -1188,7 +1187,6 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 				overlayBox,
 				viewTransform: view?.getAttribute('transform') ?? null,
 				viewStyle: view?.getAttribute('style') ?? null,
-				fitDiagnostic: root?.querySelector('.cr-fcv-chart-container')?.dataset.historicalFitDiagnostic ?? null
 			};
 		};
 		let current = snapshot();
