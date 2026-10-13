@@ -352,8 +352,8 @@ Expected behavior:
 - [x] multi-edge routing (deterministic ordering, separated curvature, dense-route unit coverage, and a 12-edge real-Obsidian visual acceptance passed after CI #891);
 - [x] initial relation category presets (ontology predicate-based; view state persisted; E2E switching and state assertions);
 - [x] dense-network decluttering (dense parallel stacks keep all routes/hover semantics, cap persistent labels at four deterministic samples, and the 12-edge real-Obsidian screenshot was visually accepted after CI #891);
-- [ ] export historical overlays (SVG content/bounds and Chinese labels accepted in real Obsidian; PNG now has real-file visual parity acceptance after CI #911; PDF/ODT still need separate acceptance);
-- [ ] manual acceptance on Three Kingdoms showcase.
+- [x] export historical overlays (SVG, PNG, PDF and ODT were all generated as real files and independently rendered/reviewed; standalone SVG portability was fixed and accepted after CI #923);
+- [x] manual acceptance on the Three Kingdoms Family Chart showcase (all F6 chart-specific visual checks below accepted; broader cross-view Map/Timeline acceptance remains in their own milestones).
 
 ## 13. Three Kingdoms acceptance scenario
 
@@ -431,12 +431,11 @@ remain the research record.
 - [x] A dense pair of 12 simultaneous relations stays legible at normal zoom,
   keeps both endpoint cards fully visible, and samples four non-overlapping
   persistent labels without covering Person cards (real Obsidian, CI #891).
-- [ ] SVG export contains the complete viewBox, Chinese labels, historical
-  lane cards and arrows when opened independently.
+- [x] SVG export contains the complete viewBox, Chinese labels, historical
+  lane cards and arrows when opened independently; a standalone renderer review after CI #923 confirmed no transparent-rgba black block.
 - [x] PNG export opens independently and visually matches the accepted chart;
   Chinese glyphs, structural/Historical cards, relationship curves and arrowhead alignment were visually reviewed from the real exported PNG after CI #911.
-- [ ] Review PDF/ODT output separately; sharing a preparation pipeline
-  does not prove those document formats retain every historical layer.
+- [x] PDF and ODT were reviewed separately as real exported documents after CI #917: the PDF page rendered correctly, and the ODT embedded chart plus office-rendered page retained the full Historical view without clipping.
 
 Automated coverage: E2E time focus, person expansion, symmetric/directed
 edges, category presets, SVG content/bounds, settled structural export state,
