@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { launchObsidian } from './obsidian-harness.mjs';
@@ -818,7 +818,16 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 				if (Math.abs(pixels[i] - base[0]) + Math.abs(pixels[i + 1] - base[1]) + Math.abs(pixels[i + 2] - base[2]) > 45) nonBackground++;
 			}
 			image.close();
-			return { type: blob.type, size: blob.size, signature: bytes, width, height, nonBackground };
+			const raw = new Uint8Array(await blob.arrayBuffer());
+			let binary = '';
+			const chunk = 0x8000;
+			for (let i = 0; i < raw.length; i += chunk) {
+				binary += String.fromCharCode(...raw.subarray(i, Math.min(i + chunk, raw.length)));
+			}
+			return {
+				type: blob.type, size: blob.size, signature: bytes, width, height,
+				nonBackground, base64: btoa(binary)
+			};
 		} finally {
 			URL.createObjectURL = originalUrl;
 			HTMLAnchorElement.prototype.click = originalClick;
@@ -829,6 +838,15 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 	assert.deepEqual(pngExport.signature, [137, 80, 78, 71, 13, 10, 26, 10]);
 	assert.ok(pngExport.width > 100 && pngExport.height > 100);
 	assert.ok(pngExport.nonBackground > 200, 'PNG export should contain rendered chart pixels');
+	await writeFile(
+		path.join(ARTIFACTS, 'v2-historical-family-chart-export.png'),
+		Buffer.from(pngExport.base64, 'base64')
+	);
+	assert.equal(
+		Buffer.from(pngExport.base64, 'base64').length,
+		pngExport.size,
+		'persisted PNG artifact should match the real exported blob'
+	);
 
 	// Fit the chart before capturing the visual artifact: successful DOM
 	// assertions alone do not guarantee cards are actually in the viewport.
