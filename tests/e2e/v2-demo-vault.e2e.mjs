@@ -68,6 +68,25 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 		})()
 	`);
 
+	// Reproduce the startup/index race seen in a real user vault: a materialized
+	// Assertion cache may have been built before Obsidian finished indexing the
+	// permanent demo Assertion notes. Historical redraw must recover from that
+	// stale empty snapshot on its own.
+	const poisonedAssertionCache = await session.evalInApp(`
+		const service = app.plugins.plugins['charted-roots'].getAssertionService();
+		service.cache = {
+			valid: [],
+			invalid: [],
+			bySubject: new Map(),
+			byObject: new Map(),
+			byPredicate: new Map(),
+			byAssertionType: new Map()
+		};
+		return service.getAll().length;
+	`);
+	assert.equal(poisonedAssertionCache, 0,
+		'test precondition: materialized Assertion cache should be stale and empty');
+
 	await session.evalInApp(`
 		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
 		const mode = root?.querySelector('.cr-fcv-mode-select');
