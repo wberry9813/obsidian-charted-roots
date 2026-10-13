@@ -2579,11 +2579,9 @@ export class FamilyChartView extends ItemView {
 	}
 
 	private fitHistoricalContentToView(): void {
-		if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic = 'invoked';
 		const svg = this.f3Chart?.svg as SVGSVGElement | undefined;
 		const view = svg?.querySelector<SVGGElement>('.view');
 		if (!svg || !view) {
-			if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic = 'missing-svg-view';
 			return;
 		}
 		try {
@@ -2622,7 +2620,6 @@ export class FamilyChartView extends ItemView {
 				maxY = Math.max(maxY, y + h / 2);
 			}
 			const viewport = svg.getBoundingClientRect();
-			if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic = `bounds:${minX},${minY},${maxX - minX},${maxY - minY};cards:${view.querySelectorAll('.cr-fcv-historical-person-card').length};overlay:${view.querySelectorAll('.cr-relationship-overlay').length};viewport:${viewport.width},${viewport.height}`;
 			if (!bounds.width || !bounds.height || !viewport.width || !viewport.height) return;
 			const padding = 32;
 			const contentWidth = maxX - minX;
@@ -2647,14 +2644,11 @@ export class FamilyChartView extends ItemView {
 			view.style.transformOrigin = '0 0';
 			view.style.transform = transform;
 			view.setAttribute('transform', `translate(${x},${y}) scale(${k})`);
-			if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic +=
-				`;applied:${x},${y},${k};style:${view.style.transform}`;
 			(svg as unknown as { __zoom: d3.ZoomTransform }).__zoom =
 				d3.zoomIdentity.translate(x, y).scale(k);
 			this.updateZoomLevelDisplay();
 		} catch {
 			// Detached SVG nodes may not have measurable bounds during redraw.
-			if (this.chartContainerEl) this.chartContainerEl.dataset.historicalFitDiagnostic = 'bounds-threw';
 		}
 	}
 
