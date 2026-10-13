@@ -912,6 +912,101 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		'persisted PNG artifact should match the real exported blob'
 	);
 
+	// Exercise the real PDF export path and persist the actual PDF blob.
+	const pdfExport = await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		if (!view) throw new Error('Historical chart view missing for PDF export');
+		const originalUrl = URL.createObjectURL;
+		const originalClick = HTMLAnchorElement.prototype.click;
+		let accept;
+		const produced = new Promise(resolve => { accept = resolve; });
+		try {
+			URL.createObjectURL = function (blob) {
+				if (blob?.type === 'application/pdf') accept(blob);
+				return originalUrl.call(URL, blob);
+			};
+			HTMLAnchorElement.prototype.click = function () {};
+			await view.exportWithOptions({
+				format: 'pdf', filename: 'historical-e2e.pdf',
+				includeAvatars: false, scale: 1, pageSize: 'fit',
+				layout: 'single', orientation: 'auto', includeCoverPage: false
+			});
+			const blob = await Promise.race([
+				produced,
+				new Promise((_, reject) => setTimeout(() => reject(new Error('PDF export timed out')), 15000))
+			]);
+			const raw = new Uint8Array(await blob.arrayBuffer());
+			let binary = '';
+			const chunk = 0x8000;
+			for (let i = 0; i < raw.length; i += chunk) {
+				binary += String.fromCharCode(...raw.subarray(i, Math.min(i + chunk, raw.length)));
+			}
+			return {
+				type: blob.type,
+				size: blob.size,
+				signature: Array.from(raw.slice(0, 5)),
+				base64: btoa(binary)
+			};
+		} finally {
+			URL.createObjectURL = originalUrl;
+			HTMLAnchorElement.prototype.click = originalClick;
+		}
+	`);
+	assert.equal(pdfExport.type, 'application/pdf');
+	assert.deepEqual(pdfExport.signature, [37, 80, 68, 70, 45]);
+	assert.ok(pdfExport.size > 1000, 'PDF export should contain a rendered chart');
+	await writeFile(
+		path.join(ARTIFACTS, 'v2-historical-family-chart-export.pdf'),
+		Buffer.from(pdfExport.base64, 'base64')
+	);
+
+	// Exercise the real ODT export path and persist the actual ODF container.
+	const odtExport = await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		if (!view) throw new Error('Historical chart view missing for ODT export');
+		const originalUrl = URL.createObjectURL;
+		const originalClick = HTMLAnchorElement.prototype.click;
+		let accept;
+		const produced = new Promise(resolve => { accept = resolve; });
+		try {
+			URL.createObjectURL = function (blob) {
+				if (blob?.type === 'application/vnd.oasis.opendocument.text') accept(blob);
+				return originalUrl.call(URL, blob);
+			};
+			HTMLAnchorElement.prototype.click = function () {};
+			await view.exportWithOptions({
+				format: 'odt', filename: 'historical-e2e.odt',
+				includeAvatars: false, scale: 1, includeCoverPage: false
+			});
+			const blob = await Promise.race([
+				produced,
+				new Promise((_, reject) => setTimeout(() => reject(new Error('ODT export timed out')), 15000))
+			]);
+			const raw = new Uint8Array(await blob.arrayBuffer());
+			let binary = '';
+			const chunk = 0x8000;
+			for (let i = 0; i < raw.length; i += chunk) {
+				binary += String.fromCharCode(...raw.subarray(i, Math.min(i + chunk, raw.length)));
+			}
+			return {
+				type: blob.type,
+				size: blob.size,
+				signature: Array.from(raw.slice(0, 4)),
+				base64: btoa(binary)
+			};
+		} finally {
+			URL.createObjectURL = originalUrl;
+			HTMLAnchorElement.prototype.click = originalClick;
+		}
+	`);
+	assert.equal(odtExport.type, 'application/vnd.oasis.opendocument.text');
+	assert.deepEqual(odtExport.signature, [80, 75, 3, 4]);
+	assert.ok(odtExport.size > 1000, 'ODT export should contain a rendered chart');
+	await writeFile(
+		path.join(ARTIFACTS, 'v2-historical-family-chart-export.odt'),
+		Buffer.from(odtExport.base64, 'base64')
+	);
+
 	// Fit the chart before capturing the visual artifact: successful DOM
 	// assertions alone do not guarantee cards are actually in the viewport.
 	await session.evalInApp(`
