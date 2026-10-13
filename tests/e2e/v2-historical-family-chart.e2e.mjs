@@ -1470,21 +1470,38 @@ test('Historical Family Chart enriches Person cards with temporal institutional 
 	);
 
 	const cardState = await session.evalInApp(`
-		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
-		const state = root?.querySelector(
-			'.cr-fcv-historical-card-state[data-cr-id="person-cao-cao"]'
-		);
-		return {
-			office: state?.querySelector(
-				'.cr-fcv-historical-card-state__row[data-kind="office_holding"] text'
-			)?.textContent ?? null,
-			affiliation: state?.querySelector(
-				'.cr-fcv-historical-card-state__row[data-kind="affiliation"] text'
-			)?.textContent ?? null,
-			possibleCount: state?.getAttribute('data-possible-count') ?? null,
-			renderedCount: root?.querySelector('.cr-fcv-chart-container')
-				?.dataset.historicalStateCardCount ?? null
+		const sample = () => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			const state = root?.querySelector(
+				'.cr-fcv-historical-card-state[data-cr-id="person-cao-cao"]'
+			);
+			return {
+				office: state?.querySelector(
+					'.cr-fcv-historical-card-state__row[data-kind="office_holding"][data-state="active"] text'
+				)?.textContent ?? null,
+				affiliation: state?.querySelector(
+					'.cr-fcv-historical-card-state__row[data-kind="affiliation"][data-state="active"] text'
+				)?.textContent ?? null,
+				possibleCount: state?.getAttribute('data-possible-count') ?? null,
+				renderedCount: root?.querySelector('.cr-fcv-chart-container')
+					?.dataset.historicalStateCardCount ?? null
+			};
 		};
+		let stable = 0;
+		let previous = '';
+		let current = sample();
+		for (let frame = 0; frame < 90; frame++) {
+			await new Promise(resolve => requestAnimationFrame(resolve));
+			current = sample();
+			const ready = current.office?.includes('丞相')
+				&& current.affiliation?.includes('汉朝廷')
+				&& current.possibleCount === '1';
+			const key = JSON.stringify(current);
+			stable = ready && key === previous ? stable + 1 : 0;
+			previous = key;
+			if (stable >= 4) break;
+		}
+		return current;
 	`);
 	assert.match(cardState.office ?? '', /丞相/);
 	assert.match(cardState.affiliation ?? '', /汉朝廷/);
