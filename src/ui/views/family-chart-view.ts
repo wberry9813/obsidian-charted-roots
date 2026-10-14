@@ -1289,9 +1289,13 @@ export class FamilyChartView extends ItemView {
 	 * Navigate to a person in the chart and open their info panel
 	 */
 	private navigateToPersonInChart(personId: string): void {
-		// Update chart to center on the person
+		// Update chart to center on the person. Keep rootPersonId synchronized
+		// with f3's main person so a later Historical redraw/refresh expands from
+		// the person the user actually navigated to.
 		// Note: Kinship label clearing/re-rendering is handled by setBeforeUpdate/setAfterUpdate callbacks (#195)
-		if (this.f3Chart) {
+		if (this.f3Chart && this.chartData.some(person => person.id === personId)) {
+			this.rootPersonId = personId;
+			this.app.workspace.requestSaveLayout();
 			this.f3Chart.updateMainId(personId);
 			this.f3Chart.updateTree({});
 		}
@@ -2787,7 +2791,13 @@ export class FamilyChartView extends ItemView {
 			return;
 		}
 
-		// Update main ID to make this person the focus
+		// Keep the visual main person and the persisted semantic root in sync.
+		// Historical expansion is rooted at rootPersonId, so merely moving f3's
+		// main card would otherwise leave Historical mode expanding from the
+		// previously-selected person.
+		this.rootPersonId = crId;
+		this.app.workspace.requestSaveLayout();
+
 		this.f3Chart.updateMainId(crId);
 		this.f3Chart.updateTree({ tree_position: 'main_to_middle' });
 
