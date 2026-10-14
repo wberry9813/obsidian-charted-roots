@@ -55,7 +55,10 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 		const point201 = calendar.solarToJulianDay({ year: 201, month: 6, day: 1 });
 		const point208 = calendar.solarToJulianDay({ year: 208, month: 6, day: 1 });
 		plugin.getTemporalFocusService().setPoint(point197, 'demo-family-chart-197');
-		await plugin.activateFamilyChartView('demo-3k-caocao', true, true);
+		// Deliberately open on Cao Song first. The user-facing search flow below
+		// must promote Cao Cao to the actual persisted/semantic root before
+		// Historical expansion runs.
+		await plugin.activateFamilyChartView('demo-3k-caosong', true, true);
 		return { point197, point201, point208 };
 	`);
 
@@ -66,6 +69,43 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 				&& root.querySelectorAll('.card_cont').length >= 2
 				&& !!root.querySelector('.cr-fcv-mode-select');
 		})()
+	`);
+
+	// Reproduce the real manual path: use the Family Chart search button to
+	// move from the initially-opened Cao Song to Cao Cao. Before the production
+	// fix this only changed f3's visual main person; rootPersonId remained Cao
+	// Song, so Historical mode later expanded from the wrong person.
+	await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const search = root?.querySelector('button[aria-label="Search for person"]');
+		if (!(search instanceof HTMLButtonElement)) throw new Error('Family Chart search button missing');
+		search.click();
+		return true;
+	`);
+	await session.waitFor(
+		`document.querySelector('.crc-person-picker-modal input[placeholder="Search by name..."]') instanceof HTMLInputElement`
+	);
+	await session.evalInApp(`
+		const input = document.querySelector('.crc-person-picker-modal input[placeholder="Search by name..."]');
+		if (!(input instanceof HTMLInputElement)) throw new Error('Person search input missing');
+		input.value = '曹操';
+		input.dispatchEvent(new Event('input', { bubbles: true }));
+		return true;
+	`);
+	await session.waitFor(`
+		[...document.querySelectorAll('.crc-person-picker-modal .crc-picker-item')]
+			.some(card => card.querySelector('.crc-picker-item__name')?.textContent?.trim() === '曹操')
+	`);
+	await session.evalInApp(`
+		const card = [...document.querySelectorAll('.crc-person-picker-modal .crc-picker-item')]
+			.find(item => item.querySelector('.crc-picker-item__name')?.textContent?.trim() === '曹操');
+		if (!(card instanceof HTMLElement)) throw new Error('Cao Cao search result missing');
+		card.click();
+		return true;
+	`);
+	await session.waitFor(`
+		!document.querySelector('.crc-person-picker-modal')
+			&& app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.getState?.().rootPersonId === 'demo-3k-caocao'
 	`);
 
 	// Reproduce the startup/index race seen in a real user vault: a materialized
