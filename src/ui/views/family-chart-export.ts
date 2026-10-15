@@ -1263,6 +1263,20 @@ export function prepareSvgForExport(ctx: FamilyChartExportContext, svg: SVGSVGEl
 		viewGroup.setAttribute('transform', '');
 	}
 
+	// f3 writes entrance-animation opacity/transition directly onto structural
+	// card groups. The clone must represent the final chart, not preserve a
+	// transient tween frame that happened to be present when cloneNode() ran.
+	// Keep each card's settled SVG transform, but freeze visibility in the
+	// detached export copy only; the live interactive chart is untouched.
+	svgClone.querySelectorAll<SVGGElement>('.card_cont').forEach(card => {
+		card.style.opacity = '1';
+		card.style.removeProperty('transition');
+		card.style.removeProperty('transition-property');
+		card.style.removeProperty('transition-duration');
+		card.style.removeProperty('transition-delay');
+		card.setAttribute('opacity', '1');
+	});
+
 	// Theme colors
 	const isDark = activeDocument.body.classList.contains('theme-dark');
 	const textColor = isDark ? '#ffffff' : '#333333';
