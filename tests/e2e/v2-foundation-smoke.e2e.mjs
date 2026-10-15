@@ -356,7 +356,11 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		};
 	`);
 	assert.equal(profileAssertionUi.title, 'Structured assertions');
-	assert.equal(profileAssertionUi.materializedRows, 2);
+	// The shared manual/E2E vault also carries permanent Historical
+	// relationship fixtures, so the Person profile may legitimately contain
+	// additional materialized Assertions beyond the two office-holding rows
+	// exercised by this foundation test.
+	assert.ok(profileAssertionUi.materializedRows >= 2);
 	assert.match(profileAssertionUi.text, /Holds office/i);
 	assert.match(profileAssertionUi.text, /丞相/);
 	assert.match(profileAssertionUi.text, /建安十三年/);
