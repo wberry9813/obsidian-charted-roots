@@ -126,8 +126,6 @@ type FamilyChartMode = 'family' | 'historical';
  */
 interface FamilyChartViewState {
 	rootPersonId: string | null;
-	/** Person used as the center of Historical relationship expansion. */
-	historicalRootPersonId?: string | null;
 	mode?: FamilyChartMode;
 	historicalExpansionDepth?: number;
 	historicalRelationPreset?: HistoricalRelationPreset;
@@ -176,10 +174,6 @@ export class FamilyChartView extends ItemView {
 
 	// View state
 	private rootPersonId: string | null = null;
-	// Historical relationship exploration has a different semantic center from
-	// the structural genealogy root. Keep it separate so selecting a person for
-	// historical research does not silently re-root the family tree.
-	private historicalRootPersonId: string | null = null;
 	private mode: FamilyChartMode = 'family';
 	private historicalExpansionDepth: number = DEFAULT_HISTORICAL_EXPANSION_DEPTH;
 	private historicalRelationPreset: HistoricalRelationPreset = 'all';
@@ -405,16 +399,6 @@ export class FamilyChartView extends ItemView {
 		});
 
 		if (this.mode === 'historical') {
-			const personGroup = leftControls.createDiv({
-				cls: 'cr-fcv-control-group cr-fcv-historical-person-group'
-			});
-			personGroup.createSpan({ cls: 'cr-fcv-label', text: '人物' });
-			personGroup.createSpan({
-				cls: 'cr-fcv-historical-person-focus',
-				text: this.getHistoricalRootPersonLabel(),
-				attr: { 'aria-label': 'Historical focal person' }
-			});
-
 			const filterGroup = leftControls.createDiv({ cls: 'cr-fcv-control-group' });
 			filterGroup.createSpan({ cls: 'cr-fcv-label', text: '关系' });
 			const filter = filterGroup.createEl('select', {
@@ -1336,7 +1320,6 @@ export class FamilyChartView extends ItemView {
 		// Note: Kinship label clearing/re-rendering is handled by setBeforeUpdate/setAfterUpdate callbacks (#195)
 		if (this.f3Chart && this.chartData.some(person => person.id === personId)) {
 			this.rootPersonId = personId;
-			this.historicalRootPersonId = personId;
 			this.app.workspace.requestSaveLayout();
 			this.f3Chart.updateMainId(personId);
 			this.f3Chart.updateTree({});
@@ -1486,7 +1469,6 @@ export class FamilyChartView extends ItemView {
 
 		new PersonPickerModal(this.app, (selectedPerson) => {
 			this.rootPersonId = selectedPerson.crId;
-			this.historicalRootPersonId = selectedPerson.crId;
 			void this.initializeChart();
 		}, { folderFilter, plugin: this.plugin }).open();
 	}
@@ -2221,18 +2203,6 @@ export class FamilyChartView extends ItemView {
 
 		logger.debug('card-click', 'Card clicked', { personId });
 
-		// A structural-card selection is also the natural focal-person gesture for
-		// Historical research. Keep that semantic focus separate from the Family
-		// tree root so the genealogy does not jump/re-layout merely because the
-		// researcher wants to inspect this person's time-varying relationships.
-		this.historicalRootPersonId = personId;
-		this.app.workspace.requestSaveLayout();
-		if (this.mode === 'historical') {
-			this.updateHistoricalRootIndicator();
-			this.renderHistoricalExpansionAndOverlay();
-			this.ensureHistoricalContentVisible();
-		}
-
 		// Open the info panel for this person
 		// Note: We don't call onCardClickDefault here because it would re-center the tree
 		// and reset the zoom level. Users can navigate to a person via the relationships
@@ -2857,9 +2827,7 @@ export class FamilyChartView extends ItemView {
 		// main card would otherwise leave Historical mode expanding from the
 		// previously-selected person.
 		this.rootPersonId = crId;
-		this.historicalRootPersonId = crId;
 		this.app.workspace.requestSaveLayout();
-		this.updateHistoricalRootIndicator();
 
 		this.f3Chart.updateMainId(crId);
 		this.f3Chart.updateTree({ tree_position: 'main_to_middle' });
@@ -4456,42 +4424,11 @@ export class FamilyChartView extends ItemView {
 		return positions;
 	}
 
-	private getHistoricalRootPersonId(): string | null {
-		return this.historicalRootPersonId ?? this.rootPersonId;
-	}
-
-	private getHistoricalRootPersonLabel(): string {
-		const personId = this.getHistoricalRootPersonId();
-		if (!personId) return '未选择';
-		const person = this.chartData.find(item => item.id === personId);
-		if (person) {
-			const name = [
-				person.data['first name'],
-				person.data['last name']
-			].filter(Boolean).join(' ').trim();
-			if (name) return name;
-		}
-		return this.resolveHistoricalPersonRef(personId)?.name ?? personId;
-	}
-
-	private updateHistoricalRootIndicator(): void {
-		const element = this.toolbarEl?.querySelector<HTMLElement>(
-			'.cr-fcv-historical-person-focus'
-		);
-		if (element) element.textContent = this.getHistoricalRootPersonLabel();
-	}
-
 	private renderHistoricalExpansionLanes(): void {
 		this.clearHistoricalExpansionLayer();
-		const historicalRootPersonId = this.getHistoricalRootPersonId();
-		if (this.chartContainerEl) {
-			this.chartContainerEl.dataset.historicalRootPersonId =
-				historicalRootPersonId ?? '';
-			this.chartContainerEl.dataset.historicalExpandedCount = '0';
-		}
 		if (
 			this.mode !== 'historical'
-			|| !historicalRootPersonId
+			|| !this.rootPersonId
 			|| !this.chartContainerEl
 		) {
 			return;
@@ -4502,9 +4439,9 @@ export class FamilyChartView extends ItemView {
 		if (!svg || !viewGroup) return;
 
 		const structuralPositions = this.getCardPositions();
-		if (!structuralPositions.has(historicalRootPersonId)) return;
+		if (!structuralPositions.has(this.rootPersonId)) return;
 
-		const root = this.resolveHistoricalPersonRef(historicalRootPersonId);
+		const root = this.resolveHistoricalPersonRef(this.rootPersonId);
 		if (!root) return;
 
 		const projection = filterHistoricalProjection(this.historicalProjector.project(this.temporalFocus), this.historicalRelationPreset);
@@ -4515,7 +4452,7 @@ export class FamilyChartView extends ItemView {
 		const layout = layoutHistoricalFamilyChartLanes(
 			expansion,
 			structuralPositions,
-			historicalRootPersonId,
+			this.rootPersonId,
 			{
 				cardWidth: dimensions.w,
 				cardHeight: dimensions.h,
@@ -6929,7 +6866,6 @@ export class FamilyChartView extends ItemView {
 		logger.debug('get-state', 'Saving view state', { cardStyle: this.cardStyle, nodeSpacing: this.nodeSpacing, levelSpacing: this.levelSpacing });
 		return {
 			rootPersonId: this.rootPersonId,
-			historicalRootPersonId: this.historicalRootPersonId,
 			mode: this.mode,
 			historicalExpansionDepth: this.historicalExpansionDepth,
 			historicalRelationPreset: this.historicalRelationPreset,
@@ -6971,9 +6907,6 @@ export class FamilyChartView extends ItemView {
 
 		if (state.rootPersonId !== undefined) {
 			this.rootPersonId = state.rootPersonId;
-		}
-		if (state.historicalRootPersonId !== undefined) {
-			this.historicalRootPersonId = state.historicalRootPersonId;
 		}
 		if (state.mode === 'family' || state.mode === 'historical') {
 			this.mode = state.mode;
@@ -7140,7 +7073,6 @@ export class FamilyChartView extends ItemView {
 	 */
 	setRootPerson(crId: string): void {
 		this.rootPersonId = crId;
-		this.historicalRootPersonId = crId;
 		void this.initializeChart();
 	}
 }
