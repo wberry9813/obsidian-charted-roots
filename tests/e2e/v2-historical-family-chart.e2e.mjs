@@ -610,6 +610,189 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		})()`
 	);
 
+	// Wait out the depth-change crossfade so interaction assertions target only
+	// the current lane, not an outgoing copy.
+	await session.waitFor(`(() => {
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		return root?.querySelectorAll('.cr-fcv-historical-expansion-layer--exiting').length === 0
+			&& root?.querySelectorAll(
+				'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting) .cr-fcv-historical-person-card'
+			).length === 2;
+	})()`);
+
+	// Historical-only cards must use the same interaction contract as Family
+	// cards: body => details, top-right document button => Person note.
+	const bodyClick = await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		const root = view?.containerEl;
+		const card = root?.querySelector(
+			'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting) '
+			+ '.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'
+		);
+		if (!(card instanceof SVGGElement)) throw new Error('Active Guo Jia Historical card missing');
+		const beforeFile = app.workspace.getActiveFile()?.path ?? null;
+		card.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		const panel = root?.querySelector('.cr-fcv-info-panel');
+		return {
+			beforeFile,
+			afterFile: app.workspace.getActiveFile()?.path ?? null,
+			panelVisible: !!panel && !panel.classList.contains('crc-hidden'),
+			panelText: panel?.textContent ?? ''
+		};
+	`);
+	assert.equal(bodyClick.panelVisible, true);
+	assert.match(bodyClick.panelText, /郭嘉/);
+	assert.equal(bodyClick.afterFile, bodyClick.beforeFile,
+		'Historical card body must open details without navigating to the note');
+
+	// The details panel has a keyboard-accessible resize handle and persists the
+	// chosen width in FamilyChartView state.
+	const panelResize = await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		const panel = view?.containerEl.querySelector('.cr-fcv-info-panel');
+		const handle = panel?.querySelector('.cr-fcv-info-panel-resize-handle');
+		if (!(panel instanceof HTMLElement) || !(handle instanceof HTMLElement)) {
+			throw new Error('Resizable Person details panel unavailable');
+		}
+		const before = panel.getBoundingClientRect().width;
+		handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+		const after = panel.getBoundingClientRect().width;
+		const saved = view.getState().infoPanelWidth;
+		// Restore the original width so later viewport/export assertions keep the
+		// same geometry they had before this regression test.
+		handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		return { before, after, saved, overflowX: getComputedStyle(view.containerEl.querySelector('.cr-fcv-info-panel-content')).overflowX };
+	`);
+	assert.ok(panelResize.after > panelResize.before, 'ArrowLeft should widen the right-side details panel');
+	assert.ok(Math.abs(panelResize.saved - panelResize.after) < 2, 'resized details width must persist in view state');
+	assert.equal(panelResize.overflowX, 'hidden', 'details use wrapping instead of a horizontal scrollbar');
+
+	await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const button = root?.querySelector(
+			'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting) '
+			+ '.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"] '
+			+ '.cr-fcv-historical-person-card__open-note'
+		);
+		if (!(button instanceof SVGGElement)) throw new Error('Historical open-note button missing');
+		button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		return true;
+	`);
+	await session.waitFor(
+		`app.workspace.getActiveFile()?.path === "Charted Roots/People/Guo-Jia-Historical-Lane-E2E.md"`
+	);
+	await session.evalInApp(`
+		for (const leaf of app.workspace.getLeavesOfType('markdown')) {
+			if (leaf.view?.file?.path === 'Charted Roots/People/Guo-Jia-Historical-Lane-E2E.md') leaf.detach();
+		}
+		const familyLeaf = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0];
+		if (familyLeaf) app.workspace.setActiveLeaf(familyLeaf, { focus: true });
+		return true;
+	`);
+
+	// Card display changes must never blank the Historical lane while f3 updates
+	// the structural cards, and enabled fields must actually appear on Historical
+	// cards.郭嘉 has a permanent 207 CE death-date fixture.
+	await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		const root = view?.containerEl;
+		if (!view || !root) throw new Error('Historical view unavailable for Card display test');
+		window.__crHistoricalDisplayZeroCount = 0;
+		const count = () => root.querySelectorAll(
+			'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting) .cr-fcv-historical-person-card'
+		).length;
+		window.__crHistoricalDisplayObserver = new MutationObserver(() => {
+			if (count() === 0) window.__crHistoricalDisplayZeroCount++;
+		});
+		window.__crHistoricalDisplayObserver.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+		view.toggleDeathDates();
+		return true;
+	`);
+	await session.waitFor(`(() => {
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const card = root?.querySelector(
+			'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting) '
+			+ '.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'
+		);
+		return [...(card?.querySelectorAll('.cr-fcv-historical-person-card__detail') ?? [])]
+			.some(el => el.textContent?.includes('207 CE'));
+	})()`);
+	const displayGapCount = await session.evalInApp(`
+		window.__crHistoricalDisplayObserver?.disconnect();
+		const value = window.__crHistoricalDisplayZeroCount ?? -1;
+		delete window.__crHistoricalDisplayObserver;
+		delete window.__crHistoricalDisplayZeroCount;
+		return value;
+	`);
+	assert.equal(displayGapCount, 0, 'Card display update must not remove every active Historical card');
+
+	// Restore the default death-date toggle before the export assertions below.
+	await session.evalInApp(`
+		const view = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view;
+		view.toggleDeathDates();
+		return true;
+	`);
+	await session.waitFor(`(() => {
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const card = root?.querySelector(
+			'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting) '
+			+ '.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'
+		);
+		return !!card && ![...(card.querySelectorAll('.cr-fcv-historical-person-card__detail'))]
+			.some(el => el.textContent?.includes('207 CE'));
+	})()`);
+
+	// Temporal focus changes use a real 800ms Historical enter/exit transition,
+	// matching the Family chart instead of deleting the lane synchronously.
+	const exitTransition = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		plugin.getTemporalFocusService().setPoint(${assertionSetup.point201}, 'e2e-historical-transition');
+		await new Promise(resolve => requestAnimationFrame(resolve));
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const exiting = root?.querySelector('.cr-fcv-historical-expansion-layer--exiting');
+		return {
+			state: exiting?.dataset.transitionState ?? null,
+			cards: exiting?.querySelectorAll('.cr-fcv-historical-person-card').length ?? 0,
+			animations: exiting?.getAnimations().length ?? 0,
+			expanded: root?.querySelector('.cr-fcv-chart-container')?.dataset.historicalExpandedCount ?? null
+		};
+	`);
+	assert.equal(exitTransition.state, 'exit');
+	assert.equal(exitTransition.cards, 2);
+	assert.ok(exitTransition.animations > 0, 'Historical cards should fade out when the temporal slice removes them');
+	assert.equal(exitTransition.expanded, '0');
+	await session.waitFor(`(() => {
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		return root?.querySelectorAll('.cr-fcv-historical-expansion-layer').length === 0;
+	})()`);
+
+	const enterTransition = await session.evalInApp(`
+		const plugin = app.plugins.plugins['charted-roots'];
+		plugin.getTemporalFocusService().setPoint(${assertionSetup.point197}, 'e2e-historical-transition');
+		await new Promise(resolve => requestAnimationFrame(resolve));
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const layer = root?.querySelector(
+			'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting)'
+		);
+		return {
+			state: layer?.dataset.transitionState ?? null,
+			cards: layer?.querySelectorAll('.cr-fcv-historical-person-card').length ?? 0,
+			animations: layer?.getAnimations().length ?? 0
+		};
+	`);
+	assert.equal(enterTransition.state, 'enter');
+	assert.equal(enterTransition.cards, 2);
+	assert.ok(enterTransition.animations > 0, 'Historical cards should fade in when the temporal slice restores them');
+	await session.waitFor(`(() => {
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const layer = root?.querySelector(
+			'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting)'
+		);
+		return !!layer
+			&& !layer.dataset.transitionState
+			&& layer.querySelectorAll('.cr-fcv-historical-person-card').length === 2;
+	})()`);
+
 	// Verify the directed arrow tip lies at the semantic target card's
 	// boundary, not merely that an arrow polygon was created somewhere.
 	const arrowPlacement = await session.evalInApp(`
