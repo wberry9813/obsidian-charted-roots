@@ -106,6 +106,18 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Build CI-aligned Sandbox manual vault
+        run: node scripts/build-sandbox-test-vault.mjs
+
+      - name: Upload CI-aligned Sandbox manual vault
+        uses: actions/upload-artifact@v4
+        with:
+          name: charted-roots-sandbox-test-vault-${{ github.sha }}
+          path: dist/Charted-Roots-Sandbox-Test-Vault/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Run real Obsidian smoke test
         shell: bash
         run: |
