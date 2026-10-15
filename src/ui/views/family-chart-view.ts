@@ -4611,14 +4611,24 @@ export class FamilyChartView extends ItemView {
 			viewGroup.appendChild(nextLayer);
 		}
 
+		let previousOpacity = 1;
 		if (previous) {
-			previous.getAnimations().forEach(animation => animation.cancel());
+			const win = previous.ownerDocument.defaultView;
+			const opacity = Number(win?.getComputedStyle(previous).opacity ?? '1');
+			previousOpacity = Number.isFinite(opacity) ? opacity : 1;
+			// Mark the layer as outgoing *before* cancelling an in-flight enter.
+			// The cancelled enter callback can then see that this element has been
+			// superseded and must not clear the new exit state.
 			previous.classList.add('cr-fcv-historical-expansion-layer--exiting');
 			previous.dataset.transitionState = 'exit';
+			previous.getAnimations().forEach(animation => animation.cancel());
 		}
 
 		const finishEnter = () => {
-			if (!nextLayer?.isConnected) return;
+			if (
+				!nextLayer?.isConnected
+				|| nextLayer.classList.contains('cr-fcv-historical-expansion-layer--exiting')
+			) return;
 			nextLayer.style.opacity = '1';
 			delete nextLayer.dataset.transitionState;
 		};
@@ -4642,10 +4652,8 @@ export class FamilyChartView extends ItemView {
 		}
 
 		if (previous && typeof previous.animate === 'function') {
-			const win = previous.ownerDocument.defaultView;
-			const opacity = Number(win?.getComputedStyle(previous).opacity ?? '1');
 			const exit = previous.animate(
-				[{ opacity: Number.isFinite(opacity) ? opacity : 1 }, { opacity: 0 }],
+				[{ opacity: previousOpacity }, { opacity: 0 }],
 				{
 					duration: HISTORICAL_EXPANSION_TRANSITION_MS,
 					easing: 'ease-in-out',
