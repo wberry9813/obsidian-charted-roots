@@ -2922,25 +2922,35 @@ export class FamilyChartView extends ItemView {
 			let stableFrames = 0;
 			let last = '';
 
-			const signature = (): { value: string; opaque: boolean } => {
+			const signature = (): { value: string; ready: boolean } => {
 				const cards = Array.from(
 					svg.querySelectorAll<SVGGElement>('.card_cont')
 				);
 				const parts: string[] = [];
+				const transforms: string[] = [];
 				let opaque = cards.length > 0;
 				for (const card of cards) {
 					const style = activeWindow.getComputedStyle(card);
 					const opacity = Number(style.opacity || '1');
 					if (!Number.isFinite(opacity) || opacity < 0.98) opaque = false;
+					const transform = card.getAttribute('transform') ?? '';
+					transforms.push(transform);
 					parts.push([
-						card.getAttribute('transform') ?? '',
+						transform,
 						card.getAttribute('style') ?? '',
 						opacity.toFixed(3)
 					].join('@'));
 				}
+				// On initial render f3 can park every card at translate(0, 0) for
+				// several stable/opaque frames before the real layout transition
+				// begins. Treat that collapsed plateau as not ready; exporting it
+				// produces structurally valid files with every person stacked at the
+				// same origin. Multiple structural cards must have diverged before
+				// readiness can be declared.
+				const positioned = cards.length <= 1 || new Set(transforms).size > 1;
 				return {
 					value: parts.join('|'),
-					opaque
+					ready: opaque && positioned
 				};
 			};
 
@@ -2954,7 +2964,7 @@ export class FamilyChartView extends ItemView {
 			const tick = () => {
 				frame++;
 				const current = signature();
-				if (current.value === last && current.opaque) {
+				if (current.value === last && current.ready) {
 					stableFrames++;
 				} else {
 					stableFrames = 0;
