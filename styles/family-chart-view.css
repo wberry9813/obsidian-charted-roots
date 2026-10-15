@@ -37,6 +37,48 @@
   gap: var(--size-4-2);
 }
 
+.cr-fcv-toolbar--historical .cr-fcv-toolbar-left {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  row-gap: var(--size-4-1);
+}
+
+.cr-fcv-toolbar--historical .cr-fcv-toolbar-right {
+  flex: 0 0 auto;
+}
+
+.cr-fcv-historical-focus-group {
+  flex: 0 0 auto;
+}
+
+.cr-fcv-historical-focus {
+  white-space: nowrap;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.cr-fcv-historical-focus-input {
+  width: 132px;
+  min-width: 112px;
+  padding: 3px 7px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-smaller);
+}
+
+.cr-fcv-historical-focus-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+.cr-fcv-historical-focus-input.is-invalid {
+  border-color: var(--text-error);
+}
+
 .cr-fcv-control-group {
   display: flex;
   align-items: center;
@@ -161,6 +203,7 @@
   flex: 1;
   overflow: visible;
   position: relative;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -854,9 +897,10 @@
  * ============================================================ */
 
 .cr-fcv-info-panel {
-  width: 320px;
-  min-width: 280px;
-  max-width: 400px;
+  position: relative;
+  width: 360px;
+  min-width: 300px;
+  max-width: none;
   display: flex;
   flex-direction: column;
   background-color: var(--background-secondary);
@@ -872,6 +916,35 @@
    (#604). */
 .cr-fcv-info-panel.crc-hidden {
   display: none;
+}
+
+.cr-fcv-info-panel-resize-handle {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.cr-fcv-info-panel-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+.cr-fcv-info-panel-resize-handle:hover::after,
+.cr-fcv-info-panel-resize-handle:focus::after,
+.cr-fcv-info-panel-resize-handle--dragging::after {
+  background: var(--interactive-accent);
 }
 
 .cr-fcv-info-panel-header {
@@ -920,6 +993,8 @@
 
 .cr-fcv-info-panel-content {
   flex: 1;
+  min-width: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   padding: var(--size-4-3);
 }
@@ -943,6 +1018,8 @@
 
 .cr-fcv-info-panel-actions-description {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
 }
@@ -974,6 +1051,8 @@
 
 .cr-fcv-info-field-value {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--font-ui-small);
   color: var(--text-normal);
 }
@@ -1547,4 +1626,250 @@
 .cr-highlight-groups-modal__footer-right {
   display: flex;
   gap: 0.5em;
+}
+
+
+/* Historical Family Chart expansion lanes (v2 F4) */
+.cr-fcv-historical-depth-group {
+  padding-inline: var(--size-4-1);
+  border-inline-start: 1px solid var(--background-modifier-border);
+}
+
+.cr-fcv-historical-depth-btn {
+  min-width: 28px;
+  height: 26px;
+  padding: 0 7px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cr-fcv-historical-depth-btn.is-active,
+.cr-fcv-historical-depth-btn[aria-pressed="true"] {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+}
+
+.cr-fcv-historical-expansion-layer {
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.cr-fcv-historical-expansion-layer--exiting {
+  pointer-events: none;
+}
+
+.cr-fcv-historical-lane-guide {
+  stroke: var(--background-modifier-border);
+  stroke-width: 1;
+  stroke-dasharray: 5 7;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.cr-fcv-historical-lane-label {
+  fill: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+
+.cr-fcv-historical-person-card {
+  cursor: pointer;
+  pointer-events: auto;
+  outline: none;
+}
+
+.cr-fcv-historical-person-card__body {
+  fill: var(--background-primary);
+  stroke: var(--interactive-accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.18));
+  transition: stroke-width 120ms ease, filter 120ms ease;
+}
+
+.cr-fcv-historical-person-card:hover .cr-fcv-historical-person-card__body,
+.cr-fcv-historical-person-card:focus .cr-fcv-historical-person-card__body {
+  stroke-width: 3;
+  filter: drop-shadow(0 3px 9px rgba(0, 0, 0, 0.28));
+}
+
+.cr-fcv-historical-person-card__name {
+  fill: var(--text-normal);
+  font-size: 15px;
+  font-weight: 650;
+  pointer-events: none;
+}
+
+.cr-fcv-historical-person-card__detail {
+  fill: var(--text-muted);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.cr-fcv-historical-person-card__avatar {
+  pointer-events: none;
+  clip-path: inset(0 round 6px);
+}
+
+
+.cr-fcv-historical-person-card__depth {
+  fill: var(--interactive-accent);
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.cr-fcv-historical-person-card__hint {
+  fill: var(--text-muted);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+
+/* Historical Family Chart F5 — temporal Person card state */
+.cr-fcv-historical-card-state {
+  pointer-events: none;
+}
+
+.cr-fcv-historical-card-state__row text {
+  fill: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--background-primary);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.cr-fcv-historical-card-state__row[data-kind="office_holding"] text {
+  fill: var(--interactive-accent);
+}
+
+.cr-fcv-historical-card-state__row[data-state="possible"] text {
+  opacity: 0.65;
+  font-style: italic;
+}
+
+.cr-fcv-historical-card-state__possible-summary {
+  fill: var(--text-warning);
+  font-size: 9px;
+  font-weight: 650;
+  font-style: italic;
+  paint-order: stroke;
+  stroke: var(--background-primary);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.cr-fcv-historical-person-card__info {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.cr-fcv-historical-person-card__info circle {
+  fill: var(--background-secondary);
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.cr-fcv-historical-person-card__info path {
+  stroke: var(--text-muted);
+  pointer-events: none;
+}
+
+.cr-fcv-historical-person-card__info:hover circle,
+.cr-fcv-historical-person-card__info:focus circle {
+  fill: var(--interactive-accent);
+  stroke: var(--interactive-accent);
+}
+
+.cr-fcv-historical-person-card__info:hover path,
+.cr-fcv-historical-person-card__info:focus path {
+  stroke: var(--text-on-accent);
+}
+
+.cr-fcv-historical-state-section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.cr-fcv-historical-state-section h4 {
+  margin: 0 0 8px;
+  font-size: var(--font-ui-small);
+}
+
+.cr-fcv-historical-state-item {
+  display: grid;
+  grid-template-columns: minmax(72px, 0.8fr) minmax(0, 1.4fr) auto;
+  gap: 6px;
+  align-items: center;
+  margin: 5px 0;
+}
+
+.cr-fcv-historical-state-kind {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.cr-fcv-historical-state-target,
+.cr-fcv-historical-state-assertion {
+  min-width: 0;
+  padding: 2px 6px;
+  font-size: var(--font-ui-smaller);
+}
+
+.cr-fcv-historical-state-target {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.cr-fcv-historical-state-target-label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.cr-fcv-historical-state-confidence {
+  grid-column: 2;
+  justify-self: start;
+}
+
+.cr-fcv-historical-state-assertion {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.cr-fcv-historical-state-target-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cr-fcv-historical-state-badge,
+.cr-fcv-historical-state-confidence {
+  border-radius: 999px;
+  padding: 1px 6px;
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+
+.cr-fcv-historical-state-badge--active {
+  color: var(--text-success);
+  background: color-mix(in srgb, var(--text-success) 12%, transparent);
+}
+
+.cr-fcv-historical-state-badge--possible {
+  color: var(--text-warning);
+  background: color-mix(in srgb, var(--text-warning) 12%, transparent);
+}
+
+.cr-fcv-historical-state-confidence {
+  color: var(--text-muted);
+  background: var(--background-secondary);
 }

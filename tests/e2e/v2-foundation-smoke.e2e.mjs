@@ -231,14 +231,22 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 	assert.equal(summary.ontology.clanLabelZhCN, '宗族');
 	assert.equal(summary.ontology.politicalRivalLabel, '政治竞争');
 	assert.equal(summary.ontology.validationErrors, 0);
-	assert.equal(summary.semanticAssertions.touchingPersonCount, 3);
-	assert.deepEqual(summary.semanticAssertions.origins.sort(), ['assertion_note', 'assertion_note', 'frontmatter']);
+	// The shared E2E vault now contains permanent Historical relationship
+	// fixtures for manual Sandbox testing. Foundation acceptance must verify its
+	// required semantic records without assuming the entire vault has a fixed
+	// global Assertion count.
+	assert.ok(summary.semanticAssertions.touchingPersonCount >= 3);
+	assert.ok(summary.semanticAssertions.origins.includes('frontmatter'));
+	assert.ok(summary.semanticAssertions.origins.filter(origin => origin === 'assertion_note').length >= 2);
 	assert.equal(summary.semanticAssertions.virtualFather.predicate, 'father');
 	assert.equal(summary.semanticAssertions.virtualFather.object, '[[Charted Roots/People/Cao-Song|曹嵩]]');
-	assert.equal(summary.assertionService.validCount, 2);
+	assert.ok(summary.assertionService.validCount >= 2);
 	assert.equal(summary.assertionService.invalidCount, 0);
-	assert.deepEqual(summary.assertionService.predicates, ['holds_office', 'holds_office']);
-	assert.equal(summary.assertionService.touchingPersonCount, 2);
+	assert.equal(
+		summary.assertionService.predicates.filter(predicate => predicate === 'holds_office').length,
+		2
+	);
+	assert.ok(summary.assertionService.touchingPersonCount >= 2);
 	assert.match(summary.assertionService.createdPath, /^Charted Roots\/Assertions\/曹操任丞相 E2E/);
 	assert.equal(summary.assertionService.createdFrontmatter.cr_schema, 2);
 	assert.equal(summary.assertionService.createdFrontmatter.cr_type, 'assertion');
@@ -348,7 +356,11 @@ test('Charted Roots v2 foundation loads in real Obsidian', async (t) => {
 		};
 	`);
 	assert.equal(profileAssertionUi.title, 'Structured assertions');
-	assert.equal(profileAssertionUi.materializedRows, 2);
+	// The shared manual/E2E vault also carries permanent Historical
+	// relationship fixtures, so the Person profile may legitimately contain
+	// additional materialized Assertions beyond the two office-holding rows
+	// exercised by this foundation test.
+	assert.ok(profileAssertionUi.materializedRows >= 2);
 	assert.match(profileAssertionUi.text, /Holds office/i);
 	assert.match(profileAssertionUi.text, /丞相/);
 	assert.match(profileAssertionUi.text, /建安十三年/);

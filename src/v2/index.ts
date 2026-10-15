@@ -47,3 +47,5 @@ export * from './workspaces';
 export * from './temporal';
 
 export * from './maps';
+
+export * from './historical-family-chart';

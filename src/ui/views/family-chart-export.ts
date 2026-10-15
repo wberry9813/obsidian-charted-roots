@@ -39,6 +39,8 @@ const logger = getLogger('FamilyChartExport');
 export interface FamilyChartExportContext {
 	/** The family-chart instance's SVG element */
 	getChartSvg(): SVGSVGElement | null;
+	/** Wait for the live chart to finish any layout/entrance animation before cloning. */
+	waitUntilReady?: () => Promise<void>;
 	/** The chart container element (for HTML card export) */
 	chartContainerEl: HTMLElement | null;
 	/** Current card style */
@@ -99,6 +101,12 @@ export async function exportWithOptions(
 	}
 ): Promise<void> {
 	const { format, filename, includeAvatars, scale, onProgress, isCancelled } = options;
+
+	// family-chart animates structural cards independently from Historical
+	// overlays. Cloning during that transition captures temporary transforms and
+	// near-zero opacity values, producing incomplete SVG/PNG/PDF/ODT output.
+	await ctx.waitUntilReady?.();
+	if (isCancelled?.()) return;
 
 	switch (format) {
 		case 'png':
@@ -475,7 +483,13 @@ async function exportAsPdfWithOptions(
 			addPdfFooter(pdf, currentPage, totalPages, useRoboto);
 
 			onProgress?.({ phase: 'saving', current: 0, total: 100, message: 'Saving file...' });
-			pdf.save(filename);
+			const pdfBlob = pdf.output('blob');
+			const pdfUrl = URL.createObjectURL(pdfBlob);
+			const pdfLink = activeDocument.createElement('a');
+			pdfLink.href = pdfUrl;
+			pdfLink.download = filename;
+			pdfLink.click();
+			URL.revokeObjectURL(pdfUrl);
 			onProgress?.({ phase: 'complete', current: 100, total: 100, message: 'Done!' });
 			new Notice('PDF exported successfully');
 		};
@@ -997,6 +1011,136 @@ export async function exportAsPng(ctx: FamilyChartExportContext): Promise<void> 
 }
 
 /**
+ * Freeze resolved SVG presentation styles from the live Obsidian document onto
+ * a detached clone. Standalone SVG images and canvas rasterization do not have
+ * access to Obsidian theme variables or plugin stylesheets, so relying on
+ * class names / var(--...) values makes cards render with SVG defaults.
+ *
+ * Do not copy computed opacity / fill-opacity / stroke-opacity / visibility:
+ * those values can reflect transient f3 animation or inherited transparent
+ * SVG-root state. Existing authored attributes/styles remain on the clone, while
+ * stable color/font/stroke presentation is materialized here.
+ *
+ * The source and clone have identical element order immediately after
+ * cloneNode(true), which lets us copy only presentation properties without
+ * carrying over live pan/zoom CSS transforms.
+ */
+function normalizePortableSvgPresentationAttributes(svg: SVGSVGElement): void {
+	const normalize = (element: Element, attribute: 'fill' | 'stroke'): void => {
+		const raw = element.getAttribute(attribute);
+		if (!raw) return;
+		const value = raw.trim();
+		const rgba = value.match(
+			/^rgba\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)$/i
+		);
+		if (rgba) {
+			const alpha = Number(rgba[4]);
+			if (Number.isFinite(alpha) && alpha <= 0) {
+				element.setAttribute(attribute, 'none');
+				element.removeAttribute(attribute === 'fill' ? 'fill-opacity' : 'stroke-opacity');
+				return;
+			}
+			element.setAttribute(attribute, `rgb(${rgba[1]}, ${rgba[2]}, ${rgba[3]})`);
+			if (Number.isFinite(alpha) && alpha < 1) {
+				element.setAttribute(
+					attribute === 'fill' ? 'fill-opacity' : 'stroke-opacity',
+					String(alpha)
+				);
+			}
+			return;
+		}
+		if (value.toLowerCase() === 'transparent') {
+			element.setAttribute(attribute, 'none');
+			element.removeAttribute(attribute === 'fill' ? 'fill-opacity' : 'stroke-opacity');
+		}
+	};
+
+	for (const element of Array.from(svg.querySelectorAll('[fill], [stroke]'))) {
+		normalize(element, 'fill');
+		normalize(element, 'stroke');
+	}
+}
+
+function materializeSvgPresentationStyles(
+	sourceSvg: SVGSVGElement,
+	svgClone: SVGSVGElement
+): void {
+	const sourceElements: Element[] = [
+		sourceSvg,
+		...Array.from(sourceSvg.querySelectorAll('*'))
+	];
+	const cloneElements: Element[] = [
+		svgClone,
+		...Array.from(svgClone.querySelectorAll('*'))
+	];
+	const count = Math.min(sourceElements.length, cloneElements.length);
+
+	const properties: Array<[string, keyof CSSStyleDeclaration]> = [
+		['fill', 'fill'],
+		['stroke', 'stroke'],
+		['stroke-width', 'strokeWidth'],
+		['stroke-dasharray', 'strokeDasharray'],
+		['stroke-linecap', 'strokeLinecap'],
+		['stroke-linejoin', 'strokeLinejoin'],
+		['font-family', 'fontFamily'],
+		['font-size', 'fontSize'],
+		['font-weight', 'fontWeight'],
+		['font-style', 'fontStyle'],
+		['letter-spacing', 'letterSpacing'],
+		['paint-order', 'paintOrder']
+	];
+
+	const setPortablePresentationValue = (
+		clone: SVGElement,
+		attribute: string,
+		value: string
+	): void => {
+		if (attribute === 'fill' || attribute === 'stroke') {
+			const rgba = value.match(
+				/^rgba\\(\\s*([0-9.]+)\\s*,\\s*([0-9.]+)\\s*,\\s*([0-9.]+)\\s*,\\s*([0-9.]+)\\s*\\)$/i
+			);
+			if (rgba) {
+				const alpha = Number(rgba[4]);
+				if (Number.isFinite(alpha) && alpha <= 0) {
+					clone.setAttribute(attribute, 'none');
+					clone.removeAttribute(attribute === 'fill' ? 'fill-opacity' : 'stroke-opacity');
+					return;
+				}
+				if (Number.isFinite(alpha) && alpha < 1) {
+					clone.setAttribute(attribute, `rgb(${rgba[1]}, ${rgba[2]}, ${rgba[3]})`);
+					clone.setAttribute(
+						attribute === 'fill' ? 'fill-opacity' : 'stroke-opacity',
+						String(alpha)
+					);
+					return;
+				}
+			}
+			if (value.toLowerCase() === 'transparent') {
+				clone.setAttribute(attribute, 'none');
+				return;
+			}
+		}
+		clone.setAttribute(attribute, value);
+	};
+
+	for (let i = 0; i < count; i++) {
+		const source = sourceElements[i];
+		const clone = cloneElements[i];
+		if (!(source instanceof SVGElement) || !(clone instanceof SVGElement)) {
+			continue;
+		}
+		const computed = activeWindow.getComputedStyle(source);
+		for (const [attribute, property] of properties) {
+			const value = String(computed[property] ?? '').trim();
+			if (!value || value === 'normal' && attribute === 'paint-order') {
+				continue;
+			}
+			setPortablePresentationValue(clone, attribute, value);
+		}
+	}
+}
+
+/**
  * Prepare SVG for export by handling transforms and styling
  * Family-chart uses CSS transforms on .view group for pan/zoom, which must be
  * converted to a proper viewBox for standalone SVG export
@@ -1032,6 +1176,27 @@ export function prepareSvgForExport(ctx: FamilyChartExportContext, svg: SVGSVGEl
 			maxY = Math.max(maxY, linksBBox.y + linksBBox.height);
 		} catch {
 			// getBBox can throw if element is not rendered
+		}
+	}
+
+	// Historical mode adds standalone SVG lanes and relationship arcs outside
+	// the legacy cards_view / links_view groups. Include their bounds so
+	// exported SVG, PNG and PDF do not crop historical-only people or curves.
+	for (const selector of [
+		'.cr-fcv-historical-expansion-layer',
+		'.cr-relationship-overlay'
+	]) {
+		const layer = svg.querySelector<SVGGElement>(selector);
+		if (!layer) continue;
+		try {
+			const bounds = layer.getBBox();
+			if (bounds.width <= 0 && bounds.height <= 0) continue;
+			minX = Math.min(minX, bounds.x);
+			minY = Math.min(minY, bounds.y);
+			maxX = Math.max(maxX, bounds.x + bounds.width);
+			maxY = Math.max(maxY, bounds.y + bounds.height);
+		} catch {
+			// An unattached/hidden layer may not expose SVG geometry.
 		}
 	}
 
@@ -1081,6 +1246,11 @@ export function prepareSvgForExport(ctx: FamilyChartExportContext, svg: SVGSVGEl
 
 	// Clone SVG
 	const svgClone = svg.cloneNode(true) as SVGSVGElement;
+	materializeSvgPresentationStyles(svg, svgClone);
+	// family-chart itself can author rgba()/transparent presentation attributes.
+	// Normalize the complete clone after style materialization so standalone SVG
+	// renderers receive portable presentation values regardless of the source.
+	normalizePortableSvgPresentationAttributes(svgClone);
 	svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
 	svgClone.setAttribute('width', String(width));
 	svgClone.setAttribute('height', String(height));
@@ -1092,6 +1262,20 @@ export function prepareSvgForExport(ctx: FamilyChartExportContext, svg: SVGSVGEl
 		viewGroup.removeAttribute('style');
 		viewGroup.setAttribute('transform', '');
 	}
+
+	// f3 writes entrance-animation opacity/transition directly onto structural
+	// card groups. The clone must represent the final chart, not preserve a
+	// transient tween frame that happened to be present when cloneNode() ran.
+	// Keep each card's settled SVG transform, but freeze visibility in the
+	// detached export copy only; the live interactive chart is untouched.
+	svgClone.querySelectorAll<SVGGElement>('.card_cont').forEach(card => {
+		card.style.opacity = '1';
+		card.style.removeProperty('transition');
+		card.style.removeProperty('transition-property');
+		card.style.removeProperty('transition-duration');
+		card.style.removeProperty('transition-delay');
+		card.setAttribute('opacity', '1');
+	});
 
 	// Theme colors
 	const isDark = activeDocument.body.classList.contains('theme-dark');
@@ -1109,9 +1293,7 @@ export function prepareSvgForExport(ctx: FamilyChartExportContext, svg: SVGSVGEl
 	const styleEl = createSvg('style');
 	styleEl.textContent = `
 		text, tspan {
-			fill: ${textColor};
 			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-			font-size: 14px;
 		}
 		.card-body-rect { fill: ${bgColor}; }
 		.card-female .card-body-rect { fill: ${femaleColor}; }
@@ -1123,27 +1305,23 @@ export function prepareSvgForExport(ctx: FamilyChartExportContext, svg: SVGSVGEl
 	`;
 	svgClone.insertBefore(styleEl, svgClone.firstChild);
 
-	// Set fill on all text elements for maximum compatibility
-	// Also remove any inline styles that might override our fill, and ensure visibility
+	// Computed fill/font presentation has already been materialized above.
+	// Strip any leftover variable-based inline declarations without flattening
+	// semantic muted/accent text into one global text color.
 	svgClone.querySelectorAll('text, tspan').forEach((el) => {
-		el.setAttribute('fill', textColor);
-		// Remove any inline style that might contain CSS variables or override fill
+		const fill = el.getAttribute('fill');
+		if (!fill || fill.includes('var(')) {
+			el.setAttribute('fill', textColor);
+		}
 		const style = el.getAttribute('style');
 		if (style) {
-			// Remove fill, color, and any CSS variable references from inline style
 			const cleanedStyle = style
-				.replace(/fill:[^;]+;?/gi, '')
-				.replace(/color:[^;]+;?/gi, '')
-				.replace(/var\([^)]+\)/gi, textColor)
+				.replace(/fill:[^;]*var\([^)]+\)[^;]*;?/gi, '')
+				.replace(/color:[^;]*var\([^)]+\)[^;]*;?/gi, '')
 				.trim();
-			if (cleanedStyle) {
-				el.setAttribute('style', cleanedStyle);
-			} else {
-				el.removeAttribute('style');
-			}
+			if (cleanedStyle) el.setAttribute('style', cleanedStyle);
+			else el.removeAttribute('style');
 		}
-		// Ensure text is visible
-		el.setAttribute('opacity', '1');
 		el.setAttribute('visibility', 'visible');
 	});
 
@@ -1202,7 +1380,10 @@ export function prepareSvgForExport(ctx: FamilyChartExportContext, svg: SVGSVGEl
 	bgRect.setAttribute('y', String(minY));
 	bgRect.setAttribute('width', String(width));
 	bgRect.setAttribute('height', String(height));
+	bgRect.setAttribute('class', 'cr-export-background');
 	bgRect.setAttribute('fill', bgColor);
+	bgRect.setAttribute('fill-opacity', '1');
+	bgRect.setAttribute('opacity', '1');
 	svgClone.insertBefore(bgRect, svgClone.firstChild);
 
 	return { svgClone, width, height };

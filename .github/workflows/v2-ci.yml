@@ -106,13 +106,27 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Build CI-aligned Sandbox manual vault
+        run: node scripts/build-sandbox-test-vault.mjs
+
+      - name: Upload CI-aligned Sandbox manual vault
+        uses: actions/upload-artifact@v4
+        with:
+          name: charted-roots-sandbox-test-vault-${{ github.sha }}
+          path: dist/Charted-Roots-Sandbox-Test-Vault/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Run real Obsidian smoke test
         shell: bash
         run: |
           set -o pipefail
           mkdir -p tests/e2e/artifacts
-          xvfb-run -a node --test tests/e2e/v2-foundation-smoke.e2e.mjs \
+          xvfb-run -a node --test tests/e2e/v2-historical-family-chart.e2e.mjs \
             2>&1 | tee tests/e2e/artifacts/e2e.log
+          xvfb-run -a node --test tests/e2e/v2-foundation-smoke.e2e.mjs \
+            2>&1 | tee -a tests/e2e/artifacts/e2e.log
           xvfb-run -a node --test tests/e2e/v2-workspace-ui.e2e.mjs \
             2>&1 | tee -a tests/e2e/artifacts/e2e.log
           xvfb-run -a node --test tests/e2e/v2-demo-vault.e2e.mjs \
