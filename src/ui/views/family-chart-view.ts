@@ -65,6 +65,7 @@ import {
 	isJulianDayFocus,
 	type TemporalFocus
 } from '../../v2/temporal/temporal-focus-service';
+import { astronomicalYearToHistorical } from '../../v2/time/historical-year';
 
 const logger = getLogger('FamilyChartView');
 const HISTORICAL_FAMILY_CHART_FOCUS_SOURCE = 'historical-family-chart';
@@ -443,6 +444,26 @@ export class FamilyChartView extends ItemView {
 			const focusGroup = leftControls.createDiv({
 				cls: 'cr-fcv-control-group cr-fcv-historical-focus-group'
 			});
+			focusGroup.createSpan({ cls: 'cr-fcv-label', text: '时间' });
+			const focusInput = focusGroup.createEl('input', {
+				cls: 'cr-fcv-historical-focus-input',
+				type: 'text',
+				placeholder: '197 CE / 公元197年',
+				attr: {
+					'aria-label': 'Historical focus date',
+					'spellcheck': 'false'
+				}
+			});
+			focusInput.value = this.getHistoricalFocusInputValue();
+			focusInput.addEventListener('change', () => {
+				this.setHistoricalFocusFromInput(focusInput);
+			});
+			focusInput.addEventListener('keydown', event => {
+				if (event.key !== 'Enter') return;
+				event.preventDefault();
+				this.setHistoricalFocusFromInput(focusInput);
+				focusInput.blur();
+			});
 			const focus = focusGroup.createSpan({
 				cls: 'cr-fcv-historical-focus',
 				attr: {
@@ -545,28 +566,32 @@ export class FamilyChartView extends ItemView {
 		setIcon(depthBtn, 'git-branch');
 		depthBtn.addEventListener('click', (e) => this.showDepthMenu(e));
 
-		// As-of date filter (#376) — "Time" group with date picker and clear button
-		const timeGroup = rightControls.createDiv({ cls: 'cr-fcv-control-group cr-fcv-time-group' });
-		const asOfInput = timeGroup.createEl('input', {
-			cls: 'cr-fcv-as-of-date',
-			attr: {
-				type: 'date',
-				'aria-label': 'As-of date (show family as it existed on this date)',
-			},
-		});
-		if (this.asOfDate) asOfInput.value = this.asOfDate;
-		asOfInput.addEventListener('change', () => {
-			this.setAsOfDate(asOfInput.value || null);
-		});
-		const asOfClearBtn = timeGroup.createEl('button', {
-			cls: 'cr-fcv-btn cr-fcv-as-of-clear clickable-icon',
-			attr: { 'aria-label': 'Clear as-of date' },
-		});
-		setIcon(asOfClearBtn, 'x');
-		asOfClearBtn.addEventListener('click', () => {
-			asOfInput.value = '';
-			this.setAsOfDate(null);
-		});
+		// As-of date is a genealogy-only filter. Historical mode has its own
+		// shared temporal-focus control above; showing both date controls together
+		// makes it look like this legacy picker changes Historical time.
+		if (this.mode === 'family') {
+			const timeGroup = rightControls.createDiv({ cls: 'cr-fcv-control-group cr-fcv-time-group' });
+			const asOfInput = timeGroup.createEl('input', {
+				cls: 'cr-fcv-as-of-date',
+				attr: {
+					type: 'date',
+					'aria-label': 'Family as-of date (show genealogy as it existed on this date)',
+				},
+			});
+			if (this.asOfDate) asOfInput.value = this.asOfDate;
+			asOfInput.addEventListener('change', () => {
+				this.setAsOfDate(asOfInput.value || null);
+			});
+			const asOfClearBtn = timeGroup.createEl('button', {
+				cls: 'cr-fcv-btn cr-fcv-as-of-clear clickable-icon',
+				attr: { 'aria-label': 'Clear family as-of date' },
+			});
+			setIcon(asOfClearBtn, 'x');
+			asOfClearBtn.addEventListener('click', () => {
+				asOfInput.value = '';
+				this.setAsOfDate(null);
+			});
+		}
 
 		// Export button
 		const exportBtn = rightControls.createEl('button', {
@@ -6628,6 +6653,79 @@ export class FamilyChartView extends ItemView {
 		});
 	}
 
+	private getHistoricalFocusInputValue(): string {
+		if (!isJulianDayFocus(this.temporalFocus)) return '';
+		const calendar = this.plugin
+			.getHistoricalDateService()
+			.getCalendarProvider('tyme');
+		if (!calendar) return '';
+
+		const position = this.temporalFocus.kind === 'point'
+			? this.temporalFocus.position
+			: (this.temporalFocus.start + this.temporalFocus.endExclusive) / 2;
+		try {
+			const solar = calendar.julianDayToSolar(position);
+			const historical = astronomicalYearToHistorical(solar.year);
+			return `${historical.year} ${historical.era}`;
+		} catch {
+			return '';
+		}
+	}
+
+	private setHistoricalFocusFromInput(input: HTMLInputElement): void {
+		const expression = input.value.trim();
+		if (!expression) {
+			new Notice('请输入历史时间，例如 197 CE、公元197年或 197-06-01');
+			return;
+		}
+
+		const dates = this.plugin.getHistoricalDateService();
+		const parsed = dates.parse(expression, { calendar: 'tyme' });
+		if (parsed.status !== 'resolved') {
+			input.addClass('is-invalid');
+			new Notice(
+				parsed.status === 'ambiguous'
+					? `时间表达式存在歧义：${expression}`
+					: `无法识别历史时间：${expression}`
+			);
+			return;
+		}
+
+		const value = parsed.value.canonical;
+		let position: number;
+		if (value.scale === 'julian_day') {
+			position = value.start;
+		} else {
+			const calendar = dates.getCalendarProvider('tyme');
+			if (!calendar) {
+				new Notice('Historical calendar provider is unavailable.');
+				return;
+			}
+			// A year-only focus intentionally lands near the middle of the year.
+			// This avoids accidental boundary effects while preserving year-level
+			// precision; the Timeline and every other temporal view receive the same
+			// canonical Julian Day focus.
+			position = calendar.solarToJulianDay({
+				year: value.start,
+				month: 6,
+				day: 1
+			});
+		}
+
+		input.removeClass('is-invalid');
+		this.plugin.getTemporalFocusService().setPoint(
+			position,
+			HISTORICAL_FAMILY_CHART_FOCUS_SOURCE
+		);
+		// The subscriber intentionally ignores self-sourced changes to avoid
+		// future focus-publishing loops, so redraw the current Historical view
+		// explicitly after this user action.
+		this.temporalFocus = this.plugin.getTemporalFocusService().get();
+		this.updateHistoricalFocusIndicator();
+		this.renderHistoricalExpansionAndOverlay();
+		this.ensureHistoricalContentVisible();
+	}
+
 	private updateHistoricalFocusIndicator(
 		target?: HTMLElement
 	): void {
@@ -6652,6 +6750,14 @@ export class FamilyChartView extends ItemView {
 		element.title = display.supported
 			? 'Historical Family Chart follows the shared temporal focus'
 			: 'Historical Family Chart cannot interpret this temporal axis';
+
+		const input = this.toolbarEl?.querySelector<HTMLInputElement>(
+			'.cr-fcv-historical-focus-input'
+		);
+		if (input && activeDocument.activeElement !== input) {
+			input.value = this.getHistoricalFocusInputValue();
+			input.removeClass('is-invalid');
+		}
 	}
 
 	/**
