@@ -69,6 +69,7 @@ import { astronomicalYearToHistorical } from '../../v2/time/historical-year';
 
 const logger = getLogger('FamilyChartView');
 const HISTORICAL_FAMILY_CHART_FOCUS_SOURCE = 'historical-family-chart';
+const HISTORICAL_EXPANSION_TRANSITION_MS = 800;
 
 // Overlay types that map directly onto a structural parent-child link in the
 // tree. When enabled, we restyle the existing structural link with the
@@ -898,7 +899,7 @@ export class FamilyChartView extends ItemView {
 		const headerTitle = this.infoPanelEl?.querySelector(
 			'.cr-fcv-info-panel-header h3'
 		);
-		if (headerTitle) headerTitle.textContent = 'Historical person details';
+		if (headerTitle) headerTitle.textContent = 'Person details';
 
 		this.infoPanelContentEl.empty();
 		this.infoPanelActionsEl.empty();
@@ -906,7 +907,25 @@ export class FamilyChartView extends ItemView {
 		const fields = this.infoPanelContentEl.createDiv({
 			cls: 'cr-fcv-info-panel-fields'
 		});
-		this.createInfoField(fields, 'Name', person.name);
+		const model = this.familyGraphService.getPersonByCrId(person.crId);
+		this.createInfoField(fields, 'Name', model?.name ?? person.name);
+		if (model?.altName) {
+			this.createInfoField(fields, 'Alt name', unwrapWikilinkDisplay(model.altName));
+		}
+		if (model?.pronouns) {
+			this.createInfoField(
+				fields,
+				'Pronouns',
+				Array.isArray(model.pronouns) ? model.pronouns.join(', ') : model.pronouns
+			);
+		}
+		if (model?.occupation) {
+			this.createInfoField(fields, 'Occupation', unwrapWikilinkDisplay(model.occupation));
+		}
+		this.createInfoField(fields, 'Birth date', model?.birthDate ?? '');
+		this.createInfoField(fields, 'Death date', model?.deathDate ?? '');
+		if (model?.birthPlace) this.createInfoField(fields, 'Birth place', unwrapWikilinkDisplay(model.birthPlace));
+		if (model?.deathPlace) this.createInfoField(fields, 'Death place', unwrapWikilinkDisplay(model.deathPlace));
 		this.createInfoField(fields, 'Person note', person.filePath);
 		this.renderHistoricalInstitutionStateInfo(
 			this.infoPanelContentEl,
@@ -917,12 +936,12 @@ export class FamilyChartView extends ItemView {
 		this.infoPanelActionsEl.removeClass('edit-mode');
 		this.infoPanelActionsEl.createDiv({
 			cls: 'cr-fcv-info-panel-actions-description',
-			text: 'Historical lane person; relationships and state are read-only'
+			text: 'Historical mode is read-only; edit Person and Assertion notes directly'
 		});
 		const buttons = this.infoPanelActionsEl.createDiv({
 			cls: 'cr-fcv-info-panel-actions-buttons'
 		});
-		const open = buttons.createEl('button', { text: 'Open person note' });
+		const open = buttons.createEl('button', { text: 'Open' });
 		open.addEventListener('click', () => void this.openPersonNote(person.crId));
 	}
 
@@ -1649,7 +1668,12 @@ export class FamilyChartView extends ItemView {
 				.setBeforeUpdate(() => {
 					this.clearKinshipLabelsForUpdate();
 					this.clearRelationshipOverlayForUpdate();
-					this.clearHistoricalExpansionLayer();
+					// In Historical mode keep the current lane visible while f3 animates
+					// structural cards. The settled redraw crossfades to the updated lane;
+					// deleting it here caused the eye/Card display blank-then-pop flash.
+					if (this.mode !== 'historical') {
+						this.clearHistoricalExpansionLayer();
+					}
 				})
 				// Re-render overlays after tree animation completes (#195, #386, #379)
 				.setAfterUpdate(() => {
@@ -4277,8 +4301,11 @@ export class FamilyChartView extends ItemView {
 	private clearHistoricalExpansionLayer(): void {
 		if (!this.chartContainerEl) return;
 		this.chartContainerEl
-			.querySelectorAll('.cr-fcv-historical-expansion-layer')
-			.forEach(element => element.remove());
+			.querySelectorAll<SVGGElement>('.cr-fcv-historical-expansion-layer')
+			.forEach(element => {
+				element.getAnimations().forEach(animation => animation.cancel());
+				element.remove();
+			});
 		this.chartContainerEl.dataset.historicalExpandedCount = '0';
 	}
 
@@ -4337,7 +4364,11 @@ export class FamilyChartView extends ItemView {
 	private clearHistoricalCardStates(): void {
 		if (!this.chartContainerEl) return;
 		this.chartContainerEl
-			.querySelectorAll('.cr-fcv-historical-card-state')
+			.querySelectorAll(
+				'.card_cont .cr-fcv-historical-card-state, '
+				+ '.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting) '
+				+ '.cr-fcv-historical-card-state'
+			)
 			.forEach(element => element.remove());
 		this.chartContainerEl.dataset.historicalStateCardCount = '0';
 	}
@@ -4457,7 +4488,7 @@ export class FamilyChartView extends ItemView {
 
 		for (const card of Array.from(
 			this.chartContainerEl.querySelectorAll<SVGGElement>(
-				'.cr-fcv-historical-person-card'
+				'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting) .cr-fcv-historical-person-card'
 			)
 		)) {
 			const crId = card.getAttribute('data-cr-id');
@@ -4481,7 +4512,7 @@ export class FamilyChartView extends ItemView {
 		if (!this.chartContainerEl) return positions;
 		for (const card of Array.from(
 			this.chartContainerEl.querySelectorAll<SVGGElement>(
-				'.cr-fcv-historical-person-card'
+				'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting) .cr-fcv-historical-person-card'
 			)
 		)) {
 			const crId = card.getAttribute('data-cr-id');
@@ -4503,8 +4534,132 @@ export class FamilyChartView extends ItemView {
 		return positions;
 	}
 
+	private getHistoricalCardContent(
+		person: HistoricalFamilyChartPersonRef
+	): { nameLines: string[]; detailLines: string[]; avatar?: string } {
+		const model = this.familyGraphService.getPersonByCrId(person.crId);
+		if (!model) return { nameLines: [person.name], detailLines: [] };
+
+		const name = this.extractNameComponents(model);
+		const nameLines = this.nameDisplayMode === 'split'
+			? [name.firstName, name.lastName].filter(Boolean)
+			: [person.name];
+		const detailLines: string[] = [];
+		const add = (value: string | undefined) => {
+			if (value?.trim()) detailLines.push(value.trim());
+		};
+
+		// Mirror Family buildDisplayFields() so the eye/Card display menu controls
+		// both structural and Historical-only people instead of two different card
+		// contracts.
+		add(unwrapWikilinkDisplay(model.altName));
+		if (this.showNickname) add(unwrapWikilinkDisplay(model.nickname));
+		if (this.showTitle) add(unwrapWikilinkDisplay(model.title));
+		if (this.showPronouns) {
+			add(Array.isArray(model.pronouns) ? model.pronouns.join(', ') : model.pronouns);
+		}
+		if (this.showBirthDates) add(stripDateTimeSuffix(model.birthDate));
+		if (this.showDeathDates) add(stripDateTimeSuffix(model.deathDate));
+		if (this.showOccupation) add(unwrapWikilinkDisplay(model.occupation));
+		if (this.showReligion) add(unwrapWikilinkDisplay(model.religion));
+		if (this.showCaste) add(unwrapWikilinkDisplay(model.caste));
+
+		return {
+			nameLines: nameLines.length > 0 ? nameLines : [person.name],
+			detailLines,
+			avatar: this.showAvatars ? this.avatarUrlCache.get(person.crId) : undefined
+		};
+	}
+
+	private getHistoricalLaneDimensions(
+		people: HistoricalFamilyChartPersonRef[]
+	): ReturnType<FamilyChartView['getCardDimensions']> {
+		const base = this.getCardDimensions(this.cardStyle);
+		let maxLines = 1;
+		for (const person of people) {
+			const content = this.getHistoricalCardContent(person);
+			maxLines = Math.max(
+				maxLines,
+				content.nameLines.length + content.detailLines.length
+			);
+		}
+		const contentHeight = 34 + maxLines * 16 + 18;
+		return { ...base, h: Math.max(base.h, contentHeight) };
+	}
+
+	private transitionHistoricalExpansionLayer(
+		viewGroup: SVGGElement,
+		nextLayer: SVGGElement | null
+	): void {
+		const previous = viewGroup.querySelector<SVGGElement>(
+			'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting)'
+		);
+
+		// A rapid scrub can begin another redraw before the previous fade finishes.
+		// Discard only already-outgoing layers; keep the current active layer as the
+		// visual bridge so there is never an empty frame.
+		viewGroup.querySelectorAll<SVGGElement>(
+			'.cr-fcv-historical-expansion-layer--exiting'
+		).forEach(layer => {
+			layer.getAnimations().forEach(animation => animation.cancel());
+			layer.remove();
+		});
+
+		if (nextLayer) {
+			nextLayer.style.opacity = '0';
+			nextLayer.dataset.transitionState = 'enter';
+			viewGroup.appendChild(nextLayer);
+		}
+
+		if (previous) {
+			previous.getAnimations().forEach(animation => animation.cancel());
+			previous.classList.add('cr-fcv-historical-expansion-layer--exiting');
+			previous.dataset.transitionState = 'exit';
+		}
+
+		const finishEnter = () => {
+			if (!nextLayer?.isConnected) return;
+			nextLayer.style.opacity = '1';
+			delete nextLayer.dataset.transitionState;
+		};
+		const finishExit = () => {
+			if (previous?.isConnected) previous.remove();
+		};
+
+		if (typeof nextLayer?.animate === 'function') {
+			const enter = nextLayer.animate(
+				[{ opacity: 0 }, { opacity: 1 }],
+				{
+					duration: HISTORICAL_EXPANSION_TRANSITION_MS,
+					easing: 'ease-in-out',
+					fill: 'forwards'
+				}
+			);
+			enter.onfinish = finishEnter;
+			enter.oncancel = finishEnter;
+		} else {
+			finishEnter();
+		}
+
+		if (previous && typeof previous.animate === 'function') {
+			const win = previous.ownerDocument.defaultView;
+			const opacity = Number(win?.getComputedStyle(previous).opacity ?? '1');
+			const exit = previous.animate(
+				[{ opacity: Number.isFinite(opacity) ? opacity : 1 }, { opacity: 0 }],
+				{
+					duration: HISTORICAL_EXPANSION_TRANSITION_MS,
+					easing: 'ease-in-out',
+					fill: 'forwards'
+				}
+			);
+			exit.onfinish = finishExit;
+			exit.oncancel = finishExit;
+		} else if (previous) {
+			finishExit();
+		}
+	}
+
 	private renderHistoricalExpansionLanes(): void {
-		this.clearHistoricalExpansionLayer();
 		if (
 			this.mode !== 'historical'
 			|| !this.rootPersonId
@@ -4523,21 +4678,31 @@ export class FamilyChartView extends ItemView {
 		const root = this.resolveHistoricalPersonRef(this.rootPersonId);
 		if (!root) return;
 
-		const projection = filterHistoricalProjection(this.historicalProjector.project(this.temporalFocus), this.historicalRelationPreset);
+		const projection = filterHistoricalProjection(
+			this.historicalProjector.project(this.temporalFocus),
+			this.historicalRelationPreset
+		);
 		const expansion = expandHistoricalFamilyChartPeople(root, projection, {
 			depth: this.historicalExpansionDepth
 		});
-		const dimensions = this.getCardDimensions(this.cardStyle);
+		const previewDimensions = this.getHistoricalLaneDimensions(
+			expansion.nodes
+				.filter(node => node.historicalDepth !== null && node.historicalDepth > 0)
+				.map(node => node.person)
+		);
 		const layout = layoutHistoricalFamilyChartLanes(
 			expansion,
 			structuralPositions,
 			this.rootPersonId,
 			{
-				cardWidth: dimensions.w,
-				cardHeight: dimensions.h,
+				cardWidth: previewDimensions.w,
+				cardHeight: previewDimensions.h,
 				laneGap: 110,
 				rowGap: 58
 			}
+		);
+		const dimensions = this.getHistoricalLaneDimensions(
+			layout.nodes.map(node => node.person)
 		);
 
 		this.chartContainerEl.dataset.historicalExpandedCount =
@@ -4547,11 +4712,43 @@ export class FamilyChartView extends ItemView {
 		this.chartContainerEl.dataset.historicalExpansionTruncated =
 			String(expansion.truncated);
 
-		if (layout.nodes.length === 0) return;
+		const activeLayer = viewGroup.querySelector<SVGGElement>(
+			'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting)'
+		);
+		if (layout.nodes.length === 0) {
+			if (activeLayer) this.transitionHistoricalExpansionLayer(viewGroup, null);
+			return;
+		}
+
+		const cardContents = new Map(
+			layout.nodes.map(node => [
+				node.person.crId,
+				this.getHistoricalCardContent(node.person)
+			] as const)
+		);
+		const signature = [
+			String(expansion.appliedDepth),
+			String(dimensions.w),
+			String(dimensions.h),
+			...layout.nodes.map(node => {
+				const content = cardContents.get(node.person.crId)!;
+				return [
+					node.person.crId,
+					node.historicalDepth,
+					node.x,
+					node.y,
+					content.nameLines.join('~'),
+					content.detailLines.join('~'),
+					content.avatar ?? ''
+				].join(':');
+			})
+		].join('|');
+		if (activeLayer?.dataset.signature === signature) return;
 
 		const layer = createSvg('g');
 		layer.setAttribute('class', 'cr-fcv-historical-expansion-layer');
 		layer.setAttribute('data-depth', String(expansion.appliedDepth));
+		layer.setAttribute('data-signature', signature);
 
 		const minStructuralY = Math.min(...[...structuralPositions.values()].map(p => p.y));
 		const minHistoricalY = Math.min(...layout.nodes.map(node => node.y));
@@ -4562,9 +4759,7 @@ export class FamilyChartView extends ItemView {
 
 		const lanes = new Map<number, number>();
 		for (const node of layout.nodes) {
-			if (!lanes.has(node.historicalDepth)) {
-				lanes.set(node.historicalDepth, node.x);
-			}
+			if (!lanes.has(node.historicalDepth)) lanes.set(node.historicalDepth, node.x);
 		}
 		for (const [depth, x] of [...lanes.entries()].sort((a, b) => a[0] - b[0])) {
 			const guide = createSvg('line');
@@ -4585,15 +4780,14 @@ export class FamilyChartView extends ItemView {
 		}
 
 		for (const node of layout.nodes) {
+			const content = cardContents.get(node.person.crId)!;
 			const card = createSvg('g');
-			card.setAttribute(
-				'class',
-				'cr-fcv-historical-person-card'
-			);
+			card.setAttribute('class', 'cr-fcv-historical-person-card');
 			card.setAttribute('data-cr-id', node.person.crId);
 			card.setAttribute('data-depth', String(node.historicalDepth));
 			card.setAttribute('data-x', String(node.x));
 			card.setAttribute('data-y', String(node.y));
+			card.setAttribute('data-display-lines', String(content.detailLines.length));
 			card.setAttribute('transform', `translate(${node.x}, ${node.y})`);
 			card.setAttribute('role', 'button');
 			card.setAttribute('tabindex', '0');
@@ -4616,21 +4810,48 @@ export class FamilyChartView extends ItemView {
 			depthBadge.textContent = `H${node.historicalDepth}`;
 			card.appendChild(depthBadge);
 
-			const name = createSvg('text');
-			name.setAttribute('class', 'cr-fcv-historical-person-card__name');
-			name.setAttribute('x', '0');
-			name.setAttribute('y', '4');
-			name.setAttribute('text-anchor', 'middle');
-			name.textContent = node.person.name;
-			card.appendChild(name);
+			let textX = 0;
+			if (content.avatar) {
+				const avatar = createSvg('image');
+				avatar.setAttribute('class', 'cr-fcv-historical-person-card__avatar');
+				avatar.setAttribute('href', content.avatar);
+				avatar.setAttribute('x', String(-dimensions.w / 2 + 12));
+				avatar.setAttribute('y', '-22');
+				avatar.setAttribute('width', '44');
+				avatar.setAttribute('height', '44');
+				avatar.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+				card.appendChild(avatar);
+				textX = 24;
+			}
 
-			const hint = createSvg('text');
-			hint.setAttribute('class', 'cr-fcv-historical-person-card__hint');
-			hint.setAttribute('x', '0');
-			hint.setAttribute('y', '26');
-			hint.setAttribute('text-anchor', 'middle');
-			hint.textContent = 'Historical relation';
-			card.appendChild(hint);
+			const totalTextHeight =
+				content.nameLines.length * 18 + content.detailLines.length * 14;
+			let textY = Math.max(
+				-dimensions.h / 2 + 36,
+				-totalTextHeight / 2 + 12
+			);
+			for (const [index, value] of content.nameLines.entries()) {
+				const name = createSvg('text');
+				name.setAttribute('class', 'cr-fcv-historical-person-card__name');
+				name.setAttribute('data-line', String(index));
+				name.setAttribute('x', String(textX));
+				name.setAttribute('y', String(textY));
+				name.setAttribute('text-anchor', 'middle');
+				name.textContent = value;
+				card.appendChild(name);
+				textY += 18;
+			}
+			for (const [index, value] of content.detailLines.entries()) {
+				const detail = createSvg('text');
+				detail.setAttribute('class', 'cr-fcv-historical-person-card__detail');
+				detail.setAttribute('data-line', String(index));
+				detail.setAttribute('x', String(textX));
+				detail.setAttribute('y', String(textY));
+				detail.setAttribute('text-anchor', 'middle');
+				detail.textContent = value;
+				card.appendChild(detail);
+				textY += 14;
+			}
 
 			const info = createSvg('g');
 			info.setAttribute(
@@ -4643,10 +4864,7 @@ export class FamilyChartView extends ItemView {
 			);
 			info.setAttribute('role', 'button');
 			info.setAttribute('tabindex', '0');
-			info.setAttribute(
-				'aria-label',
-				`Open person note for ${node.person.name}`
-			);
+			info.setAttribute('aria-label', `Open person note for ${node.person.name}`);
 			const infoCircle = createSvg('circle');
 			infoCircle.setAttribute('r', '9');
 			info.appendChild(infoCircle);
@@ -4664,9 +4882,7 @@ export class FamilyChartView extends ItemView {
 			};
 			info.addEventListener('click', openNote);
 			info.addEventListener('keydown', event => {
-				if (event.key === 'Enter' || event.key === ' ') {
-					openNote(event);
-				}
+				if (event.key === 'Enter' || event.key === ' ') openNote(event);
 			});
 			card.appendChild(info);
 
@@ -4691,7 +4907,7 @@ export class FamilyChartView extends ItemView {
 			layer.appendChild(card);
 		}
 
-		viewGroup.appendChild(layer);
+		this.transitionHistoricalExpansionLayer(viewGroup, layer);
 	}
 
 	private renderHistoricalExpansionAndOverlay(): void {
@@ -6733,6 +6949,7 @@ export class FamilyChartView extends ItemView {
 			// content; recover automatically only when the chart has become wholly
 			// offscreen.
 			this.renderHistoricalExpansionAndOverlay();
+			if (this.selectedPersonId) this.renderInfoPanelContent();
 			this.ensureHistoricalContentVisible();
 		});
 	}
@@ -6807,6 +7024,7 @@ export class FamilyChartView extends ItemView {
 		this.temporalFocus = this.plugin.getTemporalFocusService().get();
 		this.updateHistoricalFocusIndicator();
 		this.renderHistoricalExpansionAndOverlay();
+		if (this.selectedPersonId) this.renderInfoPanelContent();
 		this.ensureHistoricalContentVisible();
 	}
 
