@@ -1347,15 +1347,21 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		})()`
 	);
 
+	// Body-click semantics are covered above as Person-details navigation. The
+	// original acceptance used the card body to open the note; after aligning
+	// Historical cards with Family cards, note navigation belongs to the
+	// top-right document button instead.
 	await session.evalInApp(`
 		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
-		const card = root?.querySelector(
-			'.cr-fcv-historical-person-card[data-cr-id="e2e-historical-xun-yu"]'
+		const button = root?.querySelector(
+			'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting) '
+			+ '.cr-fcv-historical-person-card[data-cr-id="e2e-historical-xun-yu"] '
+			+ '.cr-fcv-historical-person-card__open-note'
 		);
-		if (!card) {
-			throw new Error('Historical 荀彧 card is unavailable.');
+		if (!button) {
+			throw new Error('Historical 荀彧 open-note button is unavailable.');
 		}
-		card.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 		return true;
 	`);
 
