@@ -1137,19 +1137,34 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 	// Historical fitting runs after f3's asynchronous position-stability
 	// callback. Wait for the actual visible result before collecting the
 	// geometry diagnostic; an immediate read samples f3's old fit transform.
-	let visibleAfterFit = true;
-	try {
-		await session.waitFor(`(() => {
+	// A single visible frame is not sufficient: f3 can briefly pass through the
+	// correct transform and then land its final CSS tween frame afterward. Require
+	// the Historical target to remain visible with an unchanged live transform for
+	// a sustained sequence of animation frames before treating Fit as settled.
+	const visibleAfterFit = await session.evalInApp(`
+		let stableFrames = 0;
+		let lastTransform = '';
+		for (let frame = 0; frame < 480; frame++) {
+			await new Promise(resolve => requestAnimationFrame(resolve));
 			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
-			const viewport = root?.querySelector('svg.main_svg')?.getBoundingClientRect();
-			const card = root?.querySelector('.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]')?.getBoundingClientRect();
-			return !!viewport && !!card && card.width > 0 && card.height > 0
+			const svg = root?.querySelector('svg.main_svg');
+			const view = svg?.querySelector('.view');
+			const viewport = svg?.getBoundingClientRect();
+			const card = root?.querySelector(
+				'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting) '
+				+ '.cr-fcv-historical-person-card[data-cr-id="e2e-historical-guo-jia"]'
+			)?.getBoundingClientRect();
+			const visible = !!viewport && !!card && card.width > 0 && card.height > 0
 				&& card.right > viewport.left && card.left < viewport.right
 				&& card.bottom > viewport.top && card.top < viewport.bottom;
-		})()`);
-	} catch {
-		visibleAfterFit = false;
-	}
+			const transform = view?.getAttribute('style') ?? '';
+			if (visible && transform === lastTransform) stableFrames++;
+			else stableFrames = 0;
+			lastTransform = transform;
+			if (stableFrames >= 90) return true;
+		}
+		return false;
+	`);
 	const visualBounds = await session.evalInApp(`
 		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
 		const svg = root?.querySelector('svg.main_svg');
