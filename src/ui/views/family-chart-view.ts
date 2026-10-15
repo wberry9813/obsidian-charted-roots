@@ -129,6 +129,7 @@ interface FamilyChartViewState {
 	mode?: FamilyChartMode;
 	historicalExpansionDepth?: number;
 	historicalRelationPreset?: HistoricalRelationPreset;
+	infoPanelWidth?: number;
 	colorScheme: ColorScheme;
 	editMode: boolean;
 	nodeSpacing?: number;
@@ -249,6 +250,7 @@ export class FamilyChartView extends ItemView {
 	private infoPanelEl: HTMLElement | null = null;
 	private infoPanelContentEl: HTMLElement | null = null;
 	private infoPanelActionsEl: HTMLElement | null = null;
+	private infoPanelWidth: number = 360;
 	private selectedPersonId: string | null = null;
 	private infoPanelEditMode: boolean = false;
 	private infoPanelEditData: { firstName: string; lastName: string; altName: string; pronouns: string; occupation: string; birthPlace: string; deathPlace: string; birthDate: string; deathDate: string; gender: 'M' | 'F' | 'X' | 'U' | ''; researchLevel: string; collection: string } | null = null;
@@ -357,6 +359,7 @@ export class FamilyChartView extends ItemView {
 
 		// Create info panel (hidden by default)
 		this.infoPanelEl = contentArea.createDiv({ cls: 'cr-fcv-info-panel crc-hidden' });
+		this.applyInfoPanelWidth();
 		this.buildInfoPanel();
 	}
 
@@ -610,6 +613,71 @@ export class FamilyChartView extends ItemView {
 		refreshBtn.addEventListener('click', () => { void this.refreshChart(); });
 	}
 
+	private clampInfoPanelWidth(width: number): number {
+		const available = this.contentEl.getBoundingClientRect().width
+			|| activeWindow.innerWidth
+			|| 900;
+		const maxWidth = Math.max(320, Math.min(720, available * 0.65));
+		return Math.round(Math.max(300, Math.min(maxWidth, width)));
+	}
+
+	private applyInfoPanelWidth(): void {
+		if (!this.infoPanelEl) return;
+		this.infoPanelWidth = this.clampInfoPanelWidth(this.infoPanelWidth);
+		this.infoPanelEl.style.width = `${this.infoPanelWidth}px`;
+	}
+
+	private createInfoPanelResizeHandle(): void {
+		if (!this.infoPanelEl) return;
+		const handle = this.infoPanelEl.createDiv({
+			cls: 'cr-fcv-info-panel-resize-handle',
+			attr: {
+				role: 'separator',
+				'aria-orientation': 'vertical',
+				'aria-label': 'Resize person details panel',
+				tabindex: '0'
+			}
+		});
+
+		handle.addEventListener('pointerdown', event => {
+			if (event.button !== 0 || !this.infoPanelEl) return;
+			event.preventDefault();
+			const startX = event.clientX;
+			const startWidth = this.infoPanelEl.getBoundingClientRect().width;
+			handle.setPointerCapture(event.pointerId);
+			handle.addClass('is-dragging');
+
+			const onMove = (move: PointerEvent) => {
+				const next = startWidth + startX - move.clientX;
+				this.infoPanelWidth = this.clampInfoPanelWidth(next);
+				this.applyInfoPanelWidth();
+			};
+			const finish = (finishEvent: PointerEvent) => {
+				handle.removeEventListener('pointermove', onMove);
+				handle.removeEventListener('pointerup', finish);
+				handle.removeEventListener('pointercancel', finish);
+				handle.removeClass('is-dragging');
+				if (handle.hasPointerCapture(finishEvent.pointerId)) {
+					handle.releasePointerCapture(finishEvent.pointerId);
+				}
+				this.app.workspace.requestSaveLayout();
+			};
+			handle.addEventListener('pointermove', onMove);
+			handle.addEventListener('pointerup', finish);
+			handle.addEventListener('pointercancel', finish);
+		});
+
+		handle.addEventListener('keydown', event => {
+			if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+			event.preventDefault();
+			this.infoPanelWidth = this.clampInfoPanelWidth(
+				this.infoPanelWidth + (event.key === 'ArrowLeft' ? 24 : -24)
+			);
+			this.applyInfoPanelWidth();
+			this.app.workspace.requestSaveLayout();
+		});
+	}
+
 	/**
 	 * Build the info panel structure
 	 */
@@ -617,6 +685,7 @@ export class FamilyChartView extends ItemView {
 		if (!this.infoPanelEl) return;
 
 		this.infoPanelEl.empty();
+		this.createInfoPanelResizeHandle();
 
 		// Header
 		const header = this.infoPanelEl.createDiv({ cls: 'cr-fcv-info-panel-header' });
@@ -4528,7 +4597,7 @@ export class FamilyChartView extends ItemView {
 			card.setAttribute('transform', `translate(${node.x}, ${node.y})`);
 			card.setAttribute('role', 'button');
 			card.setAttribute('tabindex', '0');
-			card.setAttribute('aria-label', `Open historical person ${node.person.name}`);
+			card.setAttribute('aria-label', `Show person details for ${node.person.name}`);
 
 			const body = createSvg('rect');
 			body.setAttribute('class', 'cr-fcv-historical-person-card__body');
@@ -4564,7 +4633,10 @@ export class FamilyChartView extends ItemView {
 			card.appendChild(hint);
 
 			const info = createSvg('g');
-			info.setAttribute('class', 'cr-fcv-historical-person-card__info');
+			info.setAttribute(
+				'class',
+				'cr-fcv-historical-person-card__info cr-fcv-historical-person-card__open-note'
+			);
 			info.setAttribute(
 				'transform',
 				`translate(${dimensions.w / 2 - 16}, ${-dimensions.h / 2 + 16})`
@@ -4573,44 +4645,46 @@ export class FamilyChartView extends ItemView {
 			info.setAttribute('tabindex', '0');
 			info.setAttribute(
 				'aria-label',
-				`Open historical state details for ${node.person.name}`
+				`Open person note for ${node.person.name}`
 			);
 			const infoCircle = createSvg('circle');
 			infoCircle.setAttribute('r', '9');
 			info.appendChild(infoCircle);
-			const infoText = createSvg('text');
-			infoText.setAttribute('text-anchor', 'middle');
-			infoText.setAttribute('y', '4');
-			infoText.textContent = 'i';
-			info.appendChild(infoText);
-			const openInfo = (event: Event) => {
+			const icon = createSvg('path');
+			icon.setAttribute('d', 'M-4,-5 L2,-5 L5,-2 L5,5 L-4,5 Z M2,-5 L2,-2 L5,-2');
+			icon.setAttribute('fill', 'none');
+			icon.setAttribute('stroke-width', '1.2');
+			icon.setAttribute('stroke-linecap', 'round');
+			icon.setAttribute('stroke-linejoin', 'round');
+			info.appendChild(icon);
+			const openNote = (event: Event) => {
 				event.preventDefault();
 				event.stopPropagation();
-				this.openInfoPanel(node.person.crId);
+				void this.openPersonNote(node.person.crId);
 			};
-			info.addEventListener('click', openInfo);
+			info.addEventListener('click', openNote);
 			info.addEventListener('keydown', event => {
 				if (event.key === 'Enter' || event.key === ' ') {
-					openInfo(event);
+					openNote(event);
 				}
 			});
 			card.appendChild(info);
 
 			const tooltip = createSvg('title');
 			tooltip.textContent =
-				`${node.person.name} · historical depth ${node.historicalDepth} · click to open note`;
+				`${node.person.name} · historical depth ${node.historicalDepth} · click for person details`;
 			card.appendChild(tooltip);
 
-			const open = () => void this.openPersonNote(node.person.crId);
+			const openDetails = () => this.openInfoPanel(node.person.crId);
 			card.addEventListener('click', event => {
 				event.stopPropagation();
-				open();
+				openDetails();
 			});
 			card.addEventListener('keydown', event => {
 				if (event.key === 'Enter' || event.key === ' ') {
 					event.preventDefault();
 					event.stopPropagation();
-					open();
+					openDetails();
 				}
 			});
 
@@ -6879,6 +6953,7 @@ export class FamilyChartView extends ItemView {
 			mode: this.mode,
 			historicalExpansionDepth: this.historicalExpansionDepth,
 			historicalRelationPreset: this.historicalRelationPreset,
+			infoPanelWidth: this.infoPanelWidth,
 			colorScheme: this.colorScheme,
 			editMode: this.editMode,
 			nodeSpacing: this.nodeSpacing,
@@ -6935,6 +7010,10 @@ export class FamilyChartView extends ItemView {
 		}
 		if (state.historicalRelationPreset === 'all' || state.historicalRelationPreset === 'political' || state.historicalRelationPreset === 'mentorship') {
 			this.historicalRelationPreset = state.historicalRelationPreset;
+		}
+		if (typeof state.infoPanelWidth === 'number' && Number.isFinite(state.infoPanelWidth)) {
+			this.infoPanelWidth = this.clampInfoPanelWidth(state.infoPanelWidth);
+			this.applyInfoPanelWidth();
 		}
 		if (state.colorScheme !== undefined) {
 			this.colorScheme = state.colorScheme;
