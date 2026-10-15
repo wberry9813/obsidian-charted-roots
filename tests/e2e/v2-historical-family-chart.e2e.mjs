@@ -418,12 +418,20 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 
 	const xunPath = 'Charted Roots/People/Xun-Yu-Historical-Lane-E2E.md';
 	const guoPath = 'Charted Roots/People/Guo-Jia-Historical-Lane-E2E.md';
+	const allyAssertionPath = 'Charted Roots/Assertions/Cao-Cao-Xun-Yu-Historical-Lane-E2E.md';
+	const recommendAssertionPath = 'Charted Roots/Assertions/Xun-Yu-Guo-Jia-Historical-Lane-E2E.md';
 
+	// These fixtures are intentionally checked into the E2E vault. Manual
+	// Sandbox testing must see the exact same people/Assertions that CI sees.
 	await session.waitFor(
-		`app.metadataCache.getCache('Charted Roots/People/Cao-Cao.md')?.frontmatter?.cr_id === 'person-cao-cao'`
+		`app.metadataCache.getCache('Charted Roots/People/Cao-Cao.md')?.frontmatter?.cr_id === 'person-cao-cao'
+			&& app.metadataCache.getCache(${JSON.stringify(xunPath)})?.frontmatter?.cr_id === 'e2e-historical-xun-yu'
+			&& app.metadataCache.getCache(${JSON.stringify(guoPath)})?.frontmatter?.cr_id === 'e2e-historical-guo-jia'
+			&& app.metadataCache.getCache(${JSON.stringify(allyAssertionPath)})?.frontmatter?.assertion_type === 'relationship'
+			&& app.metadataCache.getCache(${JSON.stringify(recommendAssertionPath)})?.frontmatter?.assertion_type === 'relationship'`
 	);
 
-	const setup = await session.evalInApp(`
+	const assertionSetup = await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
 		if (!plugin) throw new Error('Charted Roots plugin is unavailable.');
 
@@ -431,92 +439,6 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		if (!workspace || workspace.getActive().rootFolder !== 'Charted Roots') {
 			throw new Error('Historical lane E2E requires the default Charted Roots Workspace.');
 		}
-
-		const fixtures = [
-			{
-				path: "Charted Roots/People/Xun-Yu-Historical-Lane-E2E.md",
-				content: [
-					'---',
-					'cr_schema: 2',
-					'cr_type: person',
-					'cr_id: e2e-historical-xun-yu',
-					'name: 荀彧',
-					'born: "163 CE"',
-					'died: "212 CE"',
-					'---',
-					'# 荀彧',
-					'',
-					'Temporary E2E historical-lane fixture. No genealogy fields.'
-				].join('\\n')
-			},
-			{
-				path: "Charted Roots/People/Guo-Jia-Historical-Lane-E2E.md",
-				content: [
-					'---',
-					'cr_schema: 2',
-					'cr_type: person',
-					'cr_id: e2e-historical-guo-jia',
-					'name: 郭嘉',
-					'born: "170 CE"',
-					'died: "207 CE"',
-					'---',
-					'# 郭嘉',
-					'',
-					'Temporary E2E historical-lane fixture. No genealogy fields.'
-				].join('\\n')
-			}
-		];
-
-		for (const fixture of fixtures) {
-			const existing = app.vault.getAbstractFileByPath(fixture.path);
-			if (existing) await app.vault.delete(existing);
-			await app.vault.create(fixture.path, fixture.content);
-		}
-
-		return true;
-	`);
-
-	assert.equal(setup, true);
-
-	await session.waitFor(
-		`app.metadataCache.getCache("Charted Roots/People/Xun-Yu-Historical-Lane-E2E.md")?.frontmatter?.cr_id === 'e2e-historical-xun-yu'
-			&& app.metadataCache.getCache("Charted Roots/People/Guo-Jia-Historical-Lane-E2E.md")?.frontmatter?.cr_id === 'e2e-historical-guo-jia'`
-	);
-
-	const assertionSetup = await session.evalInApp(`
-		const plugin = app.plugins.plugins['charted-roots'];
-		const assertionService = plugin.getAssertionService();
-		const created = [];
-
-		created.push(await assertionService.createAssertion({
-			assertionType: 'relationship',
-			subject: '[[Charted Roots/People/Cao-Cao|曹操]]',
-			predicate: 'ally_of',
-			object: '[[Charted Roots/People/Xun-Yu-Historical-Lane-E2E|荀彧]]',
-			timeStart: '196 CE',
-			timeEnd: '199 CE',
-			timeStartPrecision: 'year',
-			timeEndPrecision: 'year',
-			timeStartCertainty: 'certain',
-			timeEndCertainty: 'certain',
-			notes: 'E2E non-family historical lane depth 1',
-			title: '曹操与荀彧历史关系 E2E'
-		}, { folder: 'Charted Roots/Assertions' }));
-
-		created.push(await assertionService.createAssertion({
-			assertionType: 'relationship',
-			subject: '[[Charted Roots/People/Xun-Yu-Historical-Lane-E2E|荀彧]]',
-			predicate: 'recommends',
-			object: '[[Charted Roots/People/Guo-Jia-Historical-Lane-E2E|郭嘉]]',
-			timeStart: '196 CE',
-			timeEnd: '199 CE',
-			timeStartPrecision: 'year',
-			timeEndPrecision: 'year',
-			timeStartCertainty: 'certain',
-			timeEndCertainty: 'certain',
-			notes: 'E2E non-family historical lane depth 2',
-			title: '荀彧与郭嘉历史关系 E2E'
-		}, { folder: 'Charted Roots/Assertions' }));
 
 		const calendar = plugin.getHistoricalDateService().getCalendarProvider('tyme');
 		if (!calendar) throw new Error('Tyme historical calendar is unavailable.');
@@ -527,17 +449,14 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 		await plugin.activateFamilyChartView('person-cao-cao', true, true);
 
 		return {
-			assertionPaths: created.map(file => file.path),
+			assertionPaths: [
+				${JSON.stringify(allyAssertionPath)},
+				${JSON.stringify(recommendAssertionPath)}
+			],
 			point197,
 			point201
 		};
 	`);
-
-	for (const assertionPath of assertionSetup.assertionPaths) {
-		await session.waitFor(
-			`app.metadataCache.getCache(${JSON.stringify(assertionPath)})?.frontmatter?.assertion_type === 'relationship'`
-		);
-	}
 
 	await session.waitFor(
 		`(() => {
@@ -1315,14 +1234,7 @@ test('Historical Family Chart expands unrelated people into depth lanes', async 
 	await session.evalInApp(`
 		const plugin = app.plugins.plugins['charted-roots'];
 		plugin.getTemporalFocusService().clear();
-		for (const path of ${JSON.stringify([...assertionSetup.assertionPaths, ...denseAssertionPaths])}) {
-			const file = app.vault.getAbstractFileByPath(path);
-			if (file) await app.vault.delete(file);
-		}
-		for (const path of [
-			"Charted Roots/People/Xun-Yu-Historical-Lane-E2E.md",
-			"Charted Roots/People/Guo-Jia-Historical-Lane-E2E.md"
-		]) {
+		for (const path of ${JSON.stringify(denseAssertionPaths)}) {
 			const file = app.vault.getAbstractFileByPath(path);
 			if (file) await app.vault.delete(file);
 		}
