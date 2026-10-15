@@ -1650,6 +1650,11 @@
 
 .cr-fcv-historical-expansion-layer {
   pointer-events: none;
+  will-change: opacity;
+}
+
+.cr-fcv-historical-expansion-layer--exiting {
+  pointer-events: none;
 }
 
 .cr-fcv-historical-lane-guide {
@@ -1695,6 +1700,18 @@
   font-weight: 650;
   pointer-events: none;
 }
+
+.cr-fcv-historical-person-card__detail {
+  fill: var(--text-muted);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.cr-fcv-historical-person-card__avatar {
+  pointer-events: none;
+  clip-path: inset(0 round 6px);
+}
+
 
 .cr-fcv-historical-person-card__depth {
   fill: var(--interactive-accent);
