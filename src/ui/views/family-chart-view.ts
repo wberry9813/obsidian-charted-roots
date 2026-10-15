@@ -646,7 +646,7 @@ export class FamilyChartView extends ItemView {
 			const startX = event.clientX;
 			const startWidth = this.infoPanelEl.getBoundingClientRect().width;
 			handle.setPointerCapture(event.pointerId);
-			handle.addClass('is-dragging');
+			handle.addClass('cr-fcv-info-panel-resize-handle--dragging');
 
 			const onMove = (move: PointerEvent) => {
 				const next = startWidth + startX - move.clientX;
@@ -657,7 +657,7 @@ export class FamilyChartView extends ItemView {
 				handle.removeEventListener('pointermove', onMove);
 				handle.removeEventListener('pointerup', finish);
 				handle.removeEventListener('pointercancel', finish);
-				handle.removeClass('is-dragging');
+				handle.removeClass('cr-fcv-info-panel-resize-handle--dragging');
 				if (handle.hasPointerCapture(finishEvent.pointerId)) {
 					handle.releasePointerCapture(finishEvent.pointerId);
 				}
@@ -2586,7 +2586,11 @@ export class FamilyChartView extends ItemView {
 			if (!svg) return;
 			const viewport = svg.getBoundingClientRect();
 			const candidates = Array.from(
-				this.chartContainerEl.querySelectorAll<Element>('.card_cont, .cr-fcv-historical-person-card')
+				this.chartContainerEl.querySelectorAll<Element>(
+					'.card_cont, '
+					+ '.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting) '
+					+ '.cr-fcv-historical-person-card'
+				)
 			);
 			const visible = candidates.some(element => {
 				const rect = element.getBoundingClientRect();
@@ -2640,9 +2644,12 @@ export class FamilyChartView extends ItemView {
 			return [
 				view.style.transform,
 				cardPositions,
-				bboxSignature('.cr-fcv-historical-expansion-layer'),
+				bboxSignature('.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting)'),
 				bboxSignature('.cr-relationship-overlay'),
-				String(view.querySelectorAll('.cr-fcv-historical-person-card').length),
+				String(view.querySelectorAll(
+					'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting) '
+					+ '.cr-fcv-historical-person-card'
+				).length),
 				String(view.querySelectorAll('.cr-relationship-overlay-line').length),
 				String(view.querySelectorAll('.cr-fcv-historical-edge-label').length)
 			].join('::');
@@ -2726,20 +2733,32 @@ export class FamilyChartView extends ItemView {
 				maxX = Math.max(maxX, box.x + box.width);
 				maxY = Math.max(maxY, box.y + box.height);
 			};
-			unionBox(view.querySelector<SVGGraphicsElement>('.cr-fcv-historical-expansion-layer'));
+			unionBox(view.querySelector<SVGGraphicsElement>(
+				'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting)'
+			));
 			unionBox(view.querySelector<SVGGraphicsElement>('.cr-relationship-overlay'));
 
-			// Keep explicit card coordinates as a second guard: some Electron
+			// Keep explicit active-card coordinates as a second guard: some Electron
 			// builds have also reported incomplete group bounds for the lane layer.
-			const { w, h } = this.getCardDimensions(this.cardStyle);
-			for (const card of Array.from(view.querySelectorAll<SVGGElement>('.cr-fcv-historical-person-card'))) {
+			// Read each Historical body's actual dimensions because Card display can
+			// make lane cards taller than the structural style's base dimensions.
+			const base = this.getCardDimensions(this.cardStyle);
+			for (const card of Array.from(view.querySelectorAll<SVGGElement>(
+				'.cr-fcv-historical-expansion-layer:not(.cr-fcv-historical-expansion-layer--exiting) '
+				+ '.cr-fcv-historical-person-card'
+			))) {
 				const x = Number(card.dataset.x);
 				const y = Number(card.dataset.y);
 				if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-				minX = Math.min(minX, x - w / 2);
-				maxX = Math.max(maxX, x + w / 2);
-				minY = Math.min(minY, y - h / 2);
-				maxY = Math.max(maxY, y + h / 2);
+				const body = card.querySelector<SVGRectElement>(
+					'.cr-fcv-historical-person-card__body'
+				);
+				const width = Number(body?.getAttribute('width')) || base.w;
+				const height = Number(body?.getAttribute('height')) || base.h;
+				minX = Math.min(minX, x - width / 2);
+				maxX = Math.max(maxX, x + width / 2);
+				minY = Math.min(minY, y - height / 2);
+				maxY = Math.max(maxY, y + height / 2);
 			}
 			const viewport = svg.getBoundingClientRect();
 			if (!bounds.width || !bounds.height || !viewport.width || !viewport.height) return;
