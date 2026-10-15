@@ -203,6 +203,7 @@
   flex: 1;
   overflow: visible;
   position: relative;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -896,9 +897,10 @@
  * ============================================================ */
 
 .cr-fcv-info-panel {
-  width: 320px;
-  min-width: 280px;
-  max-width: 400px;
+  position: relative;
+  width: 360px;
+  min-width: 300px;
+  max-width: none;
   display: flex;
   flex-direction: column;
   background-color: var(--background-secondary);
@@ -914,6 +916,35 @@
    (#604). */
 .cr-fcv-info-panel.crc-hidden {
   display: none;
+}
+
+.cr-fcv-info-panel-resize-handle {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.cr-fcv-info-panel-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+.cr-fcv-info-panel-resize-handle:hover::after,
+.cr-fcv-info-panel-resize-handle:focus::after,
+.cr-fcv-info-panel-resize-handle.is-dragging::after {
+  background: var(--interactive-accent);
 }
 
 .cr-fcv-info-panel-header {
@@ -962,6 +993,8 @@
 
 .cr-fcv-info-panel-content {
   flex: 1;
+  min-width: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   padding: var(--size-4-3);
 }
@@ -985,6 +1018,8 @@
 
 .cr-fcv-info-panel-actions-description {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
 }
@@ -1016,6 +1051,8 @@
 
 .cr-fcv-info-field-value {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--font-ui-small);
   color: var(--text-normal);
 }
@@ -1721,10 +1758,8 @@
   vector-effect: non-scaling-stroke;
 }
 
-.cr-fcv-historical-person-card__info text {
-  fill: var(--text-muted);
-  font-size: 10px;
-  font-weight: 700;
+.cr-fcv-historical-person-card__info path {
+  stroke: var(--text-muted);
   pointer-events: none;
 }
 
@@ -1734,9 +1769,9 @@
   stroke: var(--interactive-accent);
 }
 
-.cr-fcv-historical-person-card__info:hover text,
-.cr-fcv-historical-person-card__info:focus text {
-  fill: var(--text-on-accent);
+.cr-fcv-historical-person-card__info:hover path,
+.cr-fcv-historical-person-card__info:focus path {
+  stroke: var(--text-on-accent);
 }
 
 .cr-fcv-historical-state-section {
@@ -1752,7 +1787,7 @@
 
 .cr-fcv-historical-state-item {
   display: grid;
-  grid-template-columns: minmax(72px, auto) minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(72px, 0.8fr) minmax(0, 1.4fr) auto;
   gap: 6px;
   align-items: center;
   margin: 5px 0;
@@ -1771,10 +1806,25 @@
 }
 
 .cr-fcv-historical-state-target {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
   text-align: left;
+}
+
+.cr-fcv-historical-state-target-label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.cr-fcv-historical-state-confidence {
+  grid-column: 2;
+  justify-self: start;
+}
+
+.cr-fcv-historical-state-assertion {
+  grid-column: 3;
+  justify-self: end;
 }
 
 .cr-fcv-historical-state-target-label {
