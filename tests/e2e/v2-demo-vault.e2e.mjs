@@ -54,7 +54,8 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 		const point197 = calendar.solarToJulianDay({ year: 197, month: 6, day: 1 });
 		const point201 = calendar.solarToJulianDay({ year: 201, month: 6, day: 1 });
 		const point208 = calendar.solarToJulianDay({ year: 208, month: 6, day: 1 });
-		plugin.getTemporalFocusService().setPoint(point197, 'demo-family-chart-197');
+		// Do not seed TemporalFocus through the internal API here. The user-facing
+		// Historical time control below must establish the 197 CE focus itself.
 		// Deliberately open on Cao Song first. The user-facing search flow below
 		// must promote Cao Cao to the actual persisted/semantic root before
 		// Historical expansion runs.
@@ -140,7 +141,28 @@ test('ready-to-open zh-CN demo vault boots with initialized Workspaces', async (
 		(() => {
 			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
 			return root?.querySelector('.cr-fcv-mode-select')?.value === 'historical'
-				&& root.querySelectorAll('.cr-fcv-historical-depth-btn').length === 4;
+				&& root.querySelectorAll('.cr-fcv-historical-depth-btn').length === 4
+				&& root.querySelector('.cr-fcv-historical-focus-input') instanceof HTMLInputElement
+				&& !root.querySelector('.cr-fcv-as-of-date');
+		})()
+	`);
+
+	// Set the shared Historical focus through the same visible control a user
+	// has in Family Chart. This replaces the old test-only internal setPoint().
+	await session.evalInApp(`
+		const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+		const input = root?.querySelector('.cr-fcv-historical-focus-input');
+		if (!(input instanceof HTMLInputElement)) throw new Error('Historical focus input missing');
+		input.value = '197 CE';
+		input.dispatchEvent(new Event('change', { bubbles: true }));
+		return true;
+	`);
+	await session.waitFor(`
+		(() => {
+			const root = app.workspace.getLeavesOfType('canvas-roots-family-chart')[0]?.view?.containerEl;
+			const focus = app.plugins.plugins['charted-roots'].getTemporalFocusService().get();
+			return root?.querySelector('.cr-fcv-historical-focus')?.textContent?.includes('197 CE')
+				&& focus?.source === 'historical-family-chart';
 		})()
 	`);
 
