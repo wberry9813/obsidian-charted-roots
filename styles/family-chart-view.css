@@ -943,7 +943,7 @@
 
 .cr-fcv-info-panel-resize-handle:hover::after,
 .cr-fcv-info-panel-resize-handle:focus::after,
-.cr-fcv-info-panel-resize-handle.is-dragging::after {
+.cr-fcv-info-panel-resize-handle--dragging::after {
   background: var(--interactive-accent);
 }
 
