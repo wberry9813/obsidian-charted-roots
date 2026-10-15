@@ -2644,7 +2644,13 @@ export class FamilyChartView extends ItemView {
 			// family-chart positions .view with an inline CSS transform. A CSS
 			// transform wins over the SVG transform attribute, so writing only the
 			// attribute leaves the live chart unchanged even though the attribute
-			// looks correct in diagnostics. Update the same CSS channel f3 uses.
+			// looks correct in diagnostics. updateTree({ tree_position: 'fit' }) can
+			// also leave a D3 transition alive on this same group; if we write our
+			// Historical fit while that transition is still scheduled, its final
+			// tween frame can later overwrite the CSS transform and push Historical
+			// lanes back outside the viewport. Stop that stale transition first,
+			// then make the Historical full-content fit the authoritative transform.
+			d3.select(view).interrupt();
 			view.style.transformOrigin = '0 0';
 			view.style.transform = transform;
 			view.setAttribute('transform', `translate(${x},${y}) scale(${k})`);
